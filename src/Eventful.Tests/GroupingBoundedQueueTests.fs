@@ -51,3 +51,27 @@ module GroupingBoundedQueueTests =
         } |> Async.Start
 
         consumer.Wait ()
+
+    [<Test>]
+    let ``Producer will wait for consumers once queues are full`` () : unit = 
+        let groupingQueue = new GroupingBoundedQueue<string,string>(1, 1)
+
+        let groupName = "group"
+        let itemValue = "item"
+
+        let waitMilliseconds = 200
+
+        async {
+            do! Async.Sleep waitMilliseconds
+            do! groupingQueue.AsyncGet() |> Async.Ignore
+        } |> Async.Start
+
+        let producer = 
+            async {
+                do! groupingQueue.AsyncAdd(groupName, itemValue)
+                let stopwatch = System.Diagnostics.Stopwatch.StartNew()
+                do! groupingQueue.AsyncAdd(groupName, itemValue)
+                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo waitMilliseconds)
+            } |> Async.StartAsTask
+
+        producer.Wait ()

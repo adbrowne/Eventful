@@ -12,7 +12,8 @@ type internal GroupingBoundedQueueMessage<'TGroup, 'TItem> =
 type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxGroups, maxItems) =
 
     [<VolatileField>]
-    let mutable count = 0
+    let mutable itemCount = 0
+    let mutable groupCount = 0
     let items = new Dictionary<'TGroup, List<'TItem>>() 
     let groupQueue = new Queue<'TGroup>()
 
@@ -23,6 +24,12 @@ type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxGroups, 
              match msg with
              | AsyncAdd(group, value, reply) -> Some(enqueueAndContinueWithReply(group, value, reply))
              | _ -> None) 
+
+        and fullQueue() = 
+            agent.Scan(fun msg ->
+              match msg with 
+              | AsyncGet(reply) -> Some(dequeueAndContinue(reply))
+              | _ -> None )
 
         and runningQueue() = async {
             let! msg = agent.Receive()
@@ -39,16 +46,21 @@ type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxGroups, 
                 list.Add(value)
                 items.Add(group, list)
                 groupQueue.Enqueue group
-            count <- count + 1
-            return! runningQueue() }
+            itemCount <- itemCount + 1
+            return! chooseState() }
 
         and dequeueAndContinue (reply) = async {
             let group = groupQueue.Dequeue()
             let groupItems = items.[group]
             items.Remove(group) |> ignore
             reply.Reply(group, groupItems)
-            count <- count - 1
-            return! runningQueue() }
+            itemCount <- itemCount - groupItems.Count
+            return! chooseState() }
+
+        and chooseState() = 
+            if itemCount = 0 then emptyQueue()
+            elif itemCount < maxItems && groupCount < maxGroups then runningQueue()
+            else fullQueue()
 
         emptyQueue()
     )
