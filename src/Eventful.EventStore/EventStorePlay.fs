@@ -49,6 +49,7 @@
         let batchCounter = new CounterAgent()
         let onItem group items = async {
              // batchCounter.Incriment() |> Async.Start
+             do! Async.Sleep(10)
              return ()
         }
 
@@ -72,10 +73,15 @@
 
             let sw = System.Diagnostics.Stopwatch.StartNew()
             let eventAppeared (event:ResolvedEvent) = 
-                async {
-                    do! queue.Add event 
-                } |> Async.RunSynchronously
-                eventsMeter.Mark()
+                if(event.OriginalStreamId.StartsWith("$")) then
+                    ()
+                elif (event.OriginalStreamId.Contains("Ping")) then
+                    ()
+                else
+                    async {
+                        do! queue.Add event 
+                    } |> Async.RunSynchronously
+                    eventsMeter.Mark()
 
             connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event), (fun subscription -> tcs.SetResult ())) |> ignore
 
