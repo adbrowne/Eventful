@@ -6,12 +6,17 @@
 
     [<Test>]
     let ``Play eventstore events`` () : unit = 
-        let consumer group (eventList:System.Collections.Generic.List<RecordedEvent>) =
-            async {
-                    printfn "Group: %s, Count: %d" group eventList.Count
-            }
+        let queue = new GroupingBoundedQueue<string,RecordedEvent>(1000, 100000)
 
-        let queue = new GroupingBoundedQueue<string,RecordedEvent>(1000, 100000, 10, consumer)
+        async {
+            let rec readQueue () = async{
+                    let! (group, eventList) = queue.AsyncGet ()
+                    printfn "Group: %s, Count: %d" group eventList.Count
+                    do! readQueue ()
+                }
+
+            do! readQueue()
+        } |> Async.Start
 
         async {
             printfn "Started"

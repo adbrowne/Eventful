@@ -9,7 +9,7 @@ type internal GroupingBoundedQueueMessage<'TGroup, 'TItem> =
     | AsyncAdd of 'TGroup * 'TItem * AsyncReplyChannel<unit> 
     | AsyncGet of AsyncReplyChannel<'TGroup * List<'TItem>>
 
-type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxGroups, maxItems, workerCount : int, workAction : 'TGroup -> List<'TItem> -> Async<unit>) =
+type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxGroups, maxItems) =
 
     [<VolatileField>]
     let mutable itemCount = 0
@@ -65,16 +65,13 @@ type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxGroups, 
         emptyQueue()
     )
 
-    let workers = 
-        for i in [1..workerCount] do
-            async {
-                while true do
-                    let! (group, items) = agent.PostAndAsyncReply(AsyncGet)
-                    do! workAction group items
-            } |> Async.Start
-        
     /// Asynchronously adds item to the queue. The operation ends when
     /// there is a place for the item. If the queue is full, the operation
     /// will block until some items are removed.
     member x.AsyncAdd(g: 'TGroup, v:'TItem, ?timeout) = 
       agent.PostAndAsyncReply((fun ch -> AsyncAdd(g, v, ch)), ?timeout=timeout)
+
+    /// Asynchronously gets item from the queue. If there are no items
+    /// in the queue, the operation will block until items are added.
+    member x.AsyncGet(?timeout) = 
+      agent.PostAndAsyncReply(AsyncGet, ?timeout=timeout)
