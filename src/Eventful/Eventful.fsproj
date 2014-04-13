@@ -43,6 +43,7 @@
   <ItemGroup>
     <Compile Include="GroupingBoundedQueue.fs" />
     <Compile Include="WorktrackingQueue.fs" />
+    <Compile Include="CounterAgent.fs" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
