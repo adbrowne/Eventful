@@ -24,7 +24,7 @@ type WorktrackingQueue<'TGroup, 'TItem, 'TItemKey when 'TGroup : comparison and 
         itemToKey : 'TItem -> 'TItemKey
     ) =
 
-    let queue = new GroupingBoundedQueue<'TGroup, 'TItem>(maxGroups, maxItems)
+    let queue = new GroupingBoundedQueue<'TGroup, 'TItem>(maxItems)
 
     let agent = Agent.Start(fun agent ->
 
@@ -81,10 +81,11 @@ type WorktrackingQueue<'TGroup, 'TItem, 'TItemKey when 'TGroup : comparison and 
         for i in [1..workerCount] do
             async {
                 while true do
-                    let! (group, items) = queue.AsyncGet ()
-                    do! workAction group items
-                    for item in items do
-                        agent.Post (Complete (group, item))
+                    do! queue.AsyncConsume (fun (group, items) -> async {
+                                                                             do! workAction group items
+                                                                             for item in items do
+                                                                                agent.Post (Complete (group, item))
+                                                                        })
             } |> Async.Start
 
     member this.Add (item:'TItem) =
