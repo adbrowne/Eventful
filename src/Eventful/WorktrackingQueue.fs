@@ -24,7 +24,7 @@ type WorktrackingQueue<'TGroup, 'TItem, 'TItemKey when 'TGroup : comparison and 
         itemToKey : 'TItem -> 'TItemKey
     ) =
 
-    let queue = new GroupingBoundedQueue<'TGroup, 'TItem>(maxItems)
+    let queue = new GroupingBoundedQueue<'TGroup, 'TItem, unit>(maxItems)
 
     let agent = Agent.Start(fun agent ->
 

@@ -98,17 +98,22 @@
         let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
         Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
 
-        let queue = new GroupingBoundedQueue<string,RecordedEvent>(1000, 100000)
+        let queue = new GroupingBoundedQueue<string, RecordedEvent, unit>(1000)
 
-        async {
-            let rec readQueue () = async{
-                    let! (group, eventList) = queue.AsyncGet ()
-                    // printfn "Group: %s, Count: %d" group eventList.Count
-                    do! readQueue ()
-                }
+        let worker () = 
+            async {
+                let rec readQueue () = async{
+                        do! queue.AsyncConsume ((fun (group, eventList) -> async { 
+                               // printfn "Group: %s, Count: %d" group eventList.Length
+                               do! Async.Sleep (1)
+                             }))
+                        do! readQueue ()
+                    }
 
-            do! readQueue()
-        } |> Async.Start
+                do! readQueue()
+            }
+
+        Seq.init 10 (fun _ -> worker ()) |> Async.Parallel |> Async.Ignore |> Async.Start
 
         async {
             printfn "Started"

@@ -10,7 +10,7 @@ module GroupingBoundedQueueTests =
 
     [<Test>]
     let ``Can enqueue and dequeue an item`` () : unit = 
-        let groupingQueue = new GroupingBoundedQueue<string,string>(1000)
+        let groupingQueue = new GroupingBoundedQueue<string,string, (string * list<string>)>(1000)
 
         let groupName = "group"
         let itemValue = "item"
@@ -22,7 +22,7 @@ module GroupingBoundedQueueTests =
 
         let consumer =
             async {
-                let! (group, items) = groupingQueue.AsyncGet()
+                let! (group, items) = groupingQueue.AsyncConsume((fun x -> async { return x }))
                 group |> should equal groupName
                 items |> Seq.head |> should equal itemValue
                 items |> Seq.length |> should equal 1
@@ -32,7 +32,7 @@ module GroupingBoundedQueueTests =
 
     [<Test>]
     let ``Consumer will wait for value`` () : unit = 
-        let groupingQueue = new GroupingBoundedQueue<string,string>(1000, 100000)
+        let groupingQueue = new GroupingBoundedQueue<string,string, unit>(1000)
 
         let groupName = "group"
         let itemValue = "item"
@@ -42,7 +42,7 @@ module GroupingBoundedQueueTests =
         let consumer =
             async {
                 let stopwatch = System.Diagnostics.Stopwatch.StartNew()
-                do! groupingQueue.AsyncGet() |> Async.Ignore
+                do! groupingQueue.AsyncConsume((fun _ -> async { return () })) |> Async.Ignore
                 stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo waitMilliseconds)
             } |> Async.StartAsTask
 
@@ -55,7 +55,7 @@ module GroupingBoundedQueueTests =
 
     [<Test>]
     let ``Producer will wait for consumers once queues are full`` () : unit = 
-        let groupingQueue = new GroupingBoundedQueue<string,string>(1, 1)
+        let groupingQueue = new GroupingBoundedQueue<string,string, unit>(1)
 
         let groupName = "group"
         let itemValue = "item"
@@ -64,7 +64,7 @@ module GroupingBoundedQueueTests =
 
         async {
             do! Async.Sleep waitMilliseconds
-            do! groupingQueue.AsyncGet() |> Async.Ignore
+            do! groupingQueue.AsyncConsume((fun _ -> async { return () })) |> Async.Ignore
         } |> Async.Start
 
         let producer = 
@@ -79,7 +79,7 @@ module GroupingBoundedQueueTests =
 
     [<Test>]
     let ``Next items from the same group will not be consumed until previous items are complete`` () : unit =
-        let groupingQueue = new GroupingBoundedQueue<string,string>(1000, 100000)
+        let groupingQueue = new GroupingBoundedQueue<string,string, (DateTime * DateTime)>(1000)
 
         let groupName = "group"
         let itemValue = "item"
