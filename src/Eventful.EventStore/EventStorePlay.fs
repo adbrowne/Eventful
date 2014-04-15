@@ -104,7 +104,7 @@
             async {
                 let rec readQueue () = async{
                         do! queue.AsyncConsume ((fun (group, eventList) -> async { 
-                               // printfn "Group: %s, Count: %d" group eventList.Length
+                               // System.Console.WriteLine(sprintf "Group: %s, Count: %d" group eventList.Length)
                                do! Async.Sleep (1)
                              }))
                         do! readQueue ()
@@ -113,7 +113,7 @@
                 do! readQueue()
             }
 
-        Seq.init 10 (fun _ -> worker ()) |> Async.Parallel |> Async.Ignore |> Async.Start
+        Seq.init 1000 (fun _ -> worker ()) |> Async.Parallel |> Async.Ignore |> Async.Start
 
         async {
             printfn "Started"

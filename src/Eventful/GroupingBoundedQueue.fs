@@ -17,25 +17,33 @@ type GroupedItems<'TGroup, 'TItem when 'TGroup : comparison> = {
 with static member ContainsGroup (group: 'TGroup) (groupedItems:GroupedItems<'TGroup, 'TItem>) = 
         groupedItems.Items |> Map.containsKey group
      static member Add (group: 'TGroup) (item:'TItem) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
+        //Console.WriteLine("Adding Group: {0}", group)
         let newItems = 
             if(groupedItems.Items |> Map.containsKey group) then
                 groupedItems.Items |> Map.add group (item :: groupedItems.Items.[group])
             else
                 groupedItems.Items |> Map.add group (List.singleton item)
+        //Console.WriteLine(sprintf "Added Group: %A" newItems)
         { Items = newItems; ItemCount = groupedItems.ItemCount + 1 }
      static member AddList (group: 'TGroup) (items:List<'TItem>) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
+        //Console.WriteLine("AddList Group: {0}", group)
         let newItems = 
             if(groupedItems.Items |> Map.containsKey group) then
                 groupedItems.Items |> Map.add group (List.append items groupedItems.Items.[group])
             else
                 groupedItems.Items |> Map.add group items
-        { Items = newItems; ItemCount = groupedItems.ItemCount + 1 }
+        { Items = newItems; ItemCount = groupedItems.ItemCount + items.Length }
      static member Remove (group: 'TGroup) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
-        let itemsInGroup = groupedItems.Items.[group].Length
-        { 
-            Items = groupedItems.Items |> Map.remove group
-            ItemCount = groupedItems.ItemCount - itemsInGroup
-        }
+        if(groupedItems.Items |> Map.containsKey group) then
+            //Console.WriteLine("Removed group {0}",group)
+            let itemsInGroup = groupedItems.Items.[group].Length
+            { 
+                Items = groupedItems.Items |> Map.remove group
+                ItemCount = groupedItems.ItemCount - itemsInGroup
+            }
+        else
+            // Console.WriteLine("Group missing {0}",group)
+            groupedItems
                 
 type RunningState<'TGroup, 'TItem when 'TGroup : comparison> = {
     AvailableWorkQueue : Queue<'TGroup>
@@ -110,6 +118,7 @@ type GroupingBoundedQueue<'TGroup, 'TItem, 'TResult when 'TGroup : comparison>(m
             reply.Reply()
             let newState = 
                 if(runningState.RunningGroups |> Set.contains group) then
+                    //Console.WriteLine("Group Added to Waiting Items {0}", group)
                     { runningState with WaitingItems = runningState.WaitingItems |> GroupedItems.Add group value }
                 else
                     let newAvailableWorkQueue = 
@@ -117,12 +126,14 @@ type GroupingBoundedQueue<'TGroup, 'TItem, 'TResult when 'TGroup : comparison>(m
                             runningState.AvailableWorkQueue
                         else
                             runningState.AvailableWorkQueue |> Queue.conj group
+                    //Console.WriteLine("Group Added to Current Items {0}", group)
                     { runningState with 
                             AvailableWorkQueue = newAvailableWorkQueue
                             CurrentItems = runningState.CurrentItems |> GroupedItems.Add group value }
             return! chooseState(newState) }
 
         and workComplete (group, state) = 
+            // System.Console.WriteLine(sprintf "Work complete Group: %A" group)
             let newState =  
                 if(state.WaitingItems.Items |> Map.containsKey group) then
                     let waiting = state.WaitingItems.Items.[group]
@@ -153,7 +164,9 @@ type GroupingBoundedQueue<'TGroup, 'TItem, 'TResult when 'TGroup : comparison>(m
             chooseState(newState)
 
         and chooseState(runningState) = 
+            //Console.WriteLine(sprintf "Running State %A" runningState)
             let queueMode = getStateSummary runningState
+            //Console.WriteLine(sprintf "Next State %A" queueMode)
             match queueMode with
             | Empty -> emptyQueue(empty)
             | NotFullWorkAvailable -> notFullWorkAvailable(runningState)
