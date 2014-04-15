@@ -10,7 +10,7 @@ module GroupingBoundedQueueTests =
 
     [<Test>]
     let ``Can enqueue and dequeue an item`` () : unit = 
-        let groupingQueue = new GroupingBoundedQueue<string,string>(1000, 100000)
+        let groupingQueue = new GroupingBoundedQueue<string,string>(1000)
 
         let groupName = "group"
         let itemValue = "item"

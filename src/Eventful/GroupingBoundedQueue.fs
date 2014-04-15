@@ -14,10 +14,7 @@ type GroupedItems<'TGroup, 'TItem when 'TGroup : comparison> = {
     Items: Map<'TGroup, List<'TItem>>
     ItemCount: int
 }
-with static member empty = {
-        Items = Map.empty
-        ItemCount = 0 } 
-     static member Add (group: 'TGroup) (item:'TItem) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
+with static member Add (group: 'TGroup) (item:'TItem) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
         let newItems = 
             if(groupedItems.Items |> Map.containsKey group) then
                 groupedItems.Items |> Map.add group (item :: groupedItems.Items.[group])
@@ -44,20 +41,16 @@ type RunningState<'TGroup, 'TItem when 'TGroup : comparison> = {
     CurrentItems : GroupedItems<'TGroup, 'TItem>
     WaitingItems : GroupedItems<'TGroup, 'TItem>
 }
-with static member Empty = { 
-        AvailableWorkQueue = Queue.empty
-        RunningGroups = Set.empty 
-        CurrentItems = GroupedItems<'TGroup, 'TItem>.empty 
-        WaitingItems = GroupedItems<'TGroup, 'TItem>.empty 
-    } 
 
 type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxItems) =
+    let empty = { AvailableWorkQueue = Queue.empty; RunningGroups = Set.empty; CurrentItems = { Items = Map.empty; ItemCount = 0}; WaitingItems = { Items = Map.empty; ItemCount = 0} }
+
     let agent = Agent.Start(fun agent ->
 
-        let rec emptyQueue() =
+        let rec emptyQueue(state) =
             agent.Scan(fun msg -> 
              match msg with
-             | AsyncAdd(group, value, reply) -> Some(enqueue(group, value, reply, RunningState<'TGroup, 'TItem>.Empty))
+             | AsyncAdd(group, value, reply) -> Some(enqueue(group, value, reply, state))
              | _ -> None) 
 
          and notFullWorkAvailable(runningState) = async {
@@ -70,7 +63,7 @@ type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxItems) =
          and notFullNoWorkAvailable(runningState) = 
             agent.Scan(fun msg -> 
              match msg with
-             | AsyncAdd(group, value, reply) -> Some(enqueue(group, value, reply, RunningState<'TGroup, 'TItem>.Empty))
+             | AsyncAdd(group, value, reply) -> Some(enqueue(group, value, reply, runningState))
              | WorkComplete(group) -> Some(workComplete(group, runningState))
              | _ -> None)
 
@@ -129,7 +122,7 @@ type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxItems) =
             let workAvailable = not runningState.AvailableWorkQueue.IsEmpty
 
             match itemCount with
-            | 0 -> emptyQueue()
+            | 0 -> emptyQueue(empty)
             | count when count < maxItems -> 
                 if(workAvailable) then
                     notFullWorkAvailable(runningState)
@@ -141,7 +134,7 @@ type GroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(maxItems) =
                 else
                     fullNoWorkAvailable(runningState)
 
-        emptyQueue()
+        emptyQueue(empty)
     )
 
     /// Asynchronously adds item to the queue. The operation ends when
