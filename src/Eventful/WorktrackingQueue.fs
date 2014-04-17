@@ -27,52 +27,51 @@ type WorktrackingQueue<'TGroup, 'TItem, 'TItemKey when 'TGroup : comparison and 
 
     let agent = Agent.Start(fun agent ->
 
-        let rec loop(state : WorkqueueState<'TGroup, 'TItemKey>) =
-            agent.Scan(fun msg -> 
-                     match msg with
-                     | Start (item, groups, complete, reply) -> 
-                        let itemKey = itemToKey item
-                        let newItems = Map.add itemKey (groups, complete) state.Items
-                        Some(async {
-                            for group in groups do
-                                do! queue.AsyncAdd(group, item)
-                            do reply.Reply()
-                            return! loop ({ state with Items = newItems})
-                        })
-                     | Complete (group, item) -> 
-                        let itemKey = itemToKey item
-                        let (groups, reply) = state.Items.[itemKey]
-                        let newGroups = groups |> Set.remove group
-                        Some(async {
-                                let! newState = async {
-                                    if(newGroups.IsEmpty) then
-                                        do! reply
-                                        let itemSet = Set.singleton itemKey
-                                        let (emptyBatches, remainingBatches) = state.Batches |> List.partition (fun (_,items) -> items = itemSet)
+        let rec loop(state : WorkqueueState<'TGroup, 'TItemKey>) = async {
+         let! msg = agent.Receive()
+         match msg with
+         | Start (item, groups, complete, reply) -> 
+            let itemKey = itemToKey item
+            let newItems = Map.add itemKey (groups, complete) state.Items
+            return! async {
+                for group in groups do
+                    do! queue.AsyncAdd(group, item)
+                do reply.Reply()
+                return! loop ({ state with Items = newItems})
+            }
+         | Complete (group, item) -> 
+            let itemKey = itemToKey item
+            let (groups, reply) = state.Items.[itemKey]
+            let newGroups = groups |> Set.remove group
+            return! (async {
+                    let! newState = async {
+                        if(newGroups.IsEmpty) then
+                            do! reply
+                            let itemSet = Set.singleton itemKey
+                            let (emptyBatches, remainingBatches) = state.Batches |> List.partition (fun (_,items) -> items = itemSet)
 
-                                        for (batchReply, _) in emptyBatches do
-                                            batchReply.Reply()
+                            for (batchReply, _) in emptyBatches do
+                                batchReply.Reply()
 
-                                        return { state with Items = state.Items |> Map.remove itemKey; Batches = remainingBatches} 
-                                    else
-                                        return { state with Items = state.Items |> Map.add itemKey (newGroups, reply) }
-                                }
-                                return! loop (newState)
-                            }
-                        )
-                      | NotifyWhenAllComplete reply ->
-                            let currentItems = state.Items |> Map.toList |> List.map fst |> Set.ofList
-                            if(currentItems.IsEmpty) then
-                                reply.Reply()
-                                Some(loop(state))
-                            else
-                                Some(async {
-                                        let newBatches = (reply, currentItems) :: state.Batches
-                                        return! loop({state with Batches = newBatches })
-                                     }
-                                )
-                )
-
+                            return { state with Items = state.Items |> Map.remove itemKey; Batches = remainingBatches} 
+                        else
+                            return { state with Items = state.Items |> Map.add itemKey (newGroups, reply) }
+                    }
+                    return! loop (newState)
+                }
+            )
+          | NotifyWhenAllComplete reply ->
+                let currentItems = state.Items |> Map.toList |> List.map fst |> Set.ofList
+                if(currentItems.IsEmpty) then
+                    reply.Reply()
+                    return! loop(state)
+                else
+                    return! (async {
+                            let newBatches = (reply, currentItems) :: state.Batches
+                            return! loop({state with Batches = newBatches })
+                         }
+                    )
+        }
         loop { Items = Map.empty; Batches = List.empty }
     )
 

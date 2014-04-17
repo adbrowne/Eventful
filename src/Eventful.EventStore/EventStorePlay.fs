@@ -88,7 +88,6 @@
 
         let batchCounter = new CounterAgent()
         let onItem group items = async {
-             // batchCounter.Incriment() |> Async.Start
              do! Async.Sleep(10)
              return ()
         }
