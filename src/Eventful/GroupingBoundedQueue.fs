@@ -10,7 +10,6 @@ type internal GroupingBoundedQueueMessage<'TGroup, 'TItem, 'TResult when 'TGroup
 
 type GroupedItems<'TGroup, 'TItem when 'TGroup : comparison> = {
     Items: Map<'TGroup, List<'TItem>>
-    ItemCount: int
 }
 with static member ContainsGroup (group: 'TGroup) (groupedItems:GroupedItems<'TGroup, 'TItem>) = 
         groupedItems.Items |> Map.containsKey group
@@ -22,7 +21,7 @@ with static member ContainsGroup (group: 'TGroup) (groupedItems:GroupedItems<'TG
             else
                 groupedItems.Items |> Map.add group (List.singleton item)
         //Console.WriteLine(sprintf "Added Group: %A" newItems)
-        { Items = newItems; ItemCount = groupedItems.ItemCount + 1 }
+        { Items = newItems }
      static member AddList (group: 'TGroup) (items:List<'TItem>) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
         //Console.WriteLine("AddList Group: {0}", group)
         let newItems = 
@@ -30,14 +29,13 @@ with static member ContainsGroup (group: 'TGroup) (groupedItems:GroupedItems<'TG
                 groupedItems.Items |> Map.add group (List.append items groupedItems.Items.[group])
             else
                 groupedItems.Items |> Map.add group items
-        { Items = newItems; ItemCount = groupedItems.ItemCount + items.Length }
+        { Items = newItems }
      static member Remove (group: 'TGroup) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
         if(groupedItems.Items |> Map.containsKey group) then
             //Console.WriteLine("Removed group {0}",group)
             let itemsInGroup = groupedItems.Items.[group].Length
             { 
                 Items = groupedItems.Items |> Map.remove group
-                ItemCount = groupedItems.ItemCount - itemsInGroup
             }
         else
             // Console.WriteLine("Group missing {0}",group)
@@ -50,64 +48,22 @@ type RunningState<'TGroup, 'TItem when 'TGroup : comparison> = {
     WaitingItems : GroupedItems<'TGroup, 'TItem>
 }
 
-type QueueMode =
-    | Empty
-    | NotFullWorkAvailable
-    | NotFullNoWorkAvailable
-    | FullWorkAvailable
-    | FullNoWorkAvailable
-
 type GroupingBoundedQueue<'TGroup, 'TItem, 'TResult when 'TGroup : comparison>(maxItems) =
-    let empty = { AvailableWorkQueue = Queue.empty; RunningGroups = Set.empty; CurrentItems = { Items = Map.empty; ItemCount = 0}; WaitingItems = { Items = Map.empty; ItemCount = 0} }
-
-    let getStateSummary runningState =
-        let itemCount = runningState.CurrentItems.ItemCount + runningState.WaitingItems.ItemCount
-        let workAvailable = not runningState.AvailableWorkQueue.IsEmpty
-        match itemCount with
-        | 0 -> Empty
-        | count when count < maxItems -> 
-            if(workAvailable) then
-                NotFullWorkAvailable
-            else
-                NotFullNoWorkAvailable
-        | _ ->
-            if(workAvailable) then
-                FullWorkAvailable
-            else
-                FullNoWorkAvailable
+    let empty = { AvailableWorkQueue = Queue.empty; RunningGroups = Set.empty; CurrentItems = { Items = Map.empty }; WaitingItems = { Items = Map.empty } }
 
     let agentDef callback = Agent.Start(fun agent ->
 
-        let rec emptyQueue(state) =
-            agent.Scan(fun msg -> 
-             match msg with
-             | AsyncAdd(group, value, reply) -> Some(enqueue(group, value, reply, state))
-             | _ -> None) 
-
-         and notFullWorkAvailable(runningState) = async {
+        let rec workAvailable(runningState) = async {
             let! msg = agent.Receive()
             match msg with 
             | AsyncAdd(group, value, reply) -> return! enqueue(group, value, reply, runningState)
             | AsyncComplete(work, reply) -> return! setWorking(work, reply, runningState)
             | WorkComplete(group) -> return! workComplete(group, runningState) }
 
-         and notFullNoWorkAvailable(runningState) = 
+        and noWorkAvailable(runningState) = 
             agent.Scan(fun msg -> 
              match msg with
              | AsyncAdd(group, value, reply) -> Some(enqueue(group, value, reply, runningState))
-             | WorkComplete(group) -> Some(workComplete(group, runningState))
-             | _ -> None)
-
-        and fullWorkAvailable(runningState) = 
-            agent.Scan(fun msg -> 
-             match msg with
-             | AsyncComplete(work, reply) -> Some(setWorking(work, reply, runningState))
-             | WorkComplete(group) -> Some(workComplete(group, runningState))
-             | _ -> None)
-
-        and fullNoWorkAvailable(runningState) = 
-            agent.Scan(fun msg -> 
-             match msg with
              | WorkComplete(group) -> Some(workComplete(group, runningState))
              | _ -> None)
 
@@ -149,7 +105,7 @@ type GroupingBoundedQueue<'TGroup, 'TItem, 'TResult when 'TGroup : comparison>(m
             callback completeCount
             return! chooseState(newState) }
 
-        and setWorking (worker, reply, state : RunningState<'TGroup, 'TItem>) =
+         and setWorking (worker, reply, state : RunningState<'TGroup, 'TItem>) =
             let (group, newQueue) = state.AvailableWorkQueue |> Queue.uncons
             let items = state.CurrentItems.Items.[group]
             async {
@@ -163,18 +119,12 @@ type GroupingBoundedQueue<'TGroup, 'TItem, 'TResult when 'TGroup : comparison>(m
             chooseState(newState)
 
         and chooseState(runningState) = 
-            //Console.WriteLine(sprintf "Running State %A" runningState)
-            let queueMode = getStateSummary runningState
-            //Console.WriteLine(sprintf "Next State %A" queueMode)
-            match queueMode with
-            | Empty -> emptyQueue(empty)
-            | NotFullWorkAvailable -> notFullWorkAvailable(runningState)
-            | NotFullNoWorkAvailable -> notFullNoWorkAvailable(runningState)
-            | FullWorkAvailable -> fullWorkAvailable(runningState)
-            | FullNoWorkAvailable -> fullNoWorkAvailable(runningState)
-           
+            if(runningState.AvailableWorkQueue.IsEmpty) then
+                noWorkAvailable(runningState)
+            else
+                workAvailable(runningState)
 
-        emptyQueue(empty)
+        noWorkAvailable(empty)
     )
 
     let rec boundedWorkQueue = new BoundedWorkQueue<('TGroup * 'TItem)>(maxItems, postWorkToAgent)
