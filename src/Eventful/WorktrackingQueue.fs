@@ -15,7 +15,6 @@ type WorkqueueState<'TGroup, 'TItemKey when 'TGroup : comparison and 'TItemKey :
 
 type WorktrackingQueue<'TGroup, 'TItem, 'TItemKey when 'TGroup : comparison and 'TItemKey : comparison>
     (
-        maxGroups, 
         maxItems, 
         grouping : 'TItem -> Set<'TGroup>, 
         complete : 'TItem -> Async<unit>,
