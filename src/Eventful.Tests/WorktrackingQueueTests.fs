@@ -35,7 +35,7 @@ module WorktrackingQueueTests =
         let completeCount = new CounterAgent()
 
         let complete item = async {
-            do! Async.Sleep(100)
+            // do! Async.Sleep(100)
             do! completeCount.Incriment ()
         }
 
@@ -43,6 +43,7 @@ module WorktrackingQueueTests =
             let worktrackingQueue = new WorktrackingQueue<int,(string * string)>(100000, groupingFunction, complete, 10, (fun _ _ -> Async.Sleep(100)))
             do! worktrackingQueue.Add ("group", "item")
             do! worktrackingQueue.AsyncComplete()
+            do! Async.Sleep 100
             let! count = completeCount.Get()
             count |> should equal 1
         } |> Async.RunSynchronously
