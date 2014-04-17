@@ -7,6 +7,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Tests", "Eventful.
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.EventStore", "Eventful.EventStore\Eventful.EventStore.fsproj", "{AE510F33-D499-41AD-8EA6-6961AD7E2DFE}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.ConsoleTest", "Eventful.ConsoleTest\Eventful.ConsoleTest.fsproj", "{0647DB3B-5F72-4F7A-8585-08A041A1E847}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,6 +27,10 @@ Global
 		{AE510F33-D499-41AD-8EA6-6961AD7E2DFE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AE510F33-D499-41AD-8EA6-6961AD7E2DFE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AE510F33-D499-41AD-8EA6-6961AD7E2DFE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0647DB3B-5F72-4F7A-8585-08A041A1E847}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0647DB3B-5F72-4F7A-8585-08A041A1E847}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0647DB3B-5F72-4F7A-8585-08A041A1E847}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0647DB3B-5F72-4F7A-8585-08A041A1E847}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
