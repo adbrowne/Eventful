@@ -107,7 +107,7 @@ module GroupingBoundedQueueTests =
 
         async {
             do! groupingQueue.AsyncAdd("group","item1")
-            do! Async.Sleep 10
+            do! Async.Sleep 100 // needs to be long enough to ensure the first worker does not get a single item
             do! groupingQueue.AsyncAdd("group","item1")
         } |> Async.Start
 

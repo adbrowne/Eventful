@@ -98,7 +98,7 @@
         let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
         Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
 
-        let queue = new GroupingBoundedQueue<string, RecordedEvent, unit>(1000)
+        let queue = new GroupingBoundedQueue<string, RecordedEvent, unit>(100000)
 
         let worker () = 
             async {
