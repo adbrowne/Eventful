@@ -38,7 +38,9 @@
   <ItemGroup>
     <Compile Include="Agent.fs" />
     <Compile Include="BoundedWorkQueue.fs" />
+    <Compile Include="GroupingBoundedQueueState.fs" />
     <Compile Include="GroupingBoundedQueue.fs" />
+    <Compile Include="WorktrackingQueueState.fs" />
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="CounterAgent.fs" />
     <None Include="packages.config" />

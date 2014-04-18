@@ -8,135 +8,62 @@ type internal GroupingBoundedQueueMessage<'TGroup, 'TItem, 'TResult when 'TGroup
     | AsyncComplete of (('TGroup * List<'TItem> -> Async<'TResult>) * AsyncReplyChannel<'TResult>)
     | WorkComplete of 'TGroup
 
-type GroupedItems<'TGroup, 'TItem when 'TGroup : comparison> = {
-    Items: Map<'TGroup, List<'TItem>>
-}
-with static member ContainsGroup (group: 'TGroup) (groupedItems:GroupedItems<'TGroup, 'TItem>) = 
-        groupedItems.Items |> Map.containsKey group
-     static member Add (group: 'TGroup) (item:'TItem) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
-        //Console.WriteLine("Adding Group: {0}", group)
-        let newItems = 
-            if(groupedItems.Items |> Map.containsKey group) then
-                groupedItems.Items |> Map.add group (item :: groupedItems.Items.[group])
-            else
-                groupedItems.Items |> Map.add group (List.singleton item)
-        //Console.WriteLine(sprintf "Added Group: %A" newItems)
-        { Items = newItems }
-     static member AddList (group: 'TGroup) (items:List<'TItem>) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
-        //Console.WriteLine("AddList Group: {0}", group)
-        let newItems = 
-            if(groupedItems.Items |> Map.containsKey group) then
-                groupedItems.Items |> Map.add group (List.append items groupedItems.Items.[group])
-            else
-                groupedItems.Items |> Map.add group items
-        { Items = newItems }
-     static member Remove (group: 'TGroup) (groupedItems:GroupedItems<'TGroup, 'TItem>) =
-        if(groupedItems.Items |> Map.containsKey group) then
-            //Console.WriteLine("Removed group {0}",group)
-            let itemsInGroup = groupedItems.Items.[group].Length
-            { 
-                Items = groupedItems.Items |> Map.remove group
-            }
-        else
-            // Console.WriteLine("Group missing {0}",group)
-            groupedItems
-                
-type RunningState<'TGroup, 'TItem when 'TGroup : comparison> = {
-    AvailableWorkQueue : Queue<'TGroup>
-    RunningGroups : Set<'TGroup>
-    CurrentItems : GroupedItems<'TGroup, 'TItem>
-    WaitingItems : GroupedItems<'TGroup, 'TItem>
-}
-
 type GroupingBoundedQueue<'TGroup, 'TItem, 'TResult when 'TGroup : comparison>(maxItems) =
-    let empty = { AvailableWorkQueue = Queue.empty; RunningGroups = Set.empty; CurrentItems = { Items = Map.empty }; WaitingItems = { Items = Map.empty } }
 
     let agentDef callback = Agent.Start(fun agent ->
 
-        let rec workAvailable(runningState) = async {
+        let rec workAvailable(state:GroupingBoundedQueueState<'TGroup,'TItem>) = async {
             let! msg = agent.Receive()
             match msg with 
-            | AsyncAdd(group, value, reply) -> return! enqueue(group, value, reply, runningState)
-            | AsyncComplete(work, reply) -> return! setWorking(work, reply, runningState)
-            | WorkComplete(group) -> return! workComplete(group, runningState) }
-
-        and noWorkAvailable(runningState) = 
+            | AsyncAdd(group, value, reply) -> return! enqueue(group, value, reply, state)
+            | AsyncComplete(work, reply) -> return! setWorking(work, reply, state)
+            | WorkComplete(group) -> return! workComplete(group, state) 
+            }
+        and noWorkAvailable(state) = 
             agent.Scan(fun msg -> 
              match msg with
-             | AsyncAdd(group, value, reply) -> Some(enqueue(group, value, reply, runningState))
-             | WorkComplete(group) -> Some(workComplete(group, runningState))
+             | AsyncAdd(group, value, reply) ->  Some(enqueue(group, value, reply, state))
+             | WorkComplete(group) -> Some(workComplete(group, state))
              | _ -> None)
 
-        and enqueue (group, value, reply, runningState) = async {
+        and enqueue ((group:'TGroup), (value:'TItem), reply, state) = async {
             reply.Reply()
-            let newState = 
-                if(runningState.RunningGroups |> Set.contains group) then
-                    //Console.WriteLine("Group Added to Waiting Items {0}", group)
-                    { runningState with WaitingItems = runningState.WaitingItems |> GroupedItems.Add group value }
-                else
-                    let newAvailableWorkQueue = 
-                        if(runningState.CurrentItems |> GroupedItems.ContainsGroup group) then
-                            runningState.AvailableWorkQueue
-                        else
-                            runningState.AvailableWorkQueue |> Queue.conj group
-                    //Console.WriteLine("Group Added to Current Items {0}", group)
-                    { runningState with 
-                            AvailableWorkQueue = newAvailableWorkQueue
-                            CurrentItems = runningState.CurrentItems |> GroupedItems.Add group value }
-            return! chooseState(newState) }
+            let nextState = state.enqueue(group, value)
+            return! chooseState(nextState) }
 
-        and workComplete (group, state) = async{
-            // System.Console.WriteLine(sprintf "Work complete Group: %A" group)
-            let completeCount = state.CurrentItems.Items.[group].Length
-            let newState =  
-                if(state.WaitingItems.Items |> Map.containsKey group) then
-                    let waiting = state.WaitingItems.Items.[group]
-                    { state with
-                            RunningGroups = state.RunningGroups |> Set.remove group
-                            CurrentItems = state.CurrentItems |> GroupedItems.Remove group |> GroupedItems.AddList group waiting
-                            WaitingItems = state.WaitingItems |> GroupedItems.Remove group
-                            AvailableWorkQueue = state.AvailableWorkQueue |> Queue.conj group
-                    }
-                else
-                    { state with
-                            RunningGroups = state.RunningGroups |> Set.remove group
-                            CurrentItems = state.CurrentItems |> GroupedItems.Remove group
-                    }
+        and workComplete ((group:'TGroup), state) = async{
+            let (completeCount, nextState) = state.workComplete(group)
             callback completeCount
-            return! chooseState(newState) }
+            return! chooseState(nextState) }
 
-         and setWorking (worker, reply, state : RunningState<'TGroup, 'TItem>) =
-            let (group, newQueue) = state.AvailableWorkQueue |> Queue.uncons
-            let items = state.CurrentItems.Items.[group]
+         and setWorking (worker, reply, state) =
+            let (group, items, nextState) = state.dequeue()
             async {
                 let! result = worker (group, items)
                 reply.Reply result
                 agent.Post <| WorkComplete group
             } |> Async.Start
-            let newState = {
-                state with AvailableWorkQueue = newQueue; RunningGroups = state.RunningGroups |> Set.add group
-            }
-            chooseState(newState)
+            chooseState(nextState)
 
-        and chooseState(runningState) = 
-            if(runningState.AvailableWorkQueue.IsEmpty) then
-                noWorkAvailable(runningState)
+        and chooseState(state) = 
+            if(state.workAvailable) then
+                workAvailable(state)
             else
-                workAvailable(runningState)
+                noWorkAvailable(state)
 
-        noWorkAvailable(empty)
+        noWorkAvailable(GroupingBoundedQueueState<'TGroup, 'TItem>.Empty)
     )
 
-    let rec boundedWorkQueue = new BoundedWorkQueue<('TGroup * 'TItem)>(maxItems, postWorkToAgent)
+    let rec boundedWorkQueue = new BoundedWorkQueue<'TGroup * 'TItem>(maxItems, postWorkToAgent)
 
     and agent = agentDef boundedWorkQueue.WorkComplete
 
-    and postWorkToAgent (group : 'TGroup,item : 'TItem) = agent.PostAndAsyncReply((fun ch -> AsyncAdd(group, item, ch)))
+    and postWorkToAgent (group,item) = agent.PostAndAsyncReply((fun ch -> AsyncAdd(group, item, ch)))
 
     /// Asynchronously adds item to the queue. The operation ends when
     /// there is a place for the item. If the queue is full, the operation
     /// will block until some items are removed.
-    member x.AsyncAdd(g: 'TGroup, v:'TItem, ?timeout) = 
+    member x.AsyncAdd(g : 'TGroup, v : 'TItem, ?timeout) = 
         boundedWorkQueue.QueueWork ((g,v), ?timeout=timeout)
 
     /// Asynchronously gets item from the queue. If there are no items

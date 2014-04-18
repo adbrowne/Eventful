@@ -107,11 +107,6 @@ module GroupingBoundedQueueTests =
 
         let waitMilliseconds = 200
 
-        async {
-            do! Async.Sleep waitMilliseconds
-            do! groupingQueue.AsyncConsume((fun _ -> async { return () })) |> Async.Ignore
-        } |> Async.Start
-
         let producer = 
             async {
                 do! groupingQueue.AsyncAdd(groupName, itemValue)
@@ -119,6 +114,11 @@ module GroupingBoundedQueueTests =
                 do! groupingQueue.AsyncAdd(groupName, itemValue)
                 stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo <| int64 waitMilliseconds)
             } |> Async.StartAsTask
+
+        async {
+            do! Async.Sleep waitMilliseconds
+            do! groupingQueue.AsyncConsume((fun _ -> async { return () })) |> Async.Ignore
+        } |> Async.Start
 
         producer.Wait ()
 

@@ -41,6 +41,7 @@
     <None Include="app.config" />
     <Compile Include="FsCheckXUnit.fs" />
     <Compile Include="CounterAgent.fs" />
+    <Compile Include="GroupingBoundedQueueStateTests.fs" />
     <Compile Include="GroupingBoundedQueueTests.fs" />
     <Compile Include="WorktrackingQueueTests.fs" />
   </ItemGroup>
