@@ -10,6 +10,20 @@ open System
 
 module WorktrackingQueueTests = 
 
+    [<Fact(Skip = "This is only for performance testing")>]
+    let ``Test speed of simple items`` () : unit =
+        let groupingFunction = Set.singleton << fst
+
+        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(100000, groupingFunction, (fun _ -> async { return () }), 1000, (fun _ _ -> Async.Sleep(10)))
+
+        let items = 
+            [0..1000] |> List.collect (fun group -> [0..1000] |> List.map (fun item -> (group, item)))
+
+        for item in items do
+            worktrackingQueue.Add item |> Async.RunSynchronously
+
+        worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
+        
     [<Fact>]
     let ``Completion function is called when item complete`` () : unit =
         let groupingFunction = Set.singleton << fst
