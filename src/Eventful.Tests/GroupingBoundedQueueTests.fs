@@ -88,7 +88,7 @@ module GroupingBoundedQueueTests =
             async {
                 let stopwatch = System.Diagnostics.Stopwatch.StartNew()
                 do! groupingQueue.AsyncConsume((fun _ -> async { return () })) |> Async.Ignore
-                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo <| int64 waitMilliseconds)
+                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo <| int64 (waitMilliseconds - 10))
             } |> Async.StartAsTask
 
         async {
@@ -160,6 +160,6 @@ module GroupingBoundedQueueTests =
             let! results = Async.Parallel [worker1; worker2]
 
             match results with
-            | [|(s1,e1);(s2,e2)|] -> Assert.True(s1 < s2 && e1 < s2 || s2 < s1 && e2 < s1, "Consumers should not overlap")
+            | [|(s1,e1);(s2,e2)|] -> Assert.True(s1 < s2 && e1 <= s2 || s2 < s1 && e2 <= s1, sprintf "Consumers should not overlap (%A - %A) (%A - %A)" s1 e1 s2 e2)
             | x -> Assert.True(false,sprintf "Unexpected result: %A" x)
         } |> Async.RunSynchronously

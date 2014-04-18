@@ -33,7 +33,11 @@ type GroupingBoundedQueueState<'TGroup, 'TItem when 'TGroup : comparison> privat
             let nextCurrentItems = currentItems |> appendToMap group item
             new GroupingBoundedQueueState<'TGroup, 'TItem>(nextCurrentItems, waitingItems, runningGroups, newAvailableWorkQueue)
     member this.workComplete(group) = 
-            let completeCount = currentItems.[group].Length
+            let completeCount = 
+                match currentItems |> Map.tryFind group with
+                | Some items -> items |> List.length
+                | None -> 0
+
             let nextState = 
                 match waitingItems |> Map.tryFind group with
                 | Some waiting -> 
