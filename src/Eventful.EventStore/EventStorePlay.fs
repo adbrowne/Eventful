@@ -1,12 +1,12 @@
 ﻿module EventStorePlay
 
     open Eventful
-    open NUnit.Framework
+    open Xunit
     open EventStore.ClientAPI
     open metrics
 
     type TestType = TestType
-    [<Test>]
+    [<Fact>]
     let ``Play eventstore events without queue`` () : unit = 
         let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
         Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
@@ -39,7 +39,7 @@
         } |> Async.RunSynchronously
 
 
-    [<Test>]
+    [<Fact>]
     let ``Play eventstore events to null agent`` () : unit = 
         let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
         Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
@@ -78,7 +78,7 @@
 
         } |> Async.RunSynchronously
 
-    [<Test>]
+    [<Fact>]
     let ``Play eventstore events through work tracking queue`` () : unit = 
         let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
         Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
@@ -132,7 +132,7 @@
 
         } |> Async.RunSynchronously
 
-    [<Test>]
+    [<Fact>]
     let ``Play eventstore events through grouping queue`` () : unit = 
         let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
         Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)

@@ -2,13 +2,13 @@
 
 open Eventful
 open System
-open NUnit.Framework
+open Xunit
 open System.Threading.Tasks
-open FsUnit
+open FsUnit.Xunit
 
 module GroupingBoundedQueueTests = 
 
-    [<Test>]
+    [<Fact>]
     let ``Can enqueue and dequeue an item`` () : unit = 
         let groupingQueue = new GroupingBoundedQueue<string,string, (string * list<string>)>(1000)
 
@@ -30,7 +30,7 @@ module GroupingBoundedQueueTests =
 
         consumer.Wait ()
 
-    [<Test>]
+    [<Fact>]
     let ``Can run multiple items`` () : unit =
         let groupingQueue = new GroupingBoundedQueue<string, int, (string * list<int>)>(1000)
 
@@ -75,7 +75,7 @@ module GroupingBoundedQueueTests =
 
         consumer.Wait ()
 
-    [<Test>]
+    [<Fact>]
     let ``Consumer will wait for value`` () : unit = 
         let groupingQueue = new GroupingBoundedQueue<string,string, unit>(1000)
 
@@ -88,7 +88,7 @@ module GroupingBoundedQueueTests =
             async {
                 let stopwatch = System.Diagnostics.Stopwatch.StartNew()
                 do! groupingQueue.AsyncConsume((fun _ -> async { return () })) |> Async.Ignore
-                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo waitMilliseconds)
+                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo <| int64 waitMilliseconds)
             } |> Async.StartAsTask
 
         async {
@@ -98,7 +98,7 @@ module GroupingBoundedQueueTests =
 
         consumer.Wait ()
 
-    [<Test>]
+    [<Fact>]
     let ``Producer will wait for consumers once queues are full`` () : unit = 
         let groupingQueue = new GroupingBoundedQueue<string,string, unit>(1)
 
@@ -117,12 +117,12 @@ module GroupingBoundedQueueTests =
                 do! groupingQueue.AsyncAdd(groupName, itemValue)
                 let stopwatch = System.Diagnostics.Stopwatch.StartNew()
                 do! groupingQueue.AsyncAdd(groupName, itemValue)
-                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo waitMilliseconds)
+                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo <| int64 waitMilliseconds)
             } |> Async.StartAsTask
 
         producer.Wait ()
 
-    [<Test>]
+    [<Fact>]
     let ``Next items from the same group will not be consumed until previous items are complete`` () : unit =
         let groupingQueue = new GroupingBoundedQueue<string,string, (DateTime * DateTime)>(1000)
 
@@ -161,5 +161,5 @@ module GroupingBoundedQueueTests =
 
             match results with
             | [|(s1,e1);(s2,e2)|] -> Assert.True(s1 < s2 && e1 < s2 || s2 < s1 && e2 < s1, "Consumers should not overlap")
-            | x -> Assert.Fail(sprintf "Unexpected result: %A" x)
+            | x -> Assert.True(false,sprintf "Unexpected result: %A" x)
         } |> Async.RunSynchronously

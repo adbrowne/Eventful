@@ -1,19 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.FSharp.Collections;
-using Microsoft.FSharp.Core;
-using NUnit.Framework;
+using Xunit;
 
 namespace Eventful.CsTests
 {
-    [TestFixture]
     public class Class1
     {
-        [Test]
+        [Fact]
         public async void TestQueue()
         {
             int count = 0;
@@ -45,7 +40,7 @@ namespace Eventful.CsTests
 
             await queue.AsyncComplete();
 
-            Assert.That(count, Is.EqualTo(1));
+            Assert.Equal(1, count);
         }
     }
 }

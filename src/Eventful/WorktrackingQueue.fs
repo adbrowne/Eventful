@@ -8,17 +8,20 @@ type internal CompleteQueueMessage<'TGroup, 'TItem when 'TGroup : comparison> =
     | Complete of 'TGroup * Guid
     | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
-type WorktrackQueueState<'TGroup when 'TGroup : comparison> private 
+type WorktrackQueueState<'TGroup, 'TBatchToken when 'TGroup : comparison> private 
     (
         items : Map<Guid, (Set<'TGroup> * Async<unit>)>, 
-        batches : (AsyncReplyChannel<unit> * Set<Guid>) list
+        batches : ('TBatchToken * Set<Guid>) list
     ) = 
-    static member Empty = new WorktrackQueueState<'TGroup>(Map.empty, List.empty)
+    static member Empty = new WorktrackQueueState<'TGroup, 'TBatchToken>(Map.empty, List.empty)
     member this.Add(key, groups, complete) = 
-        new WorktrackQueueState<'TGroup>(
-            items |> Map.add key (groups, complete), 
-            batches
-        )
+        if groups = Set.empty then
+            this
+        else 
+            new WorktrackQueueState<'TGroup, 'TBatchToken>(
+                items |> Map.add key (groups, complete), 
+                batches
+            )
     member this.ItemComplete(group, key) = 
         let (groups, reply) = items.[key]
         let remainingItemGroups = groups |> Set.remove group
@@ -34,11 +37,11 @@ type WorktrackQueueState<'TGroup when 'TGroup : comparison> private
 
             let completedBatchReplies = emptyBatches |> List.map fst
 
-            let nextQueueState = new WorktrackQueueState<_>(items |> Map.remove key, nextRemainingBatches)
+            let nextQueueState = new WorktrackQueueState<_,_>(items |> Map.remove key, nextRemainingBatches)
             (Some reply, completedBatchReplies, nextQueueState)
         else
             // Console.WriteLine(sprintf "Remaining Groups %A" remainingItemGroups)
-            let nextQueueState = new WorktrackQueueState<_>(items |> Map.add key (remainingItemGroups, reply), batches)
+            let nextQueueState = new WorktrackQueueState<_,_>(items |> Map.add key (remainingItemGroups, reply), batches)
             (None, List.empty, nextQueueState)
     member this.CreateBatch(reply) = 
         let currentItems = items |> Map.toList |> List.map fst |> Set.ofList
@@ -46,7 +49,7 @@ type WorktrackQueueState<'TGroup when 'TGroup : comparison> private
             (false, this)
         else
             let newBatches = (reply, currentItems) :: batches
-            (true, new WorktrackQueueState<_>(items, newBatches))
+            (true, new WorktrackQueueState<_,_>(items, newBatches))
 
 
 type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
@@ -62,7 +65,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
 
     let agent = Agent.Start(fun agent ->
 
-        let rec loop(state : WorktrackQueueState<'TGroup>) = async {
+        let rec loop(state : WorktrackQueueState<'TGroup, AsyncReplyChannel<unit>>) = async {
          // Console.WriteLine(sprintf "State: %A" state)
          let! msg = agent.Receive()
          match msg with
@@ -94,7 +97,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
                 reply.Reply()
                 return! loop(nextState)
         }
-        loop WorktrackQueueState<_>.Empty
+        loop WorktrackQueueState<_,_>.Empty
     )
 
     let doWork (group, items) = async {
