@@ -83,13 +83,6 @@ module WorktrackingQueueTests =
         let worktrackingQueue = new WorktrackingQueue<unit,string>(100000, (fun _ -> Set.singleton ()), (fun _ -> Async.Sleep(1)), 10, (fun _ _ -> Async.Sleep(1)))
         worktrackingQueue.AsyncComplete() |> Async.RunSynchronously
 
-    let noGroupsAreEmpty (items : List<(Guid * Set<int>)>) =
-        let emptyExists = (items |> List.exists (fun (_,g) -> g = Set.empty))
-        not emptyExists
-
-    let propCheck (items : List<(Guid * Set<int>)>) = 
-        (items <> List.empty && (noGroupsAreEmpty items))
-
     [<Property>]
     let ``When Last Item From Last Group Complete Then Batch Complete``(items : List<(Guid * Set<int>)>) =
         let state = WorktrackQueueState<int, obj>.Empty
@@ -101,11 +94,17 @@ module WorktrackingQueueTests =
             items 
             |> List.collect (fun (item, groups) -> groups |> Set.map (fun g -> (item, g)) |> Set.toList)
 
+        let applyComplete (_,_, queueState:WorktrackQueueState<int, obj>) (key, group) = 
+            queueState.ItemComplete(group, key)
+            
         match (batchCreated, completeMessages) with
         | (false, []) -> true
         | (false, _) -> false
         | (true,_) -> 
-            let allCompleteState = completeMessages |> List.fold (fun (_,_,s:WorktrackQueueState<int, obj>) (key, group) -> s.ItemComplete(group,key) ) (None, List.empty, batchCreatedState)
+            let startState = (None, List.empty, batchCreatedState)
+            let allCompleteState = 
+                completeMessages 
+                |> List.fold applyComplete startState
 
             match allCompleteState with
             | (_, [singleBatch], _) when singleBatch = replyChannel -> true
