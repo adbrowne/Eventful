@@ -14,7 +14,8 @@ module WorktrackingQueueTests =
     let ``Test speed of simple items`` () : unit =
         let groupingFunction = Set.singleton << fst
 
-        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(100000, groupingFunction, (fun _ -> async { return () }), 1000, (fun _ _ -> Async.Sleep(10)))
+        let work = (fun _ _ -> Async.Sleep(10))
+        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(groupingFunction, work, 100000, 1000)
 
         let items = 
             [0..1000] |> List.collect (fun group -> [0..1000] |> List.map (fun item -> (group, item)))
@@ -37,7 +38,7 @@ module WorktrackingQueueTests =
             tcs.SetResult true
         }
 
-        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(100000, groupingFunction, complete, 10, (fun _ _ -> Async.Sleep(100)))
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10,  complete)
         worktrackingQueue.Add ("group", "item") |> Async.Start
 
         tcs.Task.Wait()
@@ -59,7 +60,7 @@ module WorktrackingQueueTests =
                 System.Console.WriteLine("Work item {0}", group)
             }
 
-        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(100000, groupingFunction, complete, 10, work)
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, work, 100000, 10, complete)
         worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
         worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
         worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
@@ -84,7 +85,7 @@ module WorktrackingQueueTests =
         }
 
         async {
-            let worktrackingQueue = new WorktrackingQueue<int,(string * string)>(100000, groupingFunction, complete, 10, (fun _ _ -> Async.Sleep(100)))
+            let worktrackingQueue = new WorktrackingQueue<int,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000, 10, complete)
             do! worktrackingQueue.Add ("group", "item")
             do! worktrackingQueue.AsyncComplete()
             do! Async.Sleep 100
@@ -94,7 +95,7 @@ module WorktrackingQueueTests =
 
     [<Fact>]
     let ``Given empty queue When complete Then returns immediately`` () : unit =
-        let worktrackingQueue = new WorktrackingQueue<unit,string>(100000, (fun _ -> Set.singleton ()), (fun _ -> Async.Sleep(1)), 10, (fun _ _ -> Async.Sleep(1)))
+        let worktrackingQueue = new WorktrackingQueue<unit,string>( (fun _ -> Set.singleton ()),(fun _ _ -> Async.Sleep(1)), 100000, 10,(fun _ -> Async.Sleep(1)))
         worktrackingQueue.AsyncComplete() |> Async.RunSynchronously
 
     [<Property>]

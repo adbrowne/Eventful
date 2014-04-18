@@ -37,11 +37,13 @@
   <Import Project="$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets" Condition=" Exists('$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets')" />
   <ItemGroup>
     <Compile Include="Agent.fs" />
+    <Compile Include="Helpers.fs" />
     <Compile Include="BoundedWorkQueue.fs" />
     <Compile Include="GroupingBoundedQueueState.fs" />
     <Compile Include="GroupingBoundedQueue.fs" />
     <Compile Include="WorktrackingQueueState.fs" />
     <Compile Include="WorktrackingQueue.fs" />
+    <Compile Include="WorktrackingQueue.CSharp.fs" />
     <Compile Include="CounterAgent.fs" />
     <None Include="packages.config" />
   </ItemGroup>

@@ -25,7 +25,7 @@ let main argv =
         return ()
     }
 
-    let queue = new WorktrackingQueue<string, ResolvedEvent>(100000, Set.singleton << getStreamId, onComplete, 10000, onItem)
+    let queue = new WorktrackingQueue<string, ResolvedEvent>(Set.singleton << getStreamId, onItem, 100000, 10000, onComplete)
 
     async {
         printfn "Started"

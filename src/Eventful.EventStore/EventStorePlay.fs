@@ -96,14 +96,14 @@
             return ()
         }
 
-        let queue = new WorktrackingQueue<string, ResolvedEvent>(100000, Set.singleton << getStreamId, onComplete, 10000, onItem)
+        let queue = new WorktrackingQueue<string, ResolvedEvent>(Set.singleton << getStreamId, onItem, 100000,10000, onComplete)
 
         async {
             printfn "Started"
             let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
             let tcs = new System.Threading.Tasks.TaskCompletionSource<unit>()
             let connectionSettingsBuilder = 
-                ConnectionSettings.Create().OnConnected(fun _ _ -> printf "Connected"; ).OnErrorOccurred(fun _ ex -> printfn "Error: %A" ex).SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit"))
+                ConnectionSettings.Create().OnConnected(fun _ _ -> printf "Connected"; ).OnErrorOccurred(fun _ ex -> printfn "Error: %A" ex).SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit")).LimitConcurrentOperationsTo(1000).LimitOperationsQueueTo(10000)
             let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
 
             let connection = EventStoreConnection.Create(connectionSettings, ipEndPoint)
@@ -128,7 +128,9 @@
             printfn "All events read"
 
             do! queue.AsyncComplete()
-            printfn "All events complete"
+
+            let elapsed = sw.ElapsedMilliseconds
+            printfn "All events complete %A ms" elapsed
 
         } |> Async.RunSynchronously
 
