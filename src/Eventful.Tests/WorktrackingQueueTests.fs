@@ -29,6 +29,33 @@ module WorktrackingQueueTests =
         !completedItem |> snd |> should equal "item"
 
     [<Test>]
+    let ``Can run multiple items`` () : unit =
+        let groupingFunction = Set.singleton << fst
+
+        let completedItem = ref ("blank", "blank")
+        let complete item = async {
+            do! Async.Sleep(100)
+            completedItem := item
+        }
+
+        let work (group:string) items = async {
+                System.Console.WriteLine("Work item {0}", group)
+            }
+
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(100000, groupingFunction, complete, 10, work)
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+        worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
+
+        worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
+
+    [<Test>]
     let ``Given item split into 2 groups When complete Then Completion function is only called once`` () : unit =
         let groupingFunction _ = [1;2] |> Set.ofList
 

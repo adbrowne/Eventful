@@ -31,6 +31,51 @@ module GroupingBoundedQueueTests =
         consumer.Wait ()
 
     [<Test>]
+    let ``Can run multiple items`` () : unit =
+        let groupingQueue = new GroupingBoundedQueue<string, int, (string * list<int>)>(1000)
+
+        let groupName = "group"
+        let itemValue = "item"
+
+        let producer = 
+            async {
+                do! groupingQueue.AsyncAdd(groupName, 1)
+                do! Async.Sleep 100
+                do! groupingQueue.AsyncAdd(groupName, 1)
+                do! Async.Sleep 100
+                do! groupingQueue.AsyncAdd(groupName, 1)
+                do! Async.Sleep 100
+                do! groupingQueue.AsyncAdd(groupName, 1)
+                do! Async.Sleep 100
+                do! groupingQueue.AsyncAdd(groupName, 1)
+                do! Async.Sleep 100
+                do! groupingQueue.AsyncAdd(groupName, 1)
+                do! Async.Sleep 100
+                do! groupingQueue.AsyncAdd(groupName, 1)
+                do! Async.Sleep 100
+                do! groupingQueue.AsyncAdd(groupName, 1)
+            } |> Async.Start
+
+        let total = ref 0
+
+        let doWork (group, items) = async {
+                let sum = items |> List.sum            
+                let current = System.Threading.Interlocked.Add(total, sum)
+                Console.WriteLine("Current: {0}", current)
+                return (group, items)
+            }
+            
+        let consumer =
+            async {
+                while !total < 8 do
+                    Console.WriteLine("Current total: {0}", !total)
+                    do! groupingQueue.AsyncConsume(doWork) |> Async.Ignore
+                    do! Async.Sleep 100
+            } |> Async.StartAsTask
+
+        consumer.Wait ()
+
+    [<Test>]
     let ``Consumer will wait for value`` () : unit = 
         let groupingQueue = new GroupingBoundedQueue<string,string, unit>(1000)
 

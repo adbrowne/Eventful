@@ -28,11 +28,16 @@ type WorktrackQueueState<'TGroup when 'TGroup : comparison> private
             let itemSet = Set.singleton key
             let (emptyBatches, remainingBatches) = batches |> List.partition (fun (_,items) -> items = itemSet)
 
+            // Console.WriteLine(sprintf "Remaining Batches %A" remainingBatches)
+            
+            let nextRemainingBatches = remainingBatches |> List.map (fun (r,items) -> (r, (items |> Set.remove key)))
+
             let completedBatchReplies = emptyBatches |> List.map fst
 
-            let nextQueueState = new WorktrackQueueState<_>(items |> Map.remove key, remainingBatches)
+            let nextQueueState = new WorktrackQueueState<_>(items |> Map.remove key, nextRemainingBatches)
             (Some reply, completedBatchReplies, nextQueueState)
         else
+            // Console.WriteLine(sprintf "Remaining Groups %A" remainingItemGroups)
             let nextQueueState = new WorktrackQueueState<_>(items |> Map.add key (remainingItemGroups, reply), batches)
             (None, List.empty, nextQueueState)
     member this.CreateBatch(reply) = 
@@ -58,10 +63,12 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
     let agent = Agent.Start(fun agent ->
 
         let rec loop(state : WorktrackQueueState<'TGroup>) = async {
+         // Console.WriteLine(sprintf "State: %A" state)
          let! msg = agent.Receive()
          match msg with
          | Start (item, groups, complete, reply) -> 
             let itemKey = Guid.NewGuid()
+            // Console.WriteLine(sprintf "Started %A" itemKey)
             return! async {
                 for group in groups do
                     do! queue.AsyncAdd(group, (item,itemKey))
@@ -69,6 +76,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
                 return! loop (state.Add(itemKey, groups, complete))
             }
          | Complete (group, itemKey) -> 
+            // Console.WriteLine(sprintf "Completed %A" itemKey)
             let (completeCallback, completedBatchReplies, nextState) = state.ItemComplete(group, itemKey)
             for reply in completedBatchReplies do
                 reply.Reply()
@@ -89,15 +97,19 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         loop WorktrackQueueState<_>.Empty
     )
 
+    let doWork (group, items) = async {
+         // Console.WriteLine(sprintf "Received %d items" (items |> List.length))
+         do! workAction group (items |> List.map fst)
+         for item in (items |> List.map snd) do
+            // Console.WriteLine(sprintf "Posting completed %A" item)
+            agent.Post (Complete (group, item))
+    }
+
     let workers = 
         for i in [1..workerCount] do
             async {
                 while true do
-                    do! queue.AsyncConsume (fun (group, items) -> async {
-                                                                             do! workAction group (items |> List.map fst)
-                                                                             for item in (items |> List.map snd) do
-                                                                                agent.Post (Complete (group, item))
-                                                                        })
+                    do! queue.AsyncConsume doWork
             } |> Async.Start
 
     member this.Add (item:'TItem) =
@@ -109,3 +121,42 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         async {
             do! agent.PostAndAsyncReply(fun ch -> NotifyWhenAllComplete ch)
         }
+
+type WorktrackingQueueCs<'TGroup, 'TItem when 'TGroup : comparison>
+    (
+        maxItems, 
+        grouping : Func<'TItem, Set<'TGroup>>, 
+        complete : Func<'TItem', System.Threading.Tasks.Task>,
+        workerCount,
+        workAction :  Func<'TGroup, 'TItem seq, System.Threading.Tasks.Task>
+    ) =
+    let groupingfs = (fun i -> grouping.Invoke(i))
+    let completeFs = (fun i -> async { 
+                   let task = complete.Invoke(i) 
+                   do! task |> Async.AwaitIAsyncResult |> Async.Ignore
+                   })
+    let workActionFs = (fun g i -> async { 
+                        let task = workAction.Invoke(g,i) 
+                        do! task |> Async.AwaitIAsyncResult |> Async.Ignore
+                    })
+    let queue = new WorktrackingQueue<'TGroup, 'TItem> ( maxItems, groupingfs, completeFs, workerCount, workActionFs )
+
+    member this.Add (item:'TItem) =
+        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
+        
+        async {
+            do! queue.Add(item)
+            tcs.SetResult(true)
+        } |> Async.Start
+
+        tcs.Task
+
+    member this.AsyncComplete () =
+        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
+
+        async {
+            do! queue.AsyncComplete()
+            tcs.SetResult(true)
+        } |> Async.Start
+
+        tcs.Task
