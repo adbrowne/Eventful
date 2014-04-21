@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package >
-  <metadata>
+  <metadata minClientVersion="2.5">
     <id>Eventful</id>
     <version>0.0.1</version>
     <authors>Andrew Browne</authors>
