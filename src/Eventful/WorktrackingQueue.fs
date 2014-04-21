@@ -25,42 +25,43 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
 
     let queue = new GroupingBoundedQueue<'TGroup, ('TItem*Guid), unit>(_maxItems)
 
-    let agentDef () = Agent.Start(fun agent ->
+    let agentDef () = 
+        let agentId = Guid.NewGuid()
+        Agent.Start(fun agent ->
+            let rec loop(state : WorktrackQueueState<'TGroup, AsyncReplyChannel<unit>>) = async {
+             // Console.WriteLine(sprintf "State: %A" state)
+             let! msg = agent.Receive()
+             match msg with
+             | Start (item, groups, complete, reply) -> 
+                reply.Reply()
+                let itemKey = Guid.NewGuid()
+                //Console.WriteLine(sprintf "Started %A" itemKey)
+                return! async {
+                    for group in groups do
+                        do! queue.AsyncAdd(group, (item,itemKey))
+                    return! loop (state.Add(itemKey, groups, complete))
+                }
+             | Complete (group, itemKey) -> 
+                // Console.WriteLine(sprintf "Completed %A" itemKey)
+                let (completeCallback, completedBatchReplies, nextState) = state.ItemComplete(group, itemKey)
+                for reply in completedBatchReplies do
+                    reply.Reply()
 
-        let rec loop(state : WorktrackQueueState<'TGroup, AsyncReplyChannel<unit>>) = async {
-         // Console.WriteLine(sprintf "State: %A" state)
-         let! msg = agent.Receive()
-         match msg with
-         | Start (item, groups, complete, reply) -> 
-            reply.Reply()
-            let itemKey = Guid.NewGuid()
-            // Console.WriteLine(sprintf "Started %A" itemKey)
-            return! async {
-                for group in groups do
-                    do! queue.AsyncAdd(group, (item,itemKey))
-                return! loop (state.Add(itemKey, groups, complete))
+                match completeCallback with
+                | Some reply -> do! reply
+                | None -> ()
+
+                return! loop(nextState)
+             | NotifyWhenAllComplete reply ->
+                let (batchCreated, nextState) = state.CreateBatch(reply)
+                if(batchCreated) then
+                    return! loop(nextState)
+                else 
+                    reply.Reply()
+                    return! loop(nextState)
             }
-         | Complete (group, itemKey) -> 
-            // Console.WriteLine(sprintf "Completed %A" itemKey)
-            let (completeCallback, completedBatchReplies, nextState) = state.ItemComplete(group, itemKey)
-            for reply in completedBatchReplies do
-                reply.Reply()
-
-            match completeCallback with
-            | Some reply -> do! reply
-            | None -> ()
-
-            return! loop(nextState)
-         | NotifyWhenAllComplete reply ->
-            let (batchCreated, nextState) = state.CreateBatch(reply)
-            if(batchCreated) then
-                return! loop(nextState)
-            else 
-                reply.Reply()
-                return! loop(nextState)
-        }
-        loop WorktrackQueueState<_,_>.Empty
-    )
+            loop WorktrackQueueState<_,_>.Empty
+        )
 
     let agents = [0..(bucketCount-1)] |> List.map (fun bucketNumber -> (bucketNumber, agentDef())) |> Map.ofList
 
@@ -68,7 +69,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
          // Console.WriteLine(sprintf "Received %d items" (items |> List.length))
          do! workAction group (items |> List.map fst)
          for item in (items |> List.map snd) do
-            // Console.WriteLine(sprintf "Posting completed %A" item)
+            // Console.WriteLine(sprintf "Posting completed %A %A" item group)
             let bucket = getBucket group
             agents.[bucket].Post (Complete (group, item))
     }
@@ -93,7 +94,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
             let myAgents = agents
             let myBuckets = groups |> Set.map getBucket
             let groupsByBuckets = groups |> Set.toList |> List.map (fun g -> (agents.[getBucket g], (new System.Threading.Tasks.TaskCompletionSource<bool>()), g))
-            let posted = groupsByBuckets |> List.map (fun (agent, tcs, g) -> agent.PostAndAsyncReply (fun ch -> Start (item, groups, async { tcs.SetResult(true) }, ch)))
+            let posted = groupsByBuckets |> List.map (fun (agent, tcs, g) -> agent.PostAndAsyncReply (fun ch -> Start (item, Set.singleton g, async { tcs.SetResult(true) }, ch)))
             async {
                 do! Async.Parallel posted |> Async.Ignore
                 async {

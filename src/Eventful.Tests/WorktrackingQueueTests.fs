@@ -10,7 +10,7 @@ open System
 
 module WorktrackingQueueTests = 
 
-    [<Fact(Skip = "This is only for performance testing")>]
+    [<Fact>]
     let ``Test speed of simple items`` () : unit =
         let groupingFunction = Set.singleton << fst
 
