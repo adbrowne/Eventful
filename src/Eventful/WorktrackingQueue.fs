@@ -17,25 +17,27 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         ?complete : 'TItem -> Async<unit>
     ) =
 
+    let bucketCount = 100
+    let getBucket = Bucket.getBucket bucketCount
     let _maxItems = maxItems |> getOrElse 1000
     let _workerCount = workerCount |> getOrElse 1
     let _complete = complete |> getOrElse (fun _ -> async { return () })
 
     let queue = new GroupingBoundedQueue<'TGroup, ('TItem*Guid), unit>(_maxItems)
 
-    let agent = Agent.Start(fun agent ->
+    let agentDef () = Agent.Start(fun agent ->
 
         let rec loop(state : WorktrackQueueState<'TGroup, AsyncReplyChannel<unit>>) = async {
          // Console.WriteLine(sprintf "State: %A" state)
          let! msg = agent.Receive()
          match msg with
          | Start (item, groups, complete, reply) -> 
+            reply.Reply()
             let itemKey = Guid.NewGuid()
             // Console.WriteLine(sprintf "Started %A" itemKey)
             return! async {
                 for group in groups do
                     do! queue.AsyncAdd(group, (item,itemKey))
-                reply.Reply()
                 return! loop (state.Add(itemKey, groups, complete))
             }
          | Complete (group, itemKey) -> 
@@ -60,12 +62,15 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         loop WorktrackQueueState<_,_>.Empty
     )
 
+    let agents = [0..(bucketCount-1)] |> List.map (fun bucketNumber -> (bucketNumber, agentDef())) |> Map.ofList
+
     let doWork (group, items) = async {
          // Console.WriteLine(sprintf "Received %d items" (items |> List.length))
          do! workAction group (items |> List.map fst)
          for item in (items |> List.map snd) do
             // Console.WriteLine(sprintf "Posting completed %A" item)
-            agent.Post (Complete (group, item))
+            let bucket = getBucket group
+            agents.[bucket].Post (Complete (group, item))
     }
 
     let workers = 
@@ -75,15 +80,33 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
                     do! queue.AsyncConsume doWork
             } |> Async.Start
 
+    let getAsync (agent:MailboxProcessor<CompleteQueueMessage<'TGroup,'TItem>>) item groups oncomlete =
+        lock agent (fun () -> 
+           agent.PostAndAsyncReply(fun ch -> Start (item, groups, oncomlete, ch)) 
+        )
+
     member this.Add (item:'TItem) =
-        async {
-            let groups = grouping item
-            if groups |> Set.isEmpty then
-                do! _complete item
-            else
-                do! agent.PostAndAsyncReply (fun ch -> Start (item, groups, _complete item, ch))
-        }
+        let groups = grouping item
+        if groups |> Set.isEmpty then
+            async { do! _complete item }
+        else
+            let myAgents = agents
+            let myBuckets = groups |> Set.map getBucket
+            let groupsByBuckets = groups |> Set.toList |> List.map (fun g -> (agents.[getBucket g], (new System.Threading.Tasks.TaskCompletionSource<bool>()), g))
+            let posted = groupsByBuckets |> List.map (fun (agent, tcs, g) -> agent.PostAndAsyncReply (fun ch -> Start (item, groups, async { tcs.SetResult(true) }, ch)))
+            async {
+                do! Async.Parallel posted |> Async.Ignore
+                async {
+                    let allTcs = groupsByBuckets |> List.map (fun (agent, tcs, g) -> tcs.Task |> Async.AwaitIAsyncResult)
+                    do! Async.Parallel allTcs |> Async.Ignore
+                    do! _complete item
+                } |> Async.Start
+                // do! agent.PostAndAsyncReply (fun ch -> Start (item, groups, _complete item, ch))
+                return ()
+            }
+
     member this.AsyncComplete () =
         async {
-            do! agent.PostAndAsyncReply(fun ch -> NotifyWhenAllComplete ch)
+            let allComplete = agents |> Map.toSeq |> Seq.map snd |> Seq.map (fun agent -> agent.PostAndAsyncReply(fun ch -> NotifyWhenAllComplete ch))
+            do! Async.Parallel allComplete |> Async.Ignore
         }

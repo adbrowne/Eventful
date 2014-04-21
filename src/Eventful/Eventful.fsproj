@@ -41,6 +41,7 @@
     </Compile>
     <Compile Include="Agent.fs" />
     <Compile Include="Helpers.fs" />
+    <Compile Include="Bucket.fs" />
     <Compile Include="BoundedWorkQueue.fs" />
     <Compile Include="GroupingBoundedQueueState.fs" />
     <Compile Include="GroupingBoundedQueue.fs" />
