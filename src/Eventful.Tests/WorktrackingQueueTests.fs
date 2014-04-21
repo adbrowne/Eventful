@@ -68,6 +68,13 @@ module WorktrackingQueueTests =
         !completedItem |> snd |> should equal "item"
 
     [<Fact>]
+    let ``Add item throws if grouping function throws`` () : unit =
+        let groupingFunction _ = failwith "Grouping function exception"
+
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10)
+        (fun () -> worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously  |> ignore) |> should throw typeof<System.Exception>
+
+    [<Fact>]
     let ``Can run multiple items`` () : unit =
         let groupingFunction = Set.singleton << fst
 
