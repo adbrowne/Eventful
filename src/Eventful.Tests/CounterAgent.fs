@@ -1,6 +1,7 @@
 ﻿namespace Eventful.Tests
 
 open Eventful
+open Xunit
 
 type CounterCmd = 
     | Incriment of AsyncReplyChannel<unit>
@@ -27,3 +28,12 @@ type CounterAgent () =
 
     member this.Get () =
         agent.PostAndAsyncReply(fun ch -> Get ch)
+
+module CounterAgentTests =
+
+    [<Fact(Skip = "Slow performance test")>]
+    let ``Time to count to 1,000,000`` () : unit =
+        let counter = new CounterAgent()
+        for _ in [0..1000000] do
+            counter.Incriment() |> Async.RunSynchronously
+     
