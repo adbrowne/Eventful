@@ -47,6 +47,27 @@ module WorktrackingQueueTests =
         !completedItem |> snd |> should equal "item"
 
     [<Fact>]
+    let ``Completion function is called immediately when an items resuls in 0 groups`` () : unit =
+        let groupingFunction _ = Set.empty
+
+        let tcs = new TaskCompletionSource<bool>()
+
+        let completedItem = ref ("blank", "blank")
+        let complete item = async {
+            do! Async.Sleep(100)
+            completedItem := item
+            tcs.SetResult true
+        }
+
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10,  complete)
+        worktrackingQueue.Add ("group", "item") |> Async.Start
+
+        tcs.Task.Wait()
+
+        !completedItem |> fst |> should equal "group"
+        !completedItem |> snd |> should equal "item"
+
+    [<Fact>]
     let ``Can run multiple items`` () : unit =
         let groupingFunction = Set.singleton << fst
 

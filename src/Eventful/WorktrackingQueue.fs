@@ -78,7 +78,10 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
     member this.Add (item:'TItem) =
         async {
             let groups = grouping item
-            do! agent.PostAndAsyncReply (fun ch -> Start (item, groups, _complete item, ch))
+            if groups |> Set.isEmpty then
+                do! _complete item
+            else
+                do! agent.PostAndAsyncReply (fun ch -> Start (item, groups, _complete item, ch))
         }
     member this.AsyncComplete () =
         async {
