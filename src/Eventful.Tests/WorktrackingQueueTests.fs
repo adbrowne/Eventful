@@ -15,10 +15,10 @@ module WorktrackingQueueTests =
         let groupingFunction = Set.singleton << fst
 
         let work = (fun _ _ -> Async.Sleep(10))
-        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(groupingFunction, work, 100000, 1000)
+        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(groupingFunction, work, 100000, 50)
 
         let items = 
-            [0..10000] |> List.collect (fun group -> [0..10] |> List.map (fun item -> (group, item)))
+            [0..10000] |> List.collect (fun group -> [0..100] |> List.map (fun item -> (group, item)))
 
         for item in items do
             worktrackingQueue.Add item |> Async.RunSynchronously

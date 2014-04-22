@@ -17,7 +17,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         ?complete : 'TItem -> Async<unit>
     ) =
 
-    let bucketCount = 100
+    let bucketCount = 10
     let getBucket = Bucket.getBucket bucketCount
     let _maxItems = maxItems |> getOrElse 1000
     let _workerCount = workerCount |> getOrElse 1
@@ -64,6 +64,9 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         )
 
     let agents = [0..(bucketCount-1)] |> List.map (fun bucketNumber -> (bucketNumber, agentDef())) |> Map.ofList
+    let getAgent group = 
+        let bucket = Bucket.getBucket bucketCount group
+        agents.[bucket]
 
     let doWork (group, items) = async {
          // Console.WriteLine(sprintf "Received %d items" (items |> List.length))
@@ -91,10 +94,19 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         if groups |> Set.isEmpty then
             async { do! _complete item }
         else
-            let myAgents = agents
-            let myBuckets = groups |> Set.map getBucket
-            let groupsByBuckets = groups |> Set.toList |> List.map (fun g -> (agents.[getBucket g], (new System.Threading.Tasks.TaskCompletionSource<bool>()), g))
-            let posted = groupsByBuckets |> List.map (fun (agent, tcs, g) -> agent.PostAndAsyncReply (fun ch -> Start (item, Set.singleton g, async { tcs.SetResult(true) }, ch)))
+            let groupsByBuckets = 
+                groups 
+                |> Seq.groupBy getAgent 
+                |> Seq.map (fun (agent, agentGroups) -> 
+                    (agent, (new System.Threading.Tasks.TaskCompletionSource<bool>()), agentGroups)
+                )
+                |> List.ofSeq
+
+            let posted = 
+                groupsByBuckets 
+                |> List.map (fun (agent, tcs, g) -> 
+                    agent.PostAndAsyncReply (fun ch -> Start (item, Set.ofSeq g, async { tcs.SetResult(true) }, ch))
+                )
             async {
                 do! Async.Parallel posted |> Async.Ignore
                 async {
