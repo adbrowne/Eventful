@@ -1,7 +1,7 @@
 ﻿namespace Eventful
 
 type CounterCmd = 
-    | Incriment of AsyncReplyChannel<unit>
+    | Incriment of (int * AsyncReplyChannel<unit>)
     | Get of AsyncReplyChannel<int>
 
 type CounterAgent () =
@@ -10,9 +10,9 @@ type CounterAgent () =
         let rec loop(count) =
             agent.Scan(fun msg -> 
              match msg with
-             | Incriment ch -> 
+             | Incriment (increment, ch) -> 
                 ch.Reply()
-                Some(loop (count + 1))
+                Some(loop (count + increment))
              | Get ch -> 
                 ch.Reply count
                 Some(loop count))
@@ -20,8 +20,8 @@ type CounterAgent () =
         loop 0
     )
 
-    member this.Incriment () =
-        agent.PostAndAsyncReply(fun ch -> Incriment ch)
+    member this.Incriment count =
+        agent.PostAndAsyncReply(fun ch -> Incriment (count, ch))
 
     member this.Get () =
         agent.PostAndAsyncReply(fun ch -> Get ch)

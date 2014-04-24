@@ -109,7 +109,7 @@ module WorktrackingQueueTests =
 
         let complete item = async {
             // do! Async.Sleep(100)
-            do! completeCount.Incriment ()
+            do! completeCount.Incriment 1
         }
 
         async {
