@@ -11,18 +11,25 @@ module MyQueueTests =
     let ``Can do something`` () : unit = 
         let myQueue = new MyQueue<int, int>()
 
-        let counter = new CounterAgent()
+        let counter1 = new CounterAgent()
+        let counter2 = new CounterAgent()
+        let counter3 = new CounterAgent()
+        let counter4 = new CounterAgent()
 
-        let rec consumer () = async {
+        let rec consumer (counter : CounterAgent)  = async {
             do! myQueue.Consume((fun (g, items) -> async {
                 // Console.WriteLine(sprintf "Group: %A Items: %A ItemCount: %d" g items (items |> Seq.length))
+                do! Async.Sleep 100
                 do! counter.Incriment(items |> Seq.length)
                 return ()
             }))
-            return! consumer()
+            return! consumer counter
         }
 
-        consumer() |> Async.Start
+        consumer counter1 |> Async.Start
+        consumer counter2 |> Async.Start
+        consumer counter3 |> Async.Start
+        consumer counter4 |> Async.Start
 
         async {
             for i in [0..10000000] do
@@ -35,8 +42,11 @@ module MyQueueTests =
 
             do! Async.Sleep(10000) 
 
-            let! value = counter.Get()
+            let! value1 = counter1.Get()
+            let! value2 = counter2.Get()
+            let! value3 = counter3.Get()
+            let! value4 = counter4.Get()
            
-            printfn "Received %d" value 
+            printfn "Received %d %d %d %d total: %d" value1 value2 value3 value4 (value1 + value2 + value3 + value4) 
 
         } |> Async.RunSynchronously
