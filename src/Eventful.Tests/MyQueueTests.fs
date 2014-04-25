@@ -19,7 +19,7 @@ module MyQueueTests =
         let rec consumer (counter : CounterAgent)  = async {
             do! myQueue.Consume((fun (g, items) -> async {
                 // Console.WriteLine(sprintf "Group: %A Items: %A ItemCount: %d" g items (items |> Seq.length))
-                do! Async.Sleep 100
+                // do! Async.Sleep 100
                 do! counter.Incriment(items |> Seq.length)
                 return ()
             }))
@@ -29,18 +29,25 @@ module MyQueueTests =
         consumer counter1 |> Async.Start
         consumer counter2 |> Async.Start
         consumer counter3 |> Async.Start
+        consumer counter1 |> Async.Start
+        consumer counter2 |> Async.Start
+        consumer counter3 |> Async.Start
+        consumer counter1 |> Async.Start
+        consumer counter2 |> Async.Start
+        consumer counter3 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
         consumer counter4 |> Async.Start
 
         async {
-            for i in [0..10000000] do
-                do! myQueue.Add(i, [1; 2; 3; 4] |> Set.ofList)
-        } |> Async.Start
 
-        async {
+            for i in [1..100000] do
+                do! myQueue.Add(i, [i] |> Set.ofList)
 
-            printfn "About to sleep"
-
-            do! Async.Sleep(10000) 
+            do! myQueue.CurrentItemsComplete()
 
             let! value1 = counter1.Get()
             let! value2 = counter2.Get()
