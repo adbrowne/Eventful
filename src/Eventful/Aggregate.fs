@@ -11,6 +11,14 @@
         abstract Zero : obj
         abstract StateType : Type
 
+    type StateGen<'TState> (fold : 'TState -> obj -> 'TState, zero : 'TState) =
+        member m.FoldState = fold
+        member m.Zero = zero
+        interface IState with
+            member m.FoldState a b = (fold (a :?> 'TState) b) :> obj
+            member m.Zero = zero :> obj
+            member m.StateType = typeof<'TState>
+
     type internal FunctionWrapper<'TState, 'TCmd, 'TResult> (f : 'TState -> 'TCmd -> 'TResult) =
         interface IFunctionInvoker<'TResult> with
             member m.CmdType = typeof<'TCmd>

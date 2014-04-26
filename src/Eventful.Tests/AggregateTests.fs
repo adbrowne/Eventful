@@ -6,6 +6,7 @@ open FsUnit.Xunit
 open FsCheck
 open FsCheck.Xunit
 open System
+open FSharpx.Choice
 
 type PersonCreatedEvt = {
     Id : Guid
@@ -42,12 +43,6 @@ type InMemoryDocumentStore () =
             documents <- documents |> Map.add key (document :> obj)
             ()
 
-type CreatePersonCmd = {
-    Id : Guid
-    FirstName : string
-    LastName : string
-}
-
 [<CLIMutable>]
 type PersonDocument = {
     Id : Guid
@@ -55,7 +50,90 @@ type PersonDocument = {
     LastName : string
 }
 
+[<Sealed>]
+type CommandHandlerAttribute () =
+    class
+        inherit System.Attribute ()
+    end
+
+type CommandError =
+    | PropertyValidation of (string * string)
+    | CommandValidation of (string)
+
+type CommandResult = Choice<obj list, CommandError list>
+
+type CommandHandlerResult<'TCmd, 'TState> = {
+   GetId: Guid 
+   Cmd: 'TCmd
+   StateGen: StateGen<'TState>
+   Run: 'TState -> CommandResult
+}
+
+module Handler =
+    let AmmendRun f (current : CommandHandlerResult<_,_>) =
+        { current with Run = (fun state -> current.Run state |> f) }
+
+    let Start aggregateId cmd (stateGen : StateGen<'TState>)=
+        { 
+            GetId = aggregateId
+            Cmd = cmd
+            StateGen = stateGen
+            Run = fun (state : 'TState) -> Choice1Of2 []
+        }
+    let Output x (current : CommandHandlerResult<_,_>) = 
+        AmmendRun (FSharpx.Choice.map (fun xs -> (x :> obj)::xs)) current
+
+module Validate =
+    let validator pred error x (current : CommandHandlerResult<_,_>) =
+        if pred x then current
+        else
+            current 
+            |> Handler.AmmendRun (function
+                | Choice1Of2 value -> Choice2Of2 [error]
+                | Choice2Of2 xs -> Choice2Of2 (error::xs))
+
+    let NonNullProperty propertyName = validator ((<>) null) (PropertyValidation (propertyName, sprintf "%s is null" propertyName))
+
+module PersonAggregate = 
+    type PersonState = {
+        FirstName : string
+        LastName : string
+    }
+
+    let state = new StateGen<PersonState>((fun s _ -> s), { PersonState.FirstName = ""; LastName = "" }) 
+
+    type CreatePersonCmd = {
+        Id : Guid
+        FirstName : string
+        LastName : string
+    }
+
+    [<CommandHandler>]
+    let HandleCreatePerson (cmd : CreatePersonCmd) =
+        Handler.Start cmd.Id cmd state
+        |> Validate.NonNullProperty "FirstName" cmd.FirstName
+        |> Validate.NonNullProperty "LastName" cmd.LastName
+        |> Handler.Output 
+            {
+                PersonCreatedEvt.Id = cmd.Id
+                FirstName = cmd.FirstName
+                LastName = cmd.LastName
+            }
+
 module AggregateTests =
+    [<Fact>]
+    let ``Test validation`` () : unit =
+        let result = 
+            PersonAggregate.HandleCreatePerson {
+                Id = Guid.NewGuid()
+                FirstName = null
+                LastName = null
+            }
+        let runResult = result.Run result.StateGen.Zero
+        printfn "Result %A" result
+        printfn "RunResult %A" runResult
+
+    open PersonAggregate
     [<Fact>]
     let ``Creating a person results in a person document`` () : unit =
         let processPersonCmd _ (cmd : CreatePersonCmd) =
