@@ -50,6 +50,8 @@
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="WorktrackingQueue.CSharp.fs" />
     <Compile Include="CounterAgent.fs" />
+    <Compile Include="Aggregate.fs" />
+    <Compile Include="ReadModel.fs" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
