@@ -1,7 +1,7 @@
 Eventful
 ========
 
-
+```fsharp
 [<AggregateModule>]
 module PersonAggregate = 
     type internal Marker = interface end
@@ -30,3 +30,4 @@ module PersonAggregate =
                 FirstName = cmd.FirstName
                 LastName = cmd.LastName
             }
+```
