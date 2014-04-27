@@ -41,5 +41,5 @@
 
         member m.RunEvent<'TEvt> (evt : 'TEvt) =
             documentWriters
-            |> List.filter (fun w -> w.EvtType = typeof<'TEvt>)
+            |> List.filter (fun w -> w.EvtType = evt.GetType())
             |> List.iter (fun w -> w.WriteDocument documentStore evt)
