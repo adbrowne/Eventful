@@ -154,16 +154,16 @@ module AggregateTests =
     let hasAttribute (attribute : Type) (m : System.Reflection.MethodInfo) =
         not (m.GetCustomAttributes(attribute,true) |> Array.isEmpty)
 
-    let invoke2 (m : System.Reflection.MethodInfo) (state : obj) (cmd : obj) =
-        let cmdResult = m.Invoke(null, [|cmd; state|])
-        cmdResult?Run?Invoke null
-//
+    let getCmdHandlerFunction (m : System.Reflection.MethodInfo) =
+        (fun (state : obj) (cmd : obj) ->
+            let cmdResult = m.Invoke(null, [|cmd; state|])
+            let result : CommandResult = (cmdResult?Run?Invoke null)
+            result
+        )
+
     let invokeGenericCommandHandler cmdType stateType (instance : 'T) methodName (actualMethod : System.Reflection.MethodInfo) =
         let methodInfo = instance.GetType().GetMethod(methodName)
-//        let paramType = Microsoft.FSharp.Reflection.FSharpType.MakeTupleType([|cmdType;stateType|])
-        // let myMethod = actualMethod.MakeGenericMethod([|cmdType|])
-//        // let myMethod2 = myMethod.MakeGenericMethod([|stateType|])
-        let param : (obj -> obj -> CommandResult) = (fun (state : obj) (cmd : obj) -> invoke2 actualMethod state cmd)
+        let param = getCmdHandlerFunction actualMethod
         methodInfo.Invoke(instance, [|stateType;cmdType;param|]) :?> 'T
 
     let aggregateModuleToAggregate (moduleType : Type) : Aggregate<CommandResult> =
