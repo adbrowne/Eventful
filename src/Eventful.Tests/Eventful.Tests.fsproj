@@ -45,6 +45,7 @@
     <Compile Include="GroupingBoundedQueueStateTests.fs" />
     <Compile Include="GroupingBoundedQueueTests.fs" />
     <Compile Include="WorktrackingQueueTests.fs" />
+    <Compile Include="LastCompleteTrackerTests.fs" />
     <Compile Include="AggregateTests.fs" />
     <None Include="RavenTests\CanCallLastOnArray.cs" />
   </ItemGroup>
