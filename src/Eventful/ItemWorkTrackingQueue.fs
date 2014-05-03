@@ -3,56 +3,6 @@
 open FSharpx.Collections
 open System
 
-type internal BoundedCounterMessage<'T> = 
-    | Start of int * AsyncReplyChannel<unit> 
-    | Complete of int
-
-type BoundedCounter(maxItems) =
-
-    let agent = Agent.Start(fun agent ->
-
-        let rec emptyQueue() =
-            agent.Scan(fun msg -> 
-             match msg with
-             | Start(count, reply) -> Some(enqueue(count, reply, 0))
-             | _ -> None) 
-
-         and running(state) = async {
-            let! msg = agent.Receive()
-            match msg with 
-            | Start(count, reply) -> return! enqueue(count, reply, state)
-            | Complete(count) -> return! workComplete(count, state) }
-
-         and full(state) = 
-            agent.Scan(fun msg -> 
-            match msg with 
-            | Complete(count) -> Some(workComplete(count, state))
-            | _ -> None )
-
-        and enqueue (count, reply, state) = async {
-            reply.Reply()
-            return! chooseState(state + count) }
-
-        and workComplete (count, state) = 
-            chooseState(state - count)
-
-        and chooseState(state) = 
-            if(state = 0) then
-                emptyQueue()
-            else if(state < maxItems) then
-                running state
-            else
-                full state
-
-        emptyQueue()
-    )
-
-    member x.Start(count, ?timeout) = 
-      agent.PostAndAsyncReply((fun ch -> Start (count, ch)), ?timeout=timeout)
-
-    member x.WorkComplete(count: int, ?timeout) = 
-      agent.Post(Complete(count))
-
 type GroupAgentMessages<'TGroup, 'TItem> = 
 | Enqueue of ('TItem * Async<unit> * AsyncReplyChannel<unit>)
 | ConsumeBatch of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<unit>)
@@ -73,6 +23,7 @@ type CompletionAgentMessages<'T> =
 | AllComplete of AsyncReplyChannel<unit>
 
 type MyQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
+
     let maxItems = 1000
 
     let log (value : string) =
@@ -106,7 +57,7 @@ type MyQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
         empty ()
     )
 
-    let buildGroupAgent group (boundedCounter : BoundedCounter) (workerQueue:Agent<WorkQueueMessage<'TGroup, 'TItem>>) = Agent.Start(fun agent -> 
+    let buildGroupAgent group (boundedCounter : BoundedWorkCounter) (workerQueue:Agent<WorkQueueMessage<'TGroup, 'TItem>>) = Agent.Start(fun agent -> 
         let rec loop running waiting = async {
             let! msg = agent.Receive()
             match msg with
@@ -227,7 +178,7 @@ type MyQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
         }
 
         run (Map.empty, 0) )
-    and boundedCounter = new BoundedCounter(10000)
+    and boundedCounter = new BoundedWorkCounter(10000)
 
     member this.Add (item:'TItem, groups: Set<'TGroup>) =
         async {
