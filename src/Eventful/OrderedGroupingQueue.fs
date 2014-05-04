@@ -119,38 +119,38 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
     )
 
     let buildGroupAgent group (completionAgent:Agent<CompletionAgentMessages<'TGroup, 'TItem>>) = Agent.Start(fun agent -> 
-        let rec loop running (waiting) = async {
+        let rec loop running waiting = async {
             let! msg = agent.Receive()
             match msg with
             | Enqueue (itemIndex, item) -> return! enqueue(itemIndex, item, running, waiting)
             | ConsumeBatch(maxIndex, work, reply) -> return! consumeBatch(maxIndex, work, reply, running, waiting)
             | BatchComplete -> return! batchComplete(waiting) }
         and enqueue(itemIndex, item, running, waiting) = async {
-            if ((not running) && (Queue.isEmpty waiting)) then
+            if ((not running) && (List.isEmpty waiting)) then
                workQueueAgent.Post(WorkGrouped (itemIndex, group))
                workQueueAgent.Post(QueueWork agent)
             else
                 ()
-            return! (loop running (waiting |> Queue.conj (itemIndex, item))) }
+            return! (loop running (waiting |> List.cons (itemIndex, item))) }
         and consumeBatch(maxIndex, work, reply, running, waiting) = async {
+            let (readyItems, remainingItems) = waiting |> List.partition (fun (index, item) -> index <= maxIndex) 
             async {
-               let items = waiting |> Queue.toSeq |> List.ofSeq
-               do! work(group, items |> Seq.map snd)
+               do! work(group, readyItems |> Seq.map snd)
                reply.Reply()
                agent.Post BatchComplete
-               for (itemIndex, item) in items do
+               for (itemIndex, item) in readyItems do
                 completionAgent.Post(ItemComplete (itemIndex, group))
             } |> Async.Start
-            return! loop true Queue.empty }
+            return! loop true remainingItems }
         and batchComplete(waiting) = async {
             log <| sprintf "Batch complete. Waiting: %A" waiting
-            if (waiting |> Queue.isEmpty) then
+            if (waiting |> List.isEmpty) then
                 return! loop false waiting
             else
                 workQueueAgent.Post(QueueWork agent)
                 return! loop false waiting }
 
-        loop false Queue.empty
+        loop false List.empty
     )
 
     let rec boundedCounter = new BoundedWorkCounter(10000)
@@ -199,6 +199,7 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
             let! (itemIndex, item, groups) = agent.Receive()
             let newGroupAgents = groups |> Set.fold ensureGroupAgent groupAgents
             completionAgent.Post (ItemStart (itemIndex, groups))
+            workQueueAgent.Post(ItemGroups(itemIndex, groups))
             for group in groups do
                 let groupAgent = newGroupAgents.[group]
                 groupAgent.Post(Enqueue (itemIndex, item))

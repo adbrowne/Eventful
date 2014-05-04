@@ -9,6 +9,25 @@ open FsUnit.Xunit
 module OrderedGroupingQueueTests = 
 
     [<Fact>]
+    let ``Can process single item`` () : unit = 
+        let queue = new OrderedGroupingQueue<int, int>()
+        let counter = new Eventful.CounterAgent()
+        let rec consumer (counter : Eventful.CounterAgent)  = async {
+            do! queue.Consume((fun (g, items) -> async {
+                do! counter.Incriment(items |> Seq.length)
+                return ()
+            }))
+            return! consumer counter
+        }
+
+        async {
+            do! queue.Add(1, (fun _ -> (1,Set.singleton 1)))
+            do! queue.CurrentItemsComplete()
+            let! result = counter.Get()
+            result |> should equal 1
+        } |> Async.Start
+
+    [<Fact>]
     let ``Can do something`` () : unit = 
         let myQueue = new OrderedGroupingQueue<int, int>()
 
@@ -48,7 +67,7 @@ module OrderedGroupingQueueTests =
 
         async {
 
-            for i in [1..1000000] do
+            for i in [1..100000] do
                 do! myQueue.Add(i, (fun input -> (input, [input] |> Set.ofList)))
 
             do! myQueue.CurrentItemsComplete()
