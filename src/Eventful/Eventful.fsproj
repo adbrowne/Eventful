@@ -45,7 +45,6 @@
     <Compile Include="LastCompleteTracker.fs" />
     <Compile Include="BoundedWorkQueue.fs" />
     <Compile Include="BoundedWorkCounter.fs" />
-    <Compile Include="ItemWorkTrackingQueue.fs" />
     <Compile Include="OrderedGroupingQueue.fs" />
     <Compile Include="GroupingBoundedQueueState.fs" />
     <Compile Include="GroupingBoundedQueue.fs" />

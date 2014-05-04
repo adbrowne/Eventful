@@ -173,7 +173,7 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
         and itemComplete itemIndex group tracker toNotify = async {
             let (isComplete, tracker') = tracker.Process(TrackerComplete (itemIndex, group))
             if isComplete then
-                boundedCounter.WorkComplete(1)
+                boundedCounter.WorkComplete()
             else
                 ()
             return! notifyBatchComplete tracker' toNotify }
@@ -209,27 +209,22 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
 
         run (Map.empty) )
 
-    let lastItemIndex = ref -1L
-
     member this.Add (input:'TInput, group: ('TInput -> ('TItem * Set<'TGroup>))) =
         async {
-            do! boundedCounter.Start 1
-            let itemIndex = System.Threading.Interlocked.Increment(lastItemIndex)
-            // Console.WriteLine "About to add to dispatcher"
+            let! itemIndex = boundedCounter.Start 1
             async {
                 let (item, groups) = group input
                 dispatcherAgent.Post(itemIndex, item, groups)
             } |> Async.Start
-            // Console.WriteLine "Added to dispatcher"
         }
 
     member this.Consume (work:(('TGroup * seq<'TItem>) -> Async<unit>)) =
         async {
-            // Console.WriteLine "About to add to consume"
             do! workQueueAgent.PostAndAsyncReply((fun ch -> ConsumeWork(work,ch)))
-            // Console.WriteLine "Consumed"
         }
 
     member this.CurrentItemsComplete () = 
-        let completeUpTo = !lastItemIndex 
-        completionAgent.PostAndAsyncReply(fun ch -> AllComplete (completeUpTo, ch))
+        async {
+            let! completeUpTo = boundedCounter.GetCurrentIndex ()
+            return! completionAgent.PostAndAsyncReply(fun ch -> AllComplete (completeUpTo, ch))
+        }

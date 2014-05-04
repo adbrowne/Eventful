@@ -41,7 +41,6 @@
     <None Include="app.config" />
     <Compile Include="CounterAgent.fs" />
     <Compile Include="BoundedWorkQueueTests.fs" />
-    <Compile Include="MyQueueTests.fs" />
     <Compile Include="OrderedGroupingQueueTests.fs" />
     <Compile Include="GroupingBoundedQueueStateTests.fs" />
     <Compile Include="GroupingBoundedQueueTests.fs" />

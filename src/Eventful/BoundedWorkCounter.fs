@@ -1,51 +1,65 @@
 ﻿namespace Eventful
 
 type internal BoundedCounterMessage<'T> = 
-    | Start of int * AsyncReplyChannel<unit> 
-    | Complete of int
+    | Start of AsyncReplyChannel<int64> 
+    | GetCurrentIndex of AsyncReplyChannel<int64> 
+    | Complete
 
 type BoundedWorkCounter(maxItems) =
 
     let agent = Agent.Start(fun agent ->
 
-        let rec emptyQueue() =
+        let rec emptyQueue lastIndex =
             agent.Scan(fun msg -> 
              match msg with
-             | Start(count, reply) -> Some(enqueue(count, reply, 0))
+             | Start(reply) -> Some(enqueue(reply, (lastIndex,0)))
+             | GetCurrentIndex reply -> 
+                reply.Reply(lastIndex)
+                Some(emptyQueue lastIndex) 
              | _ -> None) 
 
-         and running(state) = async {
+         and running (lastIndex, counter) = async {
             let! msg = agent.Receive()
             match msg with 
-            | Start(count, reply) -> return! enqueue(count, reply, state)
-            | Complete(count) -> return! workComplete(count, state) }
+            | Start(reply) -> return! enqueue(reply, (lastIndex, counter))
+            | GetCurrentIndex reply -> 
+                reply.Reply lastIndex 
+                return! running (lastIndex, counter)
+            | Complete -> return! workComplete (lastIndex, counter) }
 
-         and full(state) = 
+         and full (lastIndex, counter) = 
             agent.Scan(fun msg -> 
             match msg with 
-            | Complete(count) -> Some(workComplete(count, state))
+            | Complete -> Some (workComplete (lastIndex, counter))
+            | GetCurrentIndex reply -> 
+                reply.Reply(lastIndex)
+                Some(emptyQueue lastIndex) 
             | _ -> None )
 
-        and enqueue (count, reply, state) = async {
-            reply.Reply()
-            return! chooseState(state + count) }
+        and enqueue (reply, (lastIndex, running)) = async {
+            let nextIndex = lastIndex + 1L
+            reply.Reply(nextIndex)
+            return! chooseState (nextIndex, running + 1) }
 
-        and workComplete (count, state) = 
-            chooseState(state - count)
+        and workComplete (lastIndex : int64, counter : int) = 
+            chooseState(lastIndex, counter - 1)
 
-        and chooseState(state) = 
-            if(state = 0) then
-                emptyQueue()
-            else if(state < maxItems) then
-                running state
+        and chooseState (lastIndex, counter) = 
+            if(counter = 0) then
+                emptyQueue lastIndex
+            else if(counter < maxItems) then
+                running (lastIndex, counter)
             else
-                full state
+                full (lastIndex, counter)
 
-        emptyQueue()
+        emptyQueue -1L
     )
 
     member x.Start(count, ?timeout) = 
-      agent.PostAndAsyncReply((fun ch -> Start (count, ch)), ?timeout=timeout)
+      agent.PostAndAsyncReply((fun ch -> Start (ch)), ?timeout=timeout)
 
-    member x.WorkComplete(count: int, ?timeout) = 
-      agent.Post(Complete(count))
+    member x.GetCurrentIndex(?timeout) = 
+      agent.PostAndAsyncReply((fun ch -> GetCurrentIndex (ch)), ?timeout=timeout)
+
+    member x.WorkComplete(?timeout) = 
+      agent.Post(Complete)
