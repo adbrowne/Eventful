@@ -68,7 +68,7 @@ module WorktrackingQueueTests =
         !completedItem |> fst |> should equal "group"
         !completedItem |> snd |> should equal "item"
 
-    [<Fact>]
+    [<Fact(Skip = "The new design doesn't allow this behaviour")>]
     let ``Add item throws if grouping function throws`` () : unit =
         let groupingFunction _ = failwith "Grouping function exception"
 

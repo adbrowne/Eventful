@@ -38,7 +38,6 @@ module GroupingBoundedQueueStateTests =
 
         sumFromQueue = manualSum
 
-
     [<Property(MaxTest = 100)>]
     let ``The next batch of a group should not be sent until the previous batch is complete`` (allActions : QueueAction list) : Property =
         let emptyState = GroupingBoundedQueueState.Empty

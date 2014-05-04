@@ -19,6 +19,10 @@ namespace Eventful.CsTests
             Console.WriteLine("Incrimenting");
             Interlocked.Increment(ref _count);
             Console.WriteLine("Incrimented");
+            foreach (var item in items)
+            {
+                Console.WriteLine("DoWork {0}", item);
+            }
             var tcs = new TaskCompletionSource<bool>();
             tcs.SetResult(true);
             return tcs.Task;
@@ -41,22 +45,18 @@ namespace Eventful.CsTests
                 1,
                 Complete);
 
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
-            await queue.Add("something");
+            await queue.Add("0something");
+            await queue.Add("1something");
+            await queue.Add("2something");
+            await queue.Add("3something");
+            await queue.Add("4something");
+            await queue.Add("5something");
+            await queue.Add("6something");
+            await queue.Add("7something");
+            await queue.Add("8something");
+            await queue.Add("9something");
 
             await queue.AsyncComplete();
-
             
             Assert.True(_count > 1, "Callback should have been made at least once");
         }
