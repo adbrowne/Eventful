@@ -137,7 +137,7 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>(?maxItems)
         and consumeBatch(maxIndex, work, reply, running, waiting) = async {
             let (readyItems, remainingItems) = waiting |> List.partition (fun (index, item) -> index <= maxIndex) 
             async {
-               do! work(group, readyItems |> Seq.map snd)
+               do! work(group, readyItems |> List.sortBy fst |> Seq.map snd)
                reply.Reply()
                agent.Post BatchComplete
                for (itemIndex, item) in readyItems do

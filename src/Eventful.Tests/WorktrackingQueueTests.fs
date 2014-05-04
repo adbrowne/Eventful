@@ -24,6 +24,46 @@ module WorktrackingQueueTests =
             worktrackingQueue.Add item |> Async.RunSynchronously
 
         worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
+
+    [<Fact>]
+    let ``Items are received in order`` () : unit =
+        let groupingFunction = Set.singleton << fst
+
+        let monitor = new System.Object()
+        let groupItems = ref Map.empty
+
+        let error = ref "";
+        let work group items = async {
+            lock (monitor) (fun () -> 
+                let groupItemsMap = !groupItems
+                let mutable lastItem = -1
+                if(groupItemsMap.ContainsKey group) then
+                    lastItem <- groupItemsMap.[group]
+                else
+                    ()
+
+                for (itemGroup,item) in items do
+                   if(item <> (lastItem + 1)) then
+                    error := (sprintf "Got event out of order %A %A" itemGroup item)
+                   else 
+                    ()
+                   lastItem <- item
+
+                groupItems := (groupItemsMap |> Map.add group lastItem)
+            ) } 
+
+        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(groupingFunction, work, 100000, 50)
+
+        let items = 
+            [0..100] |> List.collect (fun group -> [0..10] |> List.map (fun item -> (group, item)))
+
+        for item in items do
+            worktrackingQueue.Add item |> Async.RunSynchronously
+
+        worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
+
+        let errorResult = !error
+        errorResult |> should equal ""
         
     [<Fact>]
     let ``Completion function is called when item complete`` () : unit =
