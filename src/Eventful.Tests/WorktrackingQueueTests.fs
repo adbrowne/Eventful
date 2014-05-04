@@ -18,7 +18,7 @@ module WorktrackingQueueTests =
         let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(groupingFunction, work, 100000, 50)
 
         let items = 
-            [0..10000] |> List.collect (fun group -> [0..100] |> List.map (fun item -> (group, item)))
+            [0..10000] |> List.collect (fun group -> [0..10] |> List.map (fun item -> (group, item)))
 
         for item in items do
             worktrackingQueue.Add item |> Async.RunSynchronously
@@ -48,6 +48,7 @@ module WorktrackingQueueTests =
 
     [<Fact>]
     let ``Completion function is called immediately when an items resuls in 0 groups`` () : unit =
+        log4net.Config.XmlConfigurator.Configure()
         let groupingFunction _ = Set.empty
 
         let tcs = new TaskCompletionSource<bool>()

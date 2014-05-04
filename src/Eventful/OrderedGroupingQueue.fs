@@ -1,9 +1,6 @@
-﻿namespace Eventful.New
+﻿namespace Eventful
 
-type Agent<'T> = MailboxProcessor<'T>
 open FSharpx.Collections
-type BoundedWorkCounter = Eventful.BoundedWorkCounter
-type LastCompleteTracker<'TState, 'TMsg> = Eventful.LastCompleteTracker<'TState, 'TMsg>
 
 type GroupAgentMessages<'TGroup, 'TItem> = 
 | Enqueue of (int64 * 'TItem)
@@ -22,7 +19,7 @@ type ItemAgentMessages<'TGroup when 'TGroup : comparison> =
 | Shutdown
 
 type CompletionAgentMessages<'TGroup, 'TItem when 'TGroup : comparison> =
-| ItemStart of (int64 * Set<'TGroup>)
+| ItemStart of (int64 * Async<unit> * Set<'TGroup>)
 | ItemComplete of (int64 * 'TGroup)
 | AllComplete of (int64 * AsyncReplyChannel<unit>)
 
@@ -37,6 +34,7 @@ type GroupCompleteTrackerMessages<'TGroup when 'TGroup : comparison> =
 type GroupsCompleteTracker<'TGroup, 'TItem when 'TGroup : comparison> private (tracker : LastCompleteTracker<GroupCompleteState<'TGroup>,GroupCompleteTrackerMessages<'TGroup>>) =
     static let mapping (msg : GroupCompleteTrackerMessages<'TGroup>, state : GroupCompleteState<'TGroup> option) = 
         match (msg, state) with
+        | (TrackerStart (id, groups), None) when groups = Set.empty -> None
         | (TrackerStart (id, groups), None) -> Some <| Remaining groups
         | (TrackerStart (id, groups), Some (Completed alreadyCompleted)) -> 
             let remainingGroups = groups |> Set.difference alreadyCompleted
@@ -71,13 +69,13 @@ type GroupsCompleteTracker<'TGroup, 'TItem when 'TGroup : comparison> private (t
         let (isComplete, updated) = tracker.Process id operation
         (isComplete, new GroupsCompleteTracker<'TGroup,'TItem>(updated))
 
-type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
+type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>(?maxItems) =
 
-    let maxItems = 1000
-
-    let log (value : string) =
-        //Console.WriteLine value
-        ()
+    let log = Common.Logging.LogManager.GetCurrentClassLogger()
+    let maxItems =
+        match maxItems with
+        | Some v -> v
+        | None -> 10000
 
     let workQueueAgent = Agent.Start(fun agent -> 
         let rec empty (groupsCompleteTracker : GroupsCompleteTracker<'TGroup, 'TItem>) = 
@@ -86,9 +84,13 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
             | QueueWork agent -> Some(enqueue agent Queue.empty groupsCompleteTracker)
             | ItemGroups (itemIndex, groups) -> 
                 let (isComplete, tracker') = groupsCompleteTracker.Process (TrackerStart (itemIndex, groups))
+//                let logMessage = sprintf "ItemGroups index: %A, groups: %A, LastComplete: %A" itemIndex groups tracker'.LastComplete
+//                log.Debug logMessage
                 Some(empty (tracker'))
             | WorkGrouped (itemIndex, group) -> 
                 let (isComplete, tracker') = groupsCompleteTracker.Process (TrackerComplete (itemIndex, group))
+//                let logMessage = sprintf "WorkGrouped index: %A, group: %A, LastComplete: %A" itemIndex group tracker'.LastComplete
+//                log.Debug logMessage
                 Some(empty (tracker'))
             | _ -> None) 
         and hasWork (queue : Queue<Agent<GroupAgentMessages<'TGroup, 'TItem>>>) (groupsCompleteTracker : GroupsCompleteTracker<'TGroup, 'TItem>) = async {
@@ -126,8 +128,8 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
             | ConsumeBatch(maxIndex, work, reply) -> return! consumeBatch(maxIndex, work, reply, running, waiting)
             | BatchComplete -> return! batchComplete(waiting) }
         and enqueue(itemIndex, item, running, waiting) = async {
+            workQueueAgent.Post(WorkGrouped (itemIndex, group))
             if ((not running) && (List.isEmpty waiting)) then
-               workQueueAgent.Post(WorkGrouped (itemIndex, group))
                workQueueAgent.Post(QueueWork agent)
             else
                 ()
@@ -153,41 +155,47 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
         loop false List.empty
     )
 
-    let rec boundedCounter = new BoundedWorkCounter(10000)
+    let rec boundedCounter = new BoundedWorkCounter(maxItems)
     and completionAgent = Agent.Start(fun agent -> 
-        let rec run (tracker : GroupsCompleteTracker<'TGroup,'TItem>) toNotify = async { 
+        let rec run (tracker : GroupsCompleteTracker<'TGroup,'TItem>) (itemCallbacks : Map<int64,Async<unit>>) toNotify = async { 
             let! msg = agent.Receive()
             match msg with
-            | ItemStart (itemIndex, groups) -> return! (itemStart itemIndex groups tracker toNotify)
-            | ItemComplete (itemIndex, group) -> return! (itemComplete itemIndex group tracker toNotify) 
-            | AllComplete (index,r) -> return! (allComplete index r tracker toNotify)}
-        and itemStart itemIndex groups tracker toNotify = async {
+            | ItemStart (itemIndex, itemCompleteCallback, groups) -> return! (itemStart itemIndex itemCompleteCallback groups tracker itemCallbacks toNotify)
+            | ItemComplete (itemIndex, group) -> return! (itemComplete itemIndex group tracker itemCallbacks toNotify) 
+            | AllComplete (index,r) -> return! (allComplete index r tracker itemCallbacks toNotify)}
+        and itemStart itemIndex itemCompleteCallback groups tracker itemCallbacks toNotify = async {
             let (isComplete, tracker') = tracker.Process(TrackerStart (itemIndex, groups))
-            if isComplete then
-                boundedCounter.WorkComplete(1)
-            else
-                ()
-            return! notifyBatchComplete tracker' toNotify }
-        and allComplete index r tracker toNotify = async {
-            return! notifyBatchComplete tracker ((index, r) :: toNotify) }
-        and itemComplete itemIndex group tracker toNotify = async {
+            let itemCallbacks' = 
+                if isComplete then
+                    itemCompleteCallback |> Async.Start
+                    boundedCounter.WorkComplete(1)
+                    itemCallbacks
+                else
+                    itemCallbacks |> Map.add itemIndex itemCompleteCallback
+            return! notifyBatchComplete tracker' itemCallbacks' toNotify }
+        and allComplete index r tracker itemCallbacks toNotify = async {
+            return! notifyBatchComplete tracker itemCallbacks ((index, r) :: toNotify) }
+        and itemComplete itemIndex group tracker itemCallbacks toNotify = async {
             let (isComplete, tracker') = tracker.Process(TrackerComplete (itemIndex, group))
-            if isComplete then
-                boundedCounter.WorkComplete()
-            else
-                ()
-            return! notifyBatchComplete tracker' toNotify }
-        and notifyBatchComplete tracker toNotify = async {
+            let itemCallbacks' = 
+                if isComplete then
+                    itemCallbacks.[itemIndex] |> Async.Start
+                    boundedCounter.WorkComplete()
+                    itemCallbacks.Remove itemIndex
+                else
+                    itemCallbacks
+            return! notifyBatchComplete tracker' itemCallbacks' toNotify }
+        and notifyBatchComplete tracker itemCallbacks toNotify = async {
             let (doneCompletions, remainingCompletionSets) = 
                 toNotify 
                 |> List.partition (fun (itemIndex, callback) -> itemIndex <= tracker.LastComplete)
 
             for (_, callback) in doneCompletions do
                 callback.Reply()
-            return! run tracker remainingCompletionSets
+            return! run tracker itemCallbacks remainingCompletionSets
         }
 
-        run GroupsCompleteTracker.Empty List.empty )
+        run GroupsCompleteTracker.Empty Map.empty List.empty )
     and dispatcherAgent = Agent.Start(fun agent -> 
         let ensureGroupAgent groupAgents group =
             if (groupAgents |> Map.containsKey group) then 
@@ -196,9 +204,9 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
                 groupAgents |> Map.add group (buildGroupAgent group completionAgent)
 
         let rec run(groupAgents) = async {
-            let! (itemIndex, item, groups) = agent.Receive()
+            let! (itemIndex, item, groups, onCompleteCallback) = agent.Receive()
             let newGroupAgents = groups |> Set.fold ensureGroupAgent groupAgents
-            completionAgent.Post (ItemStart (itemIndex, groups))
+            completionAgent.Post (ItemStart (itemIndex, onCompleteCallback, groups))
             workQueueAgent.Post(ItemGroups(itemIndex, groups))
             for group in groups do
                 let groupAgent = newGroupAgents.[group]
@@ -209,12 +217,17 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
 
         run (Map.empty) )
 
-    member this.Add (input:'TInput, group: ('TInput -> ('TItem * Set<'TGroup>))) =
+    member this.Add (input:'TInput, group: ('TInput -> ('TItem * Set<'TGroup>)), ?onComplete : Async<unit>) =
         async {
             let! itemIndex = boundedCounter.Start 1
             async {
                 let (item, groups) = group input
-                dispatcherAgent.Post(itemIndex, item, groups)
+                let onCompleteCallback = async {
+                    match onComplete with
+                    | Some callback -> return! callback
+                    | None -> return ()
+                }
+                dispatcherAgent.Post(itemIndex, item, groups, onCompleteCallback)
             } |> Async.Start
         }
 

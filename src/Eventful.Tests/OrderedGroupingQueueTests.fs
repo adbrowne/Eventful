@@ -1,6 +1,6 @@
 ﻿namespace Eventful.Tests
 
-open Eventful.New
+open Eventful
 open System
 open Xunit
 open System.Threading.Tasks
@@ -25,6 +25,26 @@ module OrderedGroupingQueueTests =
             do! queue.CurrentItemsComplete()
             let! result = counter.Get()
             result |> should equal 1
+        } |> Async.Start
+
+
+    [<Fact>]
+    let ``Can process single item with 2 groups`` () : unit = 
+        let queue = new OrderedGroupingQueue<int, int>()
+        let counter = new Eventful.CounterAgent()
+        let rec consumer (counter : Eventful.CounterAgent)  = async {
+            do! queue.Consume((fun (g, items) -> async {
+                do! counter.Incriment(items |> Seq.length)
+                return ()
+            }))
+            return! consumer counter
+        }
+
+        async {
+            do! queue.Add(1, (fun _ -> (1,Set.ofList [1;2])))
+            do! queue.CurrentItemsComplete()
+            let! result = counter.Get()
+            result |> should equal 2
         } |> Async.Start
 
     [<Fact>]
