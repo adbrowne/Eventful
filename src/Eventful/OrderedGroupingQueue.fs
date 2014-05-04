@@ -143,7 +143,7 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>() =
             } |> Async.Start
             return! loop true remainingItems }
         and batchComplete(waiting) = async {
-            log <| sprintf "Batch complete. Waiting: %A" waiting
+            // log <| sprintf "Batch complete. Waiting: %A" waiting
             if (waiting |> List.isEmpty) then
                 return! loop false waiting
             else
