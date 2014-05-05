@@ -2,7 +2,7 @@
 <package >
   <metadata minClientVersion="2.5">
     <id>Eventful</id>
-    <version>0.0.1.3</version>
+    <version>0.0.1.4</version>
     <authors>Andrew Browne</authors>
     <owners>Andrew Browne</owners>
     <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
@@ -11,7 +11,7 @@
     <description>An EventSourcing library</description>
     <copyright>Copyright 2014</copyright>
     <dependencies>
-      <dependency id="FSharpx.Collections" version="1.9" />
+      <dependency id="FSharpx.Collections" version="1.9.2" />
       <dependency id="Common.Logging" version="2.0" />
     </dependencies>
   </metadata>

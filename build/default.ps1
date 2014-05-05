@@ -27,11 +27,11 @@ task Test -depends MsBuildRelease {
 task Package -depends Clean, MsBuildRelease {
   New-Item -force .\package\lib\net45 -itemtype directory
   Copy-Item .\Release\Eventful.dll .\package\lib\net45
-  exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version 0.0.1.3 }}
+  exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version 0.0.1.4 }}
 }
 
 task PackagePush -depends Package {
-  exec { & {.\tools\nuget\nuget.exe push Eventful.0.0.1.3.nupkg }}
+  exec { & {.\tools\nuget\nuget.exe push Eventful.0.0.1.4.nupkg }}
 }
 
 task ? -Description "Helper to display task info" {
