@@ -29,22 +29,31 @@ type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'T
        new StateBuilder<'TState>(zero, [handler])
     static member Empty zero = new StateBuilder<'TState>(zero, List.empty)
 
+module StateBuilder =
+    let Counter<'T> = 
+        let s = StateBuilder.Empty 0
+        s.AddHandler (fun c (x : 'T) -> c + 1)
+
 type ChildAdded = {
     Id : Guid
 }
 
 module FoldPlay =
-    let runState<'TState> (stateBuilder : StateBuilder<'TState>) items =
+    let runState<'TState> (stateBuilder : StateBuilder<'TState>) (items : obj list) =
         items
         |> List.fold stateBuilder.Run stateBuilder.Zero
 
     let childCounter = 
-        StateBuilder.Empty 0
-        |> (fun x -> x.AddHandler (fun x _ -> x + 1))
+        StateBuilder.Counter<ChildAdded>
 
     [<Fact>]
     let ``Can count children`` () : unit =    
         let result = runState childCounter [{Id = Guid.NewGuid()}]
+        result |> should equal 1
+
+    [<Fact>]
+    let ``Counter will ignore items of other types`` () : unit =    
+        let result = runState childCounter [{Id = Guid.NewGuid()} :> obj; new obj()]
         result |> should equal 1
 
     let childIdCollector = 
