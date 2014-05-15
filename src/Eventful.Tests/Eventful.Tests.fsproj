@@ -50,7 +50,7 @@
     <Compile Include="WorktrackingQueueTests.fs" />
     <Compile Include="LastCompleteTrackerTests.fs" />
     <Compile Include="AggregateTests.fs" />
-    <None Include="RavenTests\CanCallLastOnArray.cs" />
+    <Compile Include="FoldPlay.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Common.Logging">
