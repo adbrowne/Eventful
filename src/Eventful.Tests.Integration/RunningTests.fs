@@ -60,7 +60,21 @@ module RunningTests =
 
     open FSharpx.Option
 
-    type EventModel (connection : IEventStoreConnection) =
+    type IStateBuilder =
+        inherit IComparable
+        abstract member Fold : obj -> obj -> obj
+        abstract member Zero : obj
+
+    type cmdHandler = obj -> (string * IStateBuilder * (obj -> Choice<seq<obj>, seq<string>>))
+
+    type EventProcessingConfiguration = {
+        CommandHandlers : Map<string, cmdHandler>
+        StateBuilders: Set<IStateBuilder>
+        EventHandlers : Map<string, obj -> (string *  IStateBuilder * unit -> seq<string>)>
+    }
+    with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.empty; EventHandlers = Map.empty } 
+
+    type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration) =
         let mutable handlers : Map<string, ResolvedEvent -> option<string * seq<obj>>> = Map.empty
 
         member x.RegisterHandler<'TEvt> (handler : 'TEvt -> option<string * seq<obj>>) =
@@ -87,9 +101,38 @@ module RunningTests =
             } |> ignore
 
         member x.RunCommand cmd streamId =
-            let eventData = new EventData(Guid.NewGuid(), typeof<PersonAddedEvent>.Name, true, serialize cmd, null)
-            connection.AppendToStream(streamId, EventStore.ClientAPI.ExpectedVersion.NoStream, eventData)
-            ()
+            let cmdKey = cmd.GetType().FullName
+            let result =
+                match config.CommandHandlers |> Map.tryFind cmdKey with
+                | Some handler -> 
+                    let (stream, stateBuilder, handler') = handler cmd
+                    let state = stateBuilder.Zero
+                    handler' state
+                | None -> 
+                    Choice2Of2 (Seq.singleton <| sprintf "No handler for command: %A" cmdKey)
+            match result with
+            | Choice1Of2 events ->
+                let eventDatas = 
+                    events
+                    |> Seq.map (fun e -> new EventData(Guid.NewGuid(), e.GetType().Name, true, serialize e, null)) 
+                    |> Seq.toArray
+
+                async {
+                    do! connection.AppendToStreamAsync(streamId, EventStore.ClientAPI.ExpectedVersion.NoStream, eventDatas).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.Ignore
+                    return result
+                }
+            | _ -> 
+                async {
+                    return result
+                }
+
+    type MyStateBuilder () =
+        interface IStateBuilder with
+            member this.Fold state evt = state
+            member this.Zero = () :> obj
+
+        interface IComparable with
+            member this.CompareTo(obj) = (this.GetType().FullName :> IComparable).CompareTo(obj.GetType().FullName)
 
     [<Fact>]
     let ``blah`` () : unit =
@@ -101,7 +144,24 @@ module RunningTests =
         async {
             let! connection = getConnection()
 
-            let model = new EventModel(connection)
+            let myStateBuilder = new MyStateBuilder() :> IStateBuilder
+
+            let cmdType = typeof<AddPersonCommand>.FullName
+
+            let cmdHandler2 : cmdHandler =
+                fun (cmdObj : obj) -> 
+                    let realHandler (cmd : AddPersonCommand) =
+                        (cmd.Id.ToString(), myStateBuilder, (fun (state : obj) -> (Choice1Of2 (Seq.singleton ({ PersonAddedEvent.Id = cmd.Id; Name = cmd.Name; ParentId = cmd.ParentId } :> obj)) )))
+                    match cmdObj with
+                    | :? AddPersonCommand as cmd -> realHandler cmd
+                    | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
+
+            let h : cmdHandler = cmdHandler2
+            let config = 
+                EventProcessingConfiguration.Empty
+                |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType h })
+
+            let model = new EventModel(connection, config)
             model.RegisterHandler onChildAdded
 
             do! model.Start() |> Async.Ignore
@@ -120,8 +180,8 @@ module RunningTests =
                 ParentId = Some parentId
             }
 
-            model.RunCommand addParentCmd (parentId.ToString())
-            model.RunCommand addChildCmd (childId.ToString())
+            do! model.RunCommand addParentCmd (parentId.ToString()) |> Async.Ignore
+            do! model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore
 
             do! Async.Sleep(1000)
 
