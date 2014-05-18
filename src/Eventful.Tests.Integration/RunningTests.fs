@@ -35,11 +35,14 @@ module RunningTests =
         serializer.Serialize(sw, t :> obj)
         System.Text.Encoding.UTF8.GetBytes(sw.ToString())
 
-    let deserialize<'T> (v : byte[]) : 'T =
-        let objType = typeof<'T>
+    let deserializeObj (v : byte[]) (objType : Type) : obj =
         let str = System.Text.Encoding.UTF8.GetString(v)
         let reader = new StringReader(str) :> TextReader
-        serializer.Deserialize(reader, typeof<'T>) :?> 'T 
+        serializer.Deserialize(reader, objType) 
+
+    let deserialize<'T> (v : byte[]) : 'T =
+        let objType = typeof<'T>
+        (deserializeObj v objType) :?> 'T
         
     type AddPersonCommand = {
         Id : Guid
@@ -70,7 +73,7 @@ module RunningTests =
     type EventProcessingConfiguration = {
         CommandHandlers : Map<string, (Type * cmdHandler)>
         StateBuilders: Set<IStateBuilder>
-        EventHandlers : Map<string, (Type *  obj -> (string *  IStateBuilder * unit -> seq<string>))>
+        EventHandlers : Map<string, (Type *  (obj -> option<(string *  IStateBuilder * (obj -> seq<obj>))>))>
     }
     with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.empty; EventHandlers = Map.empty } 
 
@@ -91,31 +94,45 @@ module RunningTests =
                 | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
             config
             |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType (typeof<'TCmd>, outerHandler) })
+        let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string option) (stateBuilder : IStateBuilder) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
+            let evtType = typeof<'TEvt>.Name
+            let outerHandler (evtObj : obj) : option<(string * IStateBuilder * (obj -> seq<obj>))> =
+                let realHandler (evt : 'TEvt) : option<(string * IStateBuilder * (obj -> seq<obj>))> =
+                    let stream = toId evt
+                    match stream with
+                    | Some stream -> 
+                        let realRealHandler = 
+                            let blah = handler evt
+                            fun (state : obj) ->
+                                blah (state :?> 'TState)
+                        Some (stream, stateBuilder, realRealHandler)
+                    | None -> None
+                match evtObj with
+                | :? 'TEvt as evt -> realHandler evt
+                | _ -> failwith <| sprintf "Unexpected event type: %A" (evtObj.GetType())
+            { config with EventHandlers = config.EventHandlers |> Map.add evtType (typeof<'TEvt>, outerHandler) }
     type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration) =
-        let mutable handlers : Map<string, ResolvedEvent -> option<string * seq<obj>>> = Map.empty
-
-        member x.RegisterHandler<'TEvt> (handler : 'TEvt -> option<string * seq<obj>>) =
-            let handler' (evtObj : ResolvedEvent) = 
-                let esEvent = evtObj
-                let evt = deserialize<'TEvt>(esEvent.Event.Data)
-                handler evt
-            handlers <- handlers |> Map.add typeof<'TEvt>.Name handler' 
 
         member x.Start () = 
-            connection.SubscribeToAllAsync(false, (fun subscription event -> x.EventAppeared event event.Event.EventId)) |> Async.AwaitTask
+            connection.SubscribeToAllAsync(false, (fun subscription event -> x.EventAppeared event event.Event.EventId |> Async.RunSynchronously )) |> Async.AwaitTask
 
-        member x.EventAppeared event eventId =
+        member x.EventAppeared (event : ResolvedEvent) eventId : Async<unit> =
             log <| sprintf "Received: %A: %A" eventId event.Event.EventType
-            maybe {
-                let! handler = handlers |> Map.tryFind (event.Event.EventType)
-                let! (stream, events) = handler event
-                let eventData = 
-                    events
-                    |> Seq.map (fun x -> new EventData(Guid.NewGuid(), x.GetType().Name, true, serialize(x), null))
-                    |> Array.ofSeq
-                let result = connection.AppendToStreamAsync(stream, EventStore.ClientAPI.ExpectedVersion.Any, eventData).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.RunSynchronously
-                return result
-            } |> ignore
+
+            match config.EventHandlers |> Map.tryFind event.Event.EventType with
+            | Some (t,handler) -> 
+                let evt = deserializeObj (event.Event.Data) t
+                match handler evt with
+                | Some (stream, stateBuilder, handler') -> 
+                    let state = stateBuilder.Zero
+                    let result = handler' state
+                    let eventData = 
+                        result
+                        |> Seq.map (fun x -> new EventData(Guid.NewGuid(), x.GetType().Name, true, serialize(x), null))
+                        |> Array.ofSeq
+                    connection.AppendToStreamAsync(stream, EventStore.ClientAPI.ExpectedVersion.Any, eventData).ContinueWith((fun _ -> ())) |> Async.AwaitTask  
+                | None -> async { return () } 
+            | None -> async { return () }
 
         member x.RunCommand cmd streamId =
             let cmdKey = cmd.GetType().FullName
@@ -153,10 +170,10 @@ module RunningTests =
 
     [<Fact>]
     let ``blah`` () : unit =
-        let onChildAdded (evt : PersonAddedEvent) =
+        let onChildAdded (evt : PersonAddedEvent) (state : unit) =
             match evt.ParentId with
-            | Some parentId -> Some (parentId.ToString(), Seq.singleton ({ Id = parentId; ChildId = evt.Id } :> obj))
-            | None -> None
+            | Some parentId -> Seq.singleton ({ Id = parentId; ChildId = evt.Id } :> obj)
+            | None -> Seq.empty
 
         async {
             let! connection = getConnection()
@@ -168,12 +185,15 @@ module RunningTests =
             let myCmdHandler (cmd : AddPersonCommand) (state : unit) =
                Choice1Of2 (Seq.singleton ({ PersonAddedEvent.Id = cmd.Id; Name = cmd.Name; ParentId = cmd.ParentId } :> obj)) 
 
+            let evtId (evt : PersonAddedEvent) = 
+                evt.ParentId |> Option.map (fun x -> x.ToString())
+
             let config = 
                 EventProcessingConfiguration.Empty
                 |> EventProcessingConfiguration.addCommand (fun (cmd : AddPersonCommand) -> cmd.Id.ToString()) myStateBuilder myCmdHandler
+                |> EventProcessingConfiguration.addEvent evtId myStateBuilder onChildAdded
 
             let model = new EventModel(connection, config)
-            model.RegisterHandler onChildAdded
 
             do! model.Start() |> Async.Ignore
             
@@ -191,14 +211,20 @@ module RunningTests =
                 ParentId = Some parentId
             }
 
+            let sw = System.Diagnostics.Stopwatch.StartNew()
             do! model.RunCommand addParentCmd (parentId.ToString()) |> Async.Ignore
+            Console.WriteLine("First command {0}ms", sw.ElapsedMilliseconds)
+            let sw = System.Diagnostics.Stopwatch.StartNew()
             do! model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore
+            Console.WriteLine("Second command {0}ms", sw.ElapsedMilliseconds)
 
             do! Async.Sleep(1000)
 
+            let sw = System.Diagnostics.Stopwatch.StartNew()
             let! parentStream = connection.ReadStreamEventsBackwardAsync(parentId.ToString(), EventStore.ClientAPI.StreamPosition.End, 1, false) |> Async.AwaitTask
 
             parentStream.Events
             |> Seq.head
             |> (fun evt -> evt.Event.EventType) |> should equal "ChildAddedEvent"
+            Console.WriteLine("Read stream command {0}ms", sw.ElapsedMilliseconds)
         } |> Async.RunSynchronously
