@@ -1,4 +1,5 @@
-﻿module RavenDbPlay
+﻿namespace Eventful.Tests.Integration
+module RavenDbPlay =
 
     open Xunit
     open Raven.Client.Document

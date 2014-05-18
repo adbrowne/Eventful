@@ -18,6 +18,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{10EE85
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.RavenDb", "Eventful.RavenDb\Eventful.RavenDb.fsproj", "{639B7247-67AE-4A1F-8B09-28BCF23BCE20}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Tests.Integration", "Eventful.Tests.Integration\Eventful.Tests.Integration.fsproj", "{AB8D41F5-147C-42A0-83D1-CF0676864431}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,6 +50,10 @@ Global
 		{639B7247-67AE-4A1F-8B09-28BCF23BCE20}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{639B7247-67AE-4A1F-8B09-28BCF23BCE20}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{639B7247-67AE-4A1F-8B09-28BCF23BCE20}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB8D41F5-147C-42A0-83D1-CF0676864431}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB8D41F5-147C-42A0-83D1-CF0676864431}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB8D41F5-147C-42A0-83D1-CF0676864431}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB8D41F5-147C-42A0-83D1-CF0676864431}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
