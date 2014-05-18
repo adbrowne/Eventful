@@ -68,12 +68,29 @@ module RunningTests =
     type cmdHandler = obj -> (string * IStateBuilder * (obj -> Choice<seq<obj>, seq<string>>))
 
     type EventProcessingConfiguration = {
-        CommandHandlers : Map<string, cmdHandler>
+        CommandHandlers : Map<string, (Type * cmdHandler)>
         StateBuilders: Set<IStateBuilder>
-        EventHandlers : Map<string, obj -> (string *  IStateBuilder * unit -> seq<string>)>
+        EventHandlers : Map<string, (Type *  obj -> (string *  IStateBuilder * unit -> seq<string>))>
     }
     with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.empty; EventHandlers = Map.empty } 
 
+    [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+    module EventProcessingConfiguration =
+        let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : IStateBuilder) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
+            let cmdType = typeof<'TCmd>.FullName
+            let outerHandler (cmdObj : obj) =
+                let realHandler (cmd : 'TCmd) =
+                    let stream = toId cmd
+                    let realRealHandler = 
+                        let blah = handler cmd
+                        fun (state : obj) ->
+                            blah (state :?> 'TState)
+                    (stream, stateBuilder, realRealHandler)
+                match cmdObj with
+                | :? 'TCmd as cmd -> realHandler cmd
+                | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
+            config
+            |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType (typeof<'TCmd>, outerHandler) })
     type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration) =
         let mutable handlers : Map<string, ResolvedEvent -> option<string * seq<obj>>> = Map.empty
 
@@ -104,7 +121,7 @@ module RunningTests =
             let cmdKey = cmd.GetType().FullName
             let result =
                 match config.CommandHandlers |> Map.tryFind cmdKey with
-                | Some handler -> 
+                | Some (t,handler) -> 
                     let (stream, stateBuilder, handler') = handler cmd
                     let state = stateBuilder.Zero
                     handler' state
@@ -148,18 +165,12 @@ module RunningTests =
 
             let cmdType = typeof<AddPersonCommand>.FullName
 
-            let cmdHandler2 : cmdHandler =
-                fun (cmdObj : obj) -> 
-                    let realHandler (cmd : AddPersonCommand) =
-                        (cmd.Id.ToString(), myStateBuilder, (fun (state : obj) -> (Choice1Of2 (Seq.singleton ({ PersonAddedEvent.Id = cmd.Id; Name = cmd.Name; ParentId = cmd.ParentId } :> obj)) )))
-                    match cmdObj with
-                    | :? AddPersonCommand as cmd -> realHandler cmd
-                    | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
+            let myCmdHandler (cmd : AddPersonCommand) (state : unit) =
+               Choice1Of2 (Seq.singleton ({ PersonAddedEvent.Id = cmd.Id; Name = cmd.Name; ParentId = cmd.ParentId } :> obj)) 
 
-            let h : cmdHandler = cmdHandler2
             let config = 
                 EventProcessingConfiguration.Empty
-                |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType h })
+                |> EventProcessingConfiguration.addCommand (fun (cmd : AddPersonCommand) -> cmd.Id.ToString()) myStateBuilder myCmdHandler
 
             let model = new EventModel(connection, config)
             model.RegisterHandler onChildAdded
