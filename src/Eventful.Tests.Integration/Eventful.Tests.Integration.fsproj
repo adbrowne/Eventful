@@ -105,6 +105,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
+      <Name>Eventful.EventStore</Name>
+      <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful.Tests\Eventful.Tests.fsproj">
       <Name>Eventful.Tests</Name>
       <Project>{08132179-eea4-43fa-82e6-5e58b9f17473}</Project>

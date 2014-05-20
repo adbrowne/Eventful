@@ -38,6 +38,7 @@
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="app.config" />
+    <Compile Include="EventModel.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="EventStore.ClientAPI">

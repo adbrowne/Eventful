@@ -6,6 +6,8 @@ open System
 open System.IO
 open Newtonsoft.Json
 open FsUnit.Xunit
+open Eventful
+open Eventful.EventStore
 
 module RunningTests = 
 
@@ -67,116 +69,17 @@ module RunningTests =
     }
 
     open FSharpx.Option
-
-    type IStateBuilder =
-        inherit IComparable
-        abstract member Fold : obj -> obj -> obj
-        abstract member Zero : obj
-
-    type cmdHandler = obj -> (string * IStateBuilder * (obj -> Choice<seq<obj>, seq<string>>))
-
-    type EventProcessingConfiguration = {
-        CommandHandlers : Map<string, (Type * cmdHandler)>
-        StateBuilders: Set<IStateBuilder>
-        EventHandlers : Map<string, (Type *  seq<(obj -> seq<(string *  IStateBuilder * (obj -> seq<obj>))>)>)>
-    }
-    with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.empty; EventHandlers = Map.empty } 
-
-    [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
-    module EventProcessingConfiguration =
-        let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : IStateBuilder) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
-            let cmdType = typeof<'TCmd>.FullName
-            let outerHandler (cmdObj : obj) =
-                let realHandler (cmd : 'TCmd) =
-                    let stream = toId cmd
-                    let realRealHandler = 
-                        let blah = handler cmd
-                        fun (state : obj) ->
-                            blah (state :?> 'TState)
-                    (stream, stateBuilder, realRealHandler)
-                match cmdObj with
-                | :? 'TCmd as cmd -> realHandler cmd
-                | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
-            config
-            |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType (typeof<'TCmd>, outerHandler) })
-        let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : IStateBuilder) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
-            let evtType = typeof<'TEvt>.Name
-            let outerHandler (evtObj : obj) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
-                let realHandler (evt : 'TEvt) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
-                    toId evt
-                    |> Seq.map (fun stream ->
-                        let realRealHandler = 
-                            let blah = handler evt
-                            fun (state : obj) ->
-                                blah (state :?> 'TState)
-                        (stream, stateBuilder, realRealHandler))
-                match evtObj with
-                | :? 'TEvt as evt -> realHandler evt
-                | _ -> failwith <| sprintf "Unexpected event type: %A" (evtObj.GetType())
-            match config.EventHandlers |> Map.tryFind evtType with
-            | Some (_, existing) -> { config with EventHandlers = config.EventHandlers |> Map.add evtType (typeof<'TEvt>, existing |> Seq.append (Seq.singleton outerHandler)) }
-            | None ->  { config with EventHandlers = config.EventHandlers |> Map.add evtType (typeof<'TEvt>, Seq.singleton outerHandler) }
             
-    type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration) =
-
-        member x.Start () = 
-            connection.SubscribeToAllAsync(false, (fun subscription event -> x.EventAppeared event event.Event.EventId |> Async.RunSynchronously )) |> Async.AwaitTask
-
-        member x.EventAppeared (event : ResolvedEvent) eventId : Async<unit> =
-            log <| sprintf "Received: %A: %A" eventId event.Event.EventType
-
-            async {
-                match config.EventHandlers |> Map.tryFind event.Event.EventType with
-                | Some (t,handlers) -> 
-                    let evt = deserializeObj (event.Event.Data) t
-                    do!
-                        handlers
-                        |> Seq.collect (fun h -> h evt)
-                        |> Seq.map (fun (stream, stateBuilder, handler') -> 
-                            async {
-                                let state = stateBuilder.Zero
-                                let result = handler' state
-                                let eventData = 
-                                    result
-                                    |> Seq.map (fun x -> new EventData(Guid.NewGuid(), x.GetType().Name, true, serialize(x), null))
-                                    |> Array.ofSeq
-                                do! connection.AppendToStreamAsync(stream, EventStore.ClientAPI.ExpectedVersion.Any, eventData).ContinueWith((fun _ -> ())) |> Async.AwaitTask  
-                            }
-                        )
-                        |> Async.Parallel |> Async.Ignore
-                | None -> ()
-            }
-
-        member x.RunCommand cmd streamId =
-            let cmdKey = cmd.GetType().FullName
-            let result =
-                match config.CommandHandlers |> Map.tryFind cmdKey with
-                | Some (t,handler) -> 
-                    let (stream, stateBuilder, handler') = handler cmd
-                    let state = stateBuilder.Zero
-                    handler' state
-                | None -> 
-                    Choice2Of2 (Seq.singleton <| sprintf "No handler for command: %A" cmdKey)
-            match result with
-            | Choice1Of2 events ->
-                let eventDatas = 
-                    events
-                    |> Seq.map (fun e -> new EventData(Guid.NewGuid(), e.GetType().Name, true, serialize e, null)) 
-                    |> Seq.toArray
-
-                async {
-                    do! connection.AppendToStreamAsync(streamId, EventStore.ClientAPI.ExpectedVersion.NoStream, eventDatas).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.Ignore
-                    return result
-                }
-            | _ -> 
-                async {
-                    return result
-                }
 
     type MyStateBuilder () =
         interface IStateBuilder with
             member this.Fold state evt = state
             member this.Zero = () :> obj
+
+        override x.Equals obj =
+            obj.GetType().FullName = x.GetType().FullName
+
+        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
 
         interface IComparable with
             member this.CompareTo(obj) = (this.GetType().FullName :> IComparable).CompareTo(obj.GetType().FullName)
@@ -214,9 +117,16 @@ module RunningTests =
                 |> EventProcessingConfiguration.addEvent evtId myStateBuilder onChildAdded
                 |> EventProcessingConfiguration.addEvent evtId myStateBuilder onChildAdded2
 
-            let model = new EventModel(connection, config)
+            let esSerializer() = 
+                { new ISerializer with
+                    member x.DeserializeObj b t = deserializeObj b t
+                    member x.Serialize o = serialize o }
 
-            do! model.Start() |> Async.Ignore
+            let finalSlice = connection.ReadAllEventsBackward(Position.End, 1, false)
+            let nextPosition = finalSlice.NextPosition
+            let model = new EventModel(connection, config, esSerializer())
+
+            model.Start(Some nextPosition) |> ignore
             
             let parentId = Guid.NewGuid()
             let addParentCmd : AddPersonCommand = {

@@ -54,6 +54,7 @@
     <Compile Include="CounterAgent.fs" />
     <Compile Include="Aggregate.fs" />
     <Compile Include="ReadModel.fs" />
+    <Compile Include="EventProcessingConfiguration.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>
