@@ -61,49 +61,46 @@ module RunningTests =
     type ChildAddedEvent = {
         Id : Guid
         ChildId : Guid
+        ExistingChildren: int
     }
 
     type ChildAddedEvent2 = {
         Id : Guid
         ChildId : Guid
+        ExistingChildren: int
     }
 
     open FSharpx.Option
             
-
-    type MyStateBuilder () =
-        interface IStateBuilder with
-            member this.Fold state evt = state
-            member this.Zero = () :> obj
-
-        override x.Equals obj =
-            obj.GetType().FullName = x.GetType().FullName
-
-        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
-
-        interface IComparable with
-            member this.CompareTo(obj) = (this.GetType().FullName :> IComparable).CompareTo(obj.GetType().FullName)
-
     [<Fact>]
     let ``blah`` () : unit =
-        let onChildAdded (evt : PersonAddedEvent) (state : unit) =
+        let onChildAdded (evt : PersonAddedEvent) (state : int) =
             match evt.ParentId with
-            | Some parentId -> Seq.singleton ({ ChildAddedEvent.Id = parentId; ChildId = evt.Id } :> obj)
+            | Some parentId -> Seq.singleton ({ ChildAddedEvent.Id = parentId; ChildId = evt.Id; ExistingChildren = state } :> obj)
             | None -> Seq.empty
 
-        let onChildAdded2 (evt : PersonAddedEvent) (state : unit) =
+        let onChildAdded2 (evt : PersonAddedEvent) (state : int) =
             match evt.ParentId with
-            | Some parentId -> Seq.singleton ({ ChildAddedEvent2.Id = parentId; ChildId = evt.Id } :> obj)
+            | Some parentId -> Seq.singleton ({ ChildAddedEvent2.Id = parentId; ChildId = evt.Id; ExistingChildren = state } :> obj)
             | None -> Seq.empty
 
         async {
             let! connection = getConnection()
 
-            let myStateBuilder = new MyStateBuilder() :> IStateBuilder
+            let myFold (s : int) (evt : obj) =
+                match evt with
+                | :? ChildAddedEvent as evt -> s + 1
+                | _ -> s
+
+            let myStateBuilder = StateBuilder<_>.ToInterface {
+                fold = myFold
+                zero = 0
+                name = "myStateBuilder"
+            }
 
             let cmdType = typeof<AddPersonCommand>.FullName
 
-            let myCmdHandler (cmd : AddPersonCommand) (state : unit) =
+            let myCmdHandler (cmd : AddPersonCommand) (state : int) =
                Choice1Of2 (Seq.singleton ({ PersonAddedEvent.Id = cmd.Id; Name = cmd.Name; ParentId = cmd.ParentId } :> obj)) 
 
             let evtId (evt : PersonAddedEvent) = 

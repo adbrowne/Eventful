@@ -6,6 +6,36 @@ type IStateBuilder =
     inherit IComparable
     abstract member Fold : obj -> obj -> obj
     abstract member Zero : obj
+    abstract member Name : string
+
+type StateBuilder<'TState> = {
+    zero : 'TState
+    fold : 'TState -> obj -> 'TState
+    name : string
+}
+with static member ToInterface<'TState> (sb : StateBuilder<'TState>) = {
+        new IStateBuilder with 
+             member this.Fold (state : obj) (evt : obj) = 
+                match state with
+                | :? 'TState as s ->    
+                    let result =  sb.fold s evt
+                    result :> obj
+                | _ -> state
+             member this.Zero = sb.zero :> obj
+             member this.Name = sb.name
+
+//        override x.Equals obj =
+//            obj.GetType().FullName = x.GetType().FullName
+//
+//        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
+//
+        interface IComparable with
+            member this.CompareTo(obj) =
+                match obj with
+                | :? IStateBuilder as sc -> compare sb.name sc.Name
+                | _ -> -1
+    }
+
 
 type cmdHandler = obj -> (string * IStateBuilder * (obj -> Choice<seq<obj>, seq<string>>))
 
