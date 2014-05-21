@@ -48,7 +48,7 @@ with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.em
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventProcessingConfiguration =
-    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : IStateBuilder) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
+    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : StateBuilder<'TState>) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
         let cmdType = typeof<'TCmd>.FullName
         let outerHandler (cmdObj : obj) =
             let realHandler (cmd : 'TCmd) =
@@ -57,13 +57,14 @@ module EventProcessingConfiguration =
                     let blah = handler cmd
                     fun (state : obj) ->
                         blah (state :?> 'TState)
-                (stream, stateBuilder, realRealHandler)
+                let untypedStateBuilder = StateBuilder<_>.ToInterface stateBuilder
+                (stream, untypedStateBuilder, realRealHandler)
             match cmdObj with
             | :? 'TCmd as cmd -> realHandler cmd
             | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
         config
         |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType (typeof<'TCmd>, outerHandler) })
-    let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : IStateBuilder) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
+    let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : StateBuilder<'TState>) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
         let evtType = typeof<'TEvt>.Name
         let outerHandler (evtObj : obj) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
             let realHandler (evt : 'TEvt) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
@@ -73,7 +74,8 @@ module EventProcessingConfiguration =
                         let blah = handler evt
                         fun (state : obj) ->
                             blah (state :?> 'TState)
-                    (stream, stateBuilder, realRealHandler))
+                    let untypedStateBuilder = StateBuilder<_>.ToInterface stateBuilder
+                    (stream, untypedStateBuilder, realRealHandler))
             match evtObj with
             | :? 'TEvt as evt -> realHandler evt
             | _ -> failwith <| sprintf "Unexpected event type: %A" (evtObj.GetType())

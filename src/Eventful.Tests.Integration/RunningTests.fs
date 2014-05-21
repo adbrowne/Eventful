@@ -92,7 +92,7 @@ module RunningTests =
                 | :? ChildAddedEvent as evt -> s + 1
                 | _ -> s
 
-            let myStateBuilder = StateBuilder<_>.ToInterface {
+            let myStateBuilder = {
                 fold = myFold
                 zero = 0
                 name = "myStateBuilder"
