@@ -61,7 +61,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                 |> Seq.toArray
 
             async {
-                do! connection.AppendToStreamAsync(streamId, EventStore.ClientAPI.ExpectedVersion.NoStream, eventDatas).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.Ignore
+                do! connection.AppendToStreamAsync(streamId, EventStore.ClientAPI.ExpectedVersion.Any, eventDatas).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.Ignore
                 return result
             }
         | _ -> 

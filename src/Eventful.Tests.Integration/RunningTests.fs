@@ -11,7 +11,7 @@ open Eventful.EventStore
 
 module RunningTests = 
 
-    let getConnection () =
+    let getConnection () : Async<IEventStoreConnection> =
         async {
             let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
             let tcs = new System.Threading.Tasks.TaskCompletionSource<unit>()
@@ -70,8 +70,15 @@ module RunningTests =
         ExistingChildren: int
     }
 
+    let getNextPosition ( connection : IEventStoreConnection ) =
+        let position = Position.End
+        let finalSlice = connection.ReadAllEventsBackward(position, 1, false, null)
+        let nextPosition = finalSlice.NextPosition
+        nextPosition
+
     open FSharpx.Option
-            
+    open FSharp.Control
+       
     [<Fact>]
     let ``blah`` () : unit =
         let onChildAdded (evt : PersonAddedEvent) (state : int) =
@@ -119,10 +126,10 @@ module RunningTests =
                     member x.DeserializeObj b t = deserializeObj b t
                     member x.Serialize o = serialize o }
 
-            let finalSlice = connection.ReadAllEventsBackward(Position.End, 1, false)
-            let nextPosition = finalSlice.NextPosition
+            
             let model = new EventModel(connection, config, esSerializer())
 
+            let nextPosition = getNextPosition connection
             model.Start(Some nextPosition) |> ignore
             
             let parentId = Guid.NewGuid()
@@ -144,19 +151,44 @@ module RunningTests =
             do! model.RunCommand addParentCmd (parentId.ToString()) |> Async.Ignore
             Console.WriteLine("First command {0}ms", sw.ElapsedMilliseconds)
             let sw = System.Diagnostics.Stopwatch.StartNew()
+
             do! model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore
+            let rec addChildLoop i = async {
+                if i > 0 then
+                    do! model.RunCommand addParentCmd (parentId.ToString()) |> Async.Ignore
+                    do! addChildLoop (i - 1)
+                else
+                    () }
+                    
+            do! addChildLoop 1000
+                
             Console.WriteLine("Second command {0}ms", sw.ElapsedMilliseconds)
 
-            do! Async.Sleep(1000)
+            do! Async.Sleep(10000)
 
             let sw = System.Diagnostics.Stopwatch.StartNew()
-            let! parentStream = connection.ReadStreamEventsBackwardAsync(parentId.ToString(), EventStore.ClientAPI.StreamPosition.End, 100, false) |> Async.AwaitTask
 
-            parentStream.Events
+            let readStreamBackward streamId =
+                let rec loop next =
+                    asyncSeq {
+                        let! events = connection.ReadStreamEventsBackwardAsync(streamId, next, 100, false) |> Async.AwaitTask
+                        for evt in events.Events do
+                            yield evt
+                        if events.IsEndOfStream then
+                            ()
+                        else
+                            yield! loop events.NextEventNumber
+                    }
+                loop EventStore.ClientAPI.StreamPosition.End
+
+            let parentStream = readStreamBackward <| parentId.ToString() |> Seq.ofAsyncSeq |> List.ofSeq
+
+            printfn "Event count: %d" parentStream.Length
+            parentStream
             |> Seq.exists (fun evt -> evt.Event.EventType = "ChildAddedEvent2")
             |> should equal true
 
-            parentStream.Events
+            parentStream
             |> Seq.exists (fun evt -> evt.Event.EventType = "ChildAddedEvent")
             |> should equal true
 
