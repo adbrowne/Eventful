@@ -41,5 +41,8 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
     member this.Add (item:'TItem) =
         queue.Add (item, grouping, _complete item)
 
+    member this.AddWithCallback (item:'TItem, onComplete : ('TItem -> Async<unit>)) =
+        queue.Add (item, grouping, onComplete item)
+
     member this.AsyncComplete () =
         queue.CurrentItemsComplete ()
