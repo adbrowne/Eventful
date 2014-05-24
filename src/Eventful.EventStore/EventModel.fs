@@ -4,10 +4,11 @@ open System
 
 open EventStore.ClientAPI
 open Eventful
+open FSharp.Control
 
 type ISerializer = 
     abstract Serialize<'T> : 'T -> byte[]
-    abstract DeserializeObj : byte[] -> Type -> obj
+    abstract DeserializeObj : byte[] -> string -> obj
 
 type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration, serializer : ISerializer) =
     let log (msg : string) = Console.WriteLine(msg)
@@ -15,11 +16,17 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
     let client = new Client(connection)
     let processMessage streamId (stateBuilder : IStateBuilder) (handler : obj -> seq<obj>) =
         async {
-            let state = stateBuilder.Zero
+            let fold state (event : ResolvedEvent) =
+                let evt = serializer.DeserializeObj event.Event.Data event.Event.EventType
+                stateBuilder.Fold state evt
+            let! state = 
+                client.readStreamForward streamId 
+                |> AsyncSeq.fold fold stateBuilder.Zero
+
             let result = handler state
             let eventData = 
                 result
-                |> Seq.map (fun x -> new EventData(Guid.NewGuid(), x.GetType().Name, true, serializer.Serialize(x), null))
+                |> Seq.map (fun x -> new EventData(Guid.NewGuid(),  config.TypeToTypeName (x.GetType()), true, serializer.Serialize(x), null))
                 |> Array.ofSeq
             do!  client.append streamId EventStore.ClientAPI.ExpectedVersion.Any eventData
         }
@@ -35,7 +42,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
 
         async {
             match config.EventHandlers |> Map.tryFind event.Event.EventType with
-            | Some (t,handlers) -> 
+            | Some (t,handlers) ->
                 let evt = serializer.DeserializeObj (event.Event.Data) t
                 do!
                     handlers
@@ -59,7 +66,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
         | Choice1Of2 events ->
             let eventDatas = 
                 events
-                |> Seq.map (fun e -> new EventData(Guid.NewGuid(), e.GetType().Name, true, serializer.Serialize e, null)) 
+                |> Seq.map (fun e -> new EventData(Guid.NewGuid(), config.TypeToTypeName (e.GetType()), true, serializer.Serialize e, null)) 
                 |> Seq.toArray
 
             async {

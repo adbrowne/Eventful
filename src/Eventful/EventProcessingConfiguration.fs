@@ -42,9 +42,11 @@ type cmdHandler = obj -> (string * IStateBuilder * (obj -> Choice<seq<obj>, seq<
 type EventProcessingConfiguration = {
     CommandHandlers : Map<string, (Type * cmdHandler)>
     StateBuilders: Set<IStateBuilder>
-    EventHandlers : Map<string, (Type *  seq<(obj -> seq<(string *  IStateBuilder * (obj -> seq<obj>))>)>)>
+    EventHandlers : Map<string, (string *  seq<(obj -> seq<(string *  IStateBuilder * (obj -> seq<obj>))>)>)>
+    TypeToTypeName : Type -> string
+    TypeNameToType : string -> Type
 }
-with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.empty; EventHandlers = Map.empty } 
+with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.empty; EventHandlers = Map.empty; TypeToTypeName = (fun t -> t.FullName); TypeNameToType = System.Type.GetType } 
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventProcessingConfiguration =
@@ -65,7 +67,7 @@ module EventProcessingConfiguration =
         config
         |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType (typeof<'TCmd>, outerHandler) })
     let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : StateBuilder<'TState>) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
-        let evtType = typeof<'TEvt>.Name
+        let evtType = config.TypeToTypeName typeof<'TEvt>
         let outerHandler (evtObj : obj) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
             let realHandler (evt : 'TEvt) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
                 toId evt
@@ -80,5 +82,5 @@ module EventProcessingConfiguration =
             | :? 'TEvt as evt -> realHandler evt
             | _ -> failwith <| sprintf "Unexpected event type: %A" (evtObj.GetType())
         match config.EventHandlers |> Map.tryFind evtType with
-        | Some (_, existing) -> { config with EventHandlers = config.EventHandlers |> Map.add evtType (typeof<'TEvt>, existing |> Seq.append (Seq.singleton outerHandler)) }
-        | None ->  { config with EventHandlers = config.EventHandlers |> Map.add evtType (typeof<'TEvt>, Seq.singleton outerHandler) }
+        | Some (_, existing) -> { config with EventHandlers = config.EventHandlers |> Map.add evtType (config.TypeToTypeName typeof<'TEvt>, existing |> Seq.append (Seq.singleton outerHandler)) }
+        | None ->  { config with EventHandlers = config.EventHandlers |> Map.add evtType (config.TypeToTypeName typeof<'TEvt>, Seq.singleton outerHandler) }
