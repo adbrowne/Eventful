@@ -38,6 +38,7 @@
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="app.config" />
+    <Compile Include="Client.fs" />
     <Compile Include="EventModel.fs" />
   </ItemGroup>
   <ItemGroup>
@@ -47,6 +48,10 @@
     </Reference>
     <Reference Include="FSharpx.Collections">
       <HintPath>..\packages\FSharpx.Collections.1.9.2\lib\net35\FSharpx.Collections.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="FSharpx.Core">
+      <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="metrics">

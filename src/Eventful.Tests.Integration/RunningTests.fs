@@ -125,7 +125,6 @@ module RunningTests =
                 { new ISerializer with
                     member x.DeserializeObj b t = deserializeObj b t
                     member x.Serialize o = serialize o }
-
             
             let model = new EventModel(connection, config, esSerializer())
 
@@ -159,29 +158,23 @@ module RunningTests =
                     do! addChildLoop (i - 1)
                 else
                     () }
+
+            do! 
+                [1..1000]
+                |> Seq.map (fun _ -> async { do! model.RunCommand addParentCmd (parentId.ToString()) |> Async.Ignore })
+                |> Async.Parallel
+                |> Async.Ignore
                     
-            do! addChildLoop 1000
+            // do! addChildLoop 1000
                 
             Console.WriteLine("Second command {0}ms", sw.ElapsedMilliseconds)
 
-            do! Async.Sleep(10000)
+            do! Async.Sleep(1000)
 
             let sw = System.Diagnostics.Stopwatch.StartNew()
+            let client = new Client(connection)
 
-            let readStreamBackward streamId =
-                let rec loop next =
-                    asyncSeq {
-                        let! events = connection.ReadStreamEventsBackwardAsync(streamId, next, 100, false) |> Async.AwaitTask
-                        for evt in events.Events do
-                            yield evt
-                        if events.IsEndOfStream then
-                            ()
-                        else
-                            yield! loop events.NextEventNumber
-                    }
-                loop EventStore.ClientAPI.StreamPosition.End
-
-            let parentStream = readStreamBackward <| parentId.ToString() |> Seq.ofAsyncSeq |> List.ofSeq
+            let parentStream = client.readStreamBackward <| parentId.ToString() |> Seq.ofAsyncSeq |> List.ofSeq
 
             printfn "Event count: %d" parentStream.Length
             parentStream

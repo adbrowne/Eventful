@@ -12,13 +12,25 @@ type ISerializer =
 type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration, serializer : ISerializer) =
     let log (msg : string) = Console.WriteLine(msg)
 
+    let client = new Client(connection)
+    let processMessage streamId (stateBuilder : IStateBuilder) (handler : obj -> seq<obj>) =
+        async {
+            let state = stateBuilder.Zero
+            let result = handler state
+            let eventData = 
+                result
+                |> Seq.map (fun x -> new EventData(Guid.NewGuid(), x.GetType().Name, true, serializer.Serialize(x), null))
+                |> Array.ofSeq
+            do!  client.append streamId EventStore.ClientAPI.ExpectedVersion.Any eventData
+        }
+
     member x.Start (position : Position option) = 
         let nullablePosition = match position with
                                | Some position -> Nullable.op_Implicit(position)
                                | None -> Nullable()
-        connection.SubscribeToAllFrom(nullablePosition, false, (fun subscription event -> x.EventAppeared event event.Event.EventId |> Async.RunSynchronously ))
+        client.subscribe position x.EventAppeared
 
-    member x.EventAppeared (event : ResolvedEvent) eventId : Async<unit> =
+    member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
         log <| sprintf "Received: %A: %A" eventId event.Event.EventType
 
         async {
@@ -28,17 +40,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                 do!
                     handlers
                     |> Seq.collect (fun h -> h evt)
-                    |> Seq.map (fun (stream, stateBuilder, handler') -> 
-                        async {
-                            let state = stateBuilder.Zero
-                            let result = handler' state
-                            let eventData = 
-                                result
-                                |> Seq.map (fun x -> new EventData(Guid.NewGuid(), x.GetType().Name, true, serializer.Serialize(x), null))
-                                |> Array.ofSeq
-                            do! connection.AppendToStreamAsync(stream, EventStore.ClientAPI.ExpectedVersion.Any, eventData).ContinueWith((fun _ -> ())) |> Async.AwaitTask  
-                        }
-                    )
+                    |> Seq.map (fun (stream, stateBuilder, handler') -> processMessage stream stateBuilder handler')
                     |> Async.Parallel |> Async.Ignore
             | None -> ()
         }
@@ -61,7 +63,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                 |> Seq.toArray
 
             async {
-                do! connection.AppendToStreamAsync(streamId, EventStore.ClientAPI.ExpectedVersion.Any, eventDatas).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.Ignore
+                do! client.append streamId EventStore.ClientAPI.ExpectedVersion.Any eventDatas
                 return result
             }
         | _ -> 
