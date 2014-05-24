@@ -2,47 +2,65 @@
 
 open System
 
-type IStateBuilder =
+type IStateBuilder<'TState,'TItem> =
     inherit IComparable
-    abstract member Fold : obj -> obj -> obj
-    abstract member Zero : obj
+    abstract member Fold : 'TState -> 'TItem -> 'TState
+    abstract member Zero : 'TState
     abstract member Name : string
 
-type StateBuilder<'TState> = {
+type StateBuilder<'TState, 'TItem> = {
     zero : 'TState
-    fold : 'TState -> obj -> 'TState
+    fold : 'TState -> 'TItem -> 'TState
     name : string
-}
-with static member ToInterface<'TState> (sb : StateBuilder<'TState>) = {
-        new IStateBuilder with 
+} with  
+    static member ToInterface<'TState,'TItem> (sb : StateBuilder<'TState,'TItem>) = {
+            new IStateBuilder<'TState,'TItem> with 
+                 member this.Fold (state : 'TState) (evt : 'TItem) = 
+                    let result =  sb.fold state evt
+                    result
+                 member this.Zero = sb.zero
+                 member this.Name = sb.name
+
+    //        override x.Equals obj =
+    //            obj.GetType().FullName = x.GetType().FullName
+    //
+    //        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
+    //
+            interface IComparable with
+                member this.CompareTo(obj) =
+                    match obj with
+                    | :? IStateBuilder<'TState,'TItem> as sc -> compare sb.name sc.Name
+                    | _ -> -1
+        }
+    static member ToUntypedInterface<'TState,'TItem> (sb : StateBuilder<'TState,'TItem>) = {
+            new IStateBuilder<obj,obj> with 
              member this.Fold (state : obj) (evt : obj) = 
                 match state with
                 | :? 'TState as s ->    
-                    let result =  sb.fold s evt
+                    let result =  sb.fold s (evt :?> 'TItem)
                     result :> obj
                 | _ -> state
              member this.Zero = sb.zero :> obj
              member this.Name = sb.name
-
-//        override x.Equals obj =
-//            obj.GetType().FullName = x.GetType().FullName
-//
-//        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
-//
-        interface IComparable with
-            member this.CompareTo(obj) =
-                match obj with
-                | :? IStateBuilder as sc -> compare sb.name sc.Name
-                | _ -> -1
+    //        override x.Equals obj =
+    //            obj.GetType().FullName = x.GetType().FullName
+    //
+    //        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
+    //
+            interface IComparable with
+                member this.CompareTo(obj) =
+                    match obj with
+                    | :? IStateBuilder<'TState,'TItem> as sc -> compare sb.name sc.Name
+                    | _ -> -1
     }
 
 
-type cmdHandler = obj -> (string * IStateBuilder * (obj -> Choice<seq<obj>, seq<string>>))
+type cmdHandler = obj -> (string * IStateBuilder<obj,obj> * (obj -> Choice<seq<obj>, seq<string>>))
 
 type EventProcessingConfiguration = {
     CommandHandlers : Map<string, (Type * cmdHandler)>
-    StateBuilders: Set<IStateBuilder>
-    EventHandlers : Map<string, (string *  seq<(obj -> seq<(string *  IStateBuilder * (obj -> seq<obj>))>)>)>
+    StateBuilders: Set<IStateBuilder<obj,obj>>
+    EventHandlers : Map<string, (string *  seq<(obj -> seq<(string *  IStateBuilder<obj,obj> * (obj -> seq<obj>))>)>)>
     TypeToTypeName : Type -> string
     TypeNameToType : string -> Type
 }
@@ -50,7 +68,7 @@ with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.em
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventProcessingConfiguration =
-    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : StateBuilder<'TState>) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
+    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : StateBuilder<'TState,obj>) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
         let cmdType = typeof<'TCmd>.FullName
         let outerHandler (cmdObj : obj) =
             let realHandler (cmd : 'TCmd) =
@@ -59,24 +77,24 @@ module EventProcessingConfiguration =
                     let blah = handler cmd
                     fun (state : obj) ->
                         blah (state :?> 'TState)
-                let untypedStateBuilder = StateBuilder<_>.ToInterface stateBuilder
+                let untypedStateBuilder = StateBuilder<_,_>.ToUntypedInterface stateBuilder
                 (stream, untypedStateBuilder, realRealHandler)
             match cmdObj with
             | :? 'TCmd as cmd -> realHandler cmd
             | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
         config
         |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType (typeof<'TCmd>, outerHandler) })
-    let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : StateBuilder<'TState>) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
+    let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : StateBuilder<'TState,obj>) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
         let evtType = config.TypeToTypeName typeof<'TEvt>
-        let outerHandler (evtObj : obj) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
-            let realHandler (evt : 'TEvt) : seq<(string * IStateBuilder * (obj -> seq<obj>))> =
+        let outerHandler (evtObj : obj) : seq<(string * IStateBuilder<obj,obj> * (obj -> seq<obj>))> =
+            let realHandler (evt : 'TEvt) : seq<(string * IStateBuilder<obj,obj> * (obj -> seq<obj>))> =
                 toId evt
                 |> Seq.map (fun stream ->
                     let realRealHandler = 
                         let blah = handler evt
                         fun (state : obj) ->
                             blah (state :?> 'TState)
-                    let untypedStateBuilder = StateBuilder<_>.ToInterface stateBuilder
+                    let untypedStateBuilder = StateBuilder<_,_>.ToUntypedInterface stateBuilder
                     (stream, untypedStateBuilder, realRealHandler))
             match evtObj with
             | :? 'TEvt as evt -> realHandler evt

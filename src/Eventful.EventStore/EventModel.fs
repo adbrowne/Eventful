@@ -11,7 +11,7 @@ type ISerializer =
     abstract DeserializeObj : byte[] -> string -> obj
 
 type Message = 
-|    Event of (obj * Map<string,seq<(string *  IStateBuilder * (obj -> seq<obj>))>>)
+|    Event of (obj * Map<string,seq<(string *  IStateBuilder<obj,obj> * (obj -> seq<obj>))>>)
 
 type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration, serializer : ISerializer) =
     let log (msg : string) = Console.WriteLine(msg)
@@ -26,17 +26,17 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
             |> Seq.map fst
             |> Set.ofSeq
 
-    let getState streamId (stateBuilder : IStateBuilder) = 
+    let getState streamId (stateBuilder : IStateBuilder<obj,obj>) = 
         async {
             let fold state (event : ResolvedEvent) =
                 let evt = serializer.DeserializeObj event.Event.Data event.Event.EventType
                 stateBuilder.Fold state evt
             return! 
-                client.readStreamForward streamId 
+                client.readStreamForward streamId
                 |> AsyncSeq.fold fold stateBuilder.Zero
         }
         
-    let processMessage streamId (stateBuilder : IStateBuilder) (handler : obj -> Choice<seq<obj>,_>) =
+    let processMessage streamId (stateBuilder : IStateBuilder<obj,obj>) (handler : obj -> Choice<seq<obj>,_>) =
          async {
             let! state = getState streamId stateBuilder
             let result = handler state
