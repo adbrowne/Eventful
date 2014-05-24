@@ -43,10 +43,6 @@ module RunningTests =
         let reader = new StringReader(str) :> TextReader
         let result = serializer.Deserialize(reader, objType) 
         result
-
-//    let deserialize<'T> (v : byte[]) : 'T =
-//        let objType = typeof<'T>
-//        (deserializeObj v objType) :?> 'T
         
     type AddPersonCommand = {
         Id : Guid
@@ -81,16 +77,16 @@ module RunningTests =
     open FSharpx.Option
     open FSharp.Control
        
+    let onChildAdded (evt : PersonAddedEvent) (state : int) =
+        match evt.ParentId with
+        | Some parentId -> Seq.singleton ({ ChildAddedEvent.Id = parentId; ChildId = evt.Id; ExistingChildren = state } :> obj)
+        | None -> Seq.empty
+
+    let onChildAdded2 (evt : ChildAddedEvent) (state : int) =
+        Seq.singleton ({ ChildAddedEvent2.Id = evt.Id; ChildId = evt.Id; ExistingChildren = state } :> obj)
+
     [<Fact>]
-    let ``blah`` () : unit =
-        let onChildAdded (evt : PersonAddedEvent) (state : int) =
-            match evt.ParentId with
-            | Some parentId -> Seq.singleton ({ ChildAddedEvent.Id = parentId; ChildId = evt.Id; ExistingChildren = state } :> obj)
-            | None -> Seq.empty
-
-        let onChildAdded2 (evt : ChildAddedEvent) (state : int) =
-            Seq.singleton ({ ChildAddedEvent2.Id = evt.Id; ChildId = evt.Id; ExistingChildren = state } :> obj)
-
+    let ``Basic commands and events`` () : unit =
         let matches id existingChildren expectedParentId = 
             let idMatches = id = expectedParentId 
             let childrenMatches = existingChildren = 1
@@ -99,15 +95,14 @@ module RunningTests =
         async {
             let! connection = getConnection()
 
-            let myFold (s : int) (evt : obj) =
-                match evt with
-                | :? ChildAddedEvent as evt -> s + 1
-                | _ -> s
+            let myFold (s : int) (evt : obj) = s + 1
 
             let myStateBuilder = {
                 fold = myFold
                 zero = 0
                 name = "myStateBuilder"
+                version = "1"
+                types = Seq.singleton typeof<ChildAddedEvent>
             }
 
             let cmdType = typeof<AddPersonCommand>.FullName
@@ -166,14 +161,6 @@ module RunningTests =
             let sw = System.Diagnostics.Stopwatch.StartNew()
 
             do! model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore
-
-//            do! 
-//                [1..1000]
-//                |> Seq.map (fun _ -> async { do! model.RunCommand addParentCmd (parentId.ToString()) |> Async.Ignore })
-//                |> Async.Parallel
-//                |> Async.Ignore
-                    
-            // do! addChildLoop 1000
                 
             Console.WriteLine("Second command {0}ms", sw.ElapsedMilliseconds)
 
@@ -203,4 +190,70 @@ module RunningTests =
             |> should equal true
 
             Console.WriteLine("Read stream command {0}ms", sw.ElapsedMilliseconds)
+        } |> Async.RunSynchronously
+
+    type AddedEvent = {
+        Id : Guid
+        Count : int
+    }
+
+    [<Fact>]
+    let ``Snapshotting`` () : unit =
+        async {
+            let! connection = getConnection()
+
+            let myFold (s : int) (evt : obj) = s + 1
+
+            let myStateBuilder = {
+                fold = myFold
+                zero = 1
+                name = "myStateBuilder"
+                version = "1"
+                types = Seq.singleton typeof<AddedEvent>
+            }
+
+            let cmdType = typeof<AddPersonCommand>.FullName
+
+            let myCmdHandler (cmd : AddPersonCommand) (state : int) =
+               Choice1Of2 (Seq.singleton ({ AddedEvent.Id = cmd.Id; Count = state } :> obj)) 
+
+            let config = 
+                EventProcessingConfiguration.Empty
+                |> EventProcessingConfiguration.addCommand (fun (cmd : AddPersonCommand) -> cmd.Id.ToString()) myStateBuilder myCmdHandler
+
+            let esSerializer = 
+                { new ISerializer with
+                    member x.DeserializeObj b t = deserializeObj b t
+                    member x.Serialize o = serialize o }
+            
+            let model = new EventModel(connection, config, esSerializer)
+
+            let nextPosition = getNextPosition connection
+            model.Start(Some nextPosition) |> ignore
+            
+            let parentId = Guid.NewGuid()
+
+            let childId = Guid.NewGuid()
+
+            let addChildCmd : AddPersonCommand = {
+                Id = childId
+                Name = "Child"
+                ParentId = Some parentId
+            }
+
+            let sw = System.Diagnostics.Stopwatch.StartNew()
+//            do! model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore //|> Async.RunSynchronously
+            [1..1000]
+            |> Seq.iter (fun _ -> model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore |> Async.RunSynchronously)
+                
+            Console.WriteLine("Second command {0}ms", sw.ElapsedMilliseconds)
+
+            let sw = System.Diagnostics.Stopwatch.StartNew()
+            let client = new Client(connection)
+
+            let last = client.readStreamBackward <| childId.ToString() |> AsyncSeq.take 1 |> Seq.ofAsyncSeq |> Seq.head
+
+            let lastEvent = deserializeObj last.Event.Data last.Event.EventType :?> AddedEvent
+
+            lastEvent.Count |> should equal 1000
         } |> Async.RunSynchronously

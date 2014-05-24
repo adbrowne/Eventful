@@ -25,8 +25,8 @@ type Client (connection : IEventStoreConnection) =
     member x.readStreamBackward streamId =
         readStream streamId EventStore.ClientAPI.StreamPosition.End connection.ReadStreamEventsBackwardAsync
 
-    member x.readStreamForward streamId =
-        readStream streamId EventStore.ClientAPI.StreamPosition.Start connection.ReadStreamEventsForwardAsync
+    member x.readStreamForward streamId from =
+        readStream streamId from connection.ReadStreamEventsForwardAsync
 
     member x.append streamId expectedVersion eventData = async {
             do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith((fun _ -> ())) |> Async.AwaitTask

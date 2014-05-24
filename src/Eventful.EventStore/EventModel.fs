@@ -5,6 +5,7 @@ open System
 open EventStore.ClientAPI
 open Eventful
 open FSharp.Control
+open FSharp.Data
 
 type ISerializer = 
     abstract Serialize<'T> : 'T -> byte[]
@@ -26,19 +27,47 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
             |> Seq.map fst
             |> Set.ofSeq
 
+    let getSnapshotStream stream (stateBuilder : IStateBuilder<_,_>) =
+        sprintf "%s-%s-%s" stream stateBuilder.Name stateBuilder.Version
+
     let getState streamId (stateBuilder : IStateBuilder<obj,obj>) = 
         async {
-            let fold state (event : ResolvedEvent) =
-                let evt = serializer.DeserializeObj event.Event.Data event.Event.EventType
-                stateBuilder.Fold state evt
+            let types = 
+                stateBuilder.Types 
+                |> Seq.map config.TypeToTypeName
+                |> Set.ofSeq
+
+            let snapshotStream = getSnapshotStream streamId stateBuilder
+            let snapshot = client.readStreamBackward snapshotStream |> AsyncSeq.take 1 |> Seq.ofAsyncSeq |> List.ofSeq
+
+            let (startIndex, zero) =
+                match snapshot with
+                | [] -> 
+                    (EventStore.ClientAPI.StreamPosition.Start, stateBuilder.Zero) 
+                | [x] ->
+                    let state = serializer.DeserializeObj x.Event.Data x.Event.EventType
+                    let jsonValue = JsonValue.Parse <| System.Text.Encoding.UTF8.GetString(x.Event.Metadata)
+                    let lastEventNumber = 
+                        match jsonValue with
+                        | JsonValue.Record [| "lastEventNumber", JsonValue.Number lastEventNumber |] -> Convert.ToInt32(lastEventNumber)
+                        | _ -> failwith <| sprintf "malformed snapshot metadata %s" snapshotStream
+                    (lastEventNumber + 1, state)
+                | _ -> failwith ("unexpected result count when loading snapshot")
+
+            let fold (expectedVersion, unsnapshotted, state) (event : ResolvedEvent) =
+                if types |> Set.contains event.Event.EventType then
+                    let evt = serializer.DeserializeObj event.Event.Data event.Event.EventType
+                    (event.Event.EventNumber, unsnapshotted + 1, stateBuilder.Fold state evt)
+                else
+                    (event.Event.EventNumber, unsnapshotted + 1, state)
             return! 
-                client.readStreamForward streamId
-                |> AsyncSeq.fold fold stateBuilder.Zero
+                client.readStreamForward streamId startIndex
+                |> AsyncSeq.fold fold (EventStore.ClientAPI.ExpectedVersion.EmptyStream, 0, zero)
         }
         
     let processMessage streamId (stateBuilder : IStateBuilder<obj,obj>) (handler : obj -> Choice<seq<obj>,_>) =
          async {
-            let! state = getState streamId stateBuilder
+            let! (expectedVersion, unsnapshotted, state) = getState streamId stateBuilder
             let result = handler state
             match result with
             | Choice1Of2 newEvents ->
@@ -46,7 +75,17 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                     newEvents
                     |> Seq.map (fun x -> new EventData(Guid.NewGuid(),  config.TypeToTypeName (x.GetType()), true, serializer.Serialize(x), null))
                     |> Array.ofSeq
-                do! client.append streamId EventStore.ClientAPI.ExpectedVersion.Any eventData
+                do! client.append streamId expectedVersion eventData
+                let eventCount = expectedVersion + eventData.Length + 1
+                if (eventCount > 1 && expectedVersion % 100 = 0) then
+                    let snapshotStream = streamId + "-" + stateBuilder.Name + "-" + stateBuilder.Version
+                    if (unsnapshotted > 100) then
+                        let eventData = new EventData(Guid.NewGuid(), state.GetType().FullName, true, serializer.Serialize state, (System.Text.Encoding.UTF8.GetBytes (sprintf "{ \"lastEventNumber\": %d }" expectedVersion)))
+                        do! client.append snapshotStream EventStore.ClientAPI.ExpectedVersion.Any [|eventData|]
+                    else
+                        ()
+                else
+                    return ()
             | _ -> ()
                 
             return result

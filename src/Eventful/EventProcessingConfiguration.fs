@@ -6,12 +6,17 @@ type IStateBuilder<'TState,'TItem> =
     inherit IComparable
     abstract member Fold : 'TState -> 'TItem -> 'TState
     abstract member Zero : 'TState
+    abstract member Types : seq<Type>
     abstract member Name : string
+    abstract member Version : string
+    abstract member StateType : Type
 
 type StateBuilder<'TState, 'TItem> = {
     zero : 'TState
     fold : 'TState -> 'TItem -> 'TState
     name : string
+    version : string
+    types : seq<Type>
 } with  
     static member ToInterface<'TState,'TItem> (sb : StateBuilder<'TState,'TItem>) = {
             new IStateBuilder<'TState,'TItem> with 
@@ -20,12 +25,9 @@ type StateBuilder<'TState, 'TItem> = {
                     result
                  member this.Zero = sb.zero
                  member this.Name = sb.name
-
-    //        override x.Equals obj =
-    //            obj.GetType().FullName = x.GetType().FullName
-    //
-    //        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
-    //
+                 member this.Types = sb.types
+                 member this.Version = sb.version
+                 member this.StateType = typeof<'TState>
             interface IComparable with
                 member this.CompareTo(obj) =
                     match obj with
@@ -42,11 +44,9 @@ type StateBuilder<'TState, 'TItem> = {
                 | _ -> state
              member this.Zero = sb.zero :> obj
              member this.Name = sb.name
-    //        override x.Equals obj =
-    //            obj.GetType().FullName = x.GetType().FullName
-    //
-    //        override x.GetHashCode () = x.GetType().FullName.GetHashCode()
-    //
+             member this.Types = sb.types
+             member this.Version = sb.version
+             member this.StateType = typeof<'TState>
             interface IComparable with
                 member this.CompareTo(obj) =
                     match obj with
