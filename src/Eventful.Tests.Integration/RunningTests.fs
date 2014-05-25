@@ -190,6 +190,7 @@ module RunningTests =
             |> should equal true
 
             Console.WriteLine("Read stream command {0}ms", sw.ElapsedMilliseconds)
+            log <| sprintf "Last Complete: %A" (model.LastComplete())
         } |> Async.RunSynchronously
 
     type AddedEvent = {
@@ -242,7 +243,7 @@ module RunningTests =
             }
 
             let sw = System.Diagnostics.Stopwatch.StartNew()
-//            do! model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore //|> Async.RunSynchronously
+
             [1..1000]
             |> Seq.iter (fun _ -> model.RunCommand addChildCmd (childId.ToString()) |> Async.Ignore |> Async.RunSynchronously)
                 
@@ -256,4 +257,6 @@ module RunningTests =
             let lastEvent = deserializeObj last.Event.Data last.Event.EventType :?> AddedEvent
 
             lastEvent.Count |> should equal 1000
+
+            log <| sprintf "Last Complete: %A" (model.LastComplete())
         } |> Async.RunSynchronously

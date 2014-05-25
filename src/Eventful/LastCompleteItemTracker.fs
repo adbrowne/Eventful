@@ -1,8 +1,8 @@
 ﻿namespace Eventful
 
-type LastCompleteItemTracker<'TItem when 'TItem : comparison> private 
+type LastCompleteItemTracker<'TItem when 'TItem : equality> private 
     (
-        items : Map<'TItem, int64>, 
+        items : Map<int64, 'TItem>, 
         completed: Set<int64>,
         lastCompleteItem : 'TItem option,
         lastStartedIndex : int64,
@@ -25,22 +25,26 @@ type LastCompleteItemTracker<'TItem when 'TItem : comparison> private
 
     member x.Start (item:'TItem) =
         let index = lastStartedIndex + 1L
-        let items' = items |> Map.add item index
+        let items' = items |> Map.add index item 
         new LastCompleteItemTracker<'TItem>(items', completed, lastCompleteItem, index, lastCompletedIndex)
         
     member x.Complete (item:'TItem) =
-        let itemIndex = items.[item]
+        let itemIndex = items |> Map.findKey (fun k v -> v = item)
         let completed' = completed |> Set.add itemIndex
         let lastCompletedIndex' = getMinimumCompleted completed' lastCompletedIndex
-        let lastComplete' = items |> Map.tryFindKey (fun k v -> v = lastCompletedIndex')
-        let items' = items |> Map.filter (fun k v -> v >= lastCompletedIndex')
+        let lastComplete' =
+            if lastCompletedIndex' > -1L then
+               items |> Map.find lastCompletedIndex' |> Some
+            else
+                None
+        let items' = items |> Map.filter (fun k v -> k >= lastCompletedIndex')
         let completed' = completed' |> Set.filter (fun v -> v > lastCompletedIndex')
         new LastCompleteItemTracker<'TItem>(items', completed', lastComplete', lastStartedIndex, lastCompletedIndex')
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module LastCompleteItemTracker =
-    let start<'TItem when 'TItem : comparison> (item : 'TItem) (tracker : LastCompleteItemTracker<'TItem>) = 
+    let start<'TItem when 'TItem : equality> (item : 'TItem) (tracker : LastCompleteItemTracker<'TItem>) = 
         tracker.Start item
 
-    let complete<'TItem when 'TItem : comparison> (item : 'TItem) (tracker : LastCompleteItemTracker<'TItem>) = 
+    let complete<'TItem when 'TItem : equality> (item : 'TItem) (tracker : LastCompleteItemTracker<'TItem>) = 
         tracker.Complete item

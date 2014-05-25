@@ -12,16 +12,18 @@ type ISerializer =
     abstract DeserializeObj : byte[] -> string -> obj
 
 type Message = 
-|    Event of (obj * Map<string,seq<(string *  IStateBuilder<obj,obj> * (obj -> seq<obj>))>>)
+|    Event of (obj * Map<string,seq<(string *  IStateBuilder<obj,obj> * (obj -> seq<obj>))>> * Position)
 
 type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration, serializer : ISerializer) =
     let log (msg : string) = Console.WriteLine(msg)
 
     let client = new Client(connection)
 
+    let completeTracker = new LastCompleteItemAgent<Position>()
+
     let groupMessageIntoStream message =
         match message with
-        | Event (event, handlerMap) ->
+        | Event (event, handlerMap, _) ->
             handlerMap
             |> Map.toSeq
             |> Seq.map fst
@@ -109,14 +111,22 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
             | [] -> async { return () } 
             | x::xs ->
                 match x with
-                | Event (evt, handlers) ->
+                | Event (evt, handlers, _) ->
                     let handlersForThisStream = handlers |> Map.find stream
                     processEventList stream handlersForThisStream
 
         do! loop (messages |> List.ofSeq)
     }
 
-    let queue = new WorktrackingQueue<_,_>(groupMessageIntoStream, processMessages)
+    let eventComplete (event : Message) = async { 
+        let (Event (_,_,position : Position)) = event
+        completeTracker.Complete position
+    }
+
+    let queue = new WorktrackingQueue<_,_>(groupMessageIntoStream, processMessages, 1000, 10, eventComplete)
+
+    member x.LastComplete =
+        completeTracker.LastComplete
 
     member x.Start (position : Position option) = 
         let nullablePosition = match position with
@@ -125,11 +135,13 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
         client.subscribe position x.EventAppeared
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
-        log <| sprintf "Received: %A: %A" eventId event.Event.EventType
+        log <| sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition
 
         async {
             match config.EventHandlers |> Map.tryFind event.Event.EventType with
             | Some (t,handlers) ->
+                let position = event.OriginalPosition.Value
+                do! completeTracker.Start position
                 let evt = serializer.DeserializeObj (event.Event.Data) t
                 let processList = 
                     handlers
@@ -138,7 +150,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                     |> Seq.groupBy (fun (stream,_,_) -> stream)
                     |> Map.ofSeq
 
-                do! queue.Add <| Event (evt, processList)
+                do! queue.Add <| Event (evt, processList, position)
             | None -> ()
         }
 
