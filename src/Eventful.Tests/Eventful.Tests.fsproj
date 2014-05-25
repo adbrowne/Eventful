@@ -49,6 +49,7 @@
     <Compile Include="GroupingBoundedQueueTests.fs" />
     <Compile Include="WorktrackingQueueTests.fs" />
     <Compile Include="LastCompleteTrackerTests.fs" />
+    <Compile Include="LastCompleteItemTracker.fs" />
     <Compile Include="AggregateTests.fs" />
     <Compile Include="FoldPlay.fs" />
   </ItemGroup>
