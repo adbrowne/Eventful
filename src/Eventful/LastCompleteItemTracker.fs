@@ -33,7 +33,7 @@ type LastCompleteItemTracker<'TItem when 'TItem : comparison> private
         let completed' = completed |> Set.add itemIndex
         let lastCompletedIndex' = getMinimumCompleted completed' lastCompletedIndex
         let lastComplete' = items |> Map.tryFindKey (fun k v -> v = lastCompletedIndex')
-        let items' = items |> Map.filter (fun k v -> v > lastCompletedIndex')
+        let items' = items |> Map.filter (fun k v -> v >= lastCompletedIndex')
         let completed' = completed' |> Set.filter (fun v -> v > lastCompletedIndex')
         new LastCompleteItemTracker<'TItem>(items', completed', lastComplete', lastStartedIndex, lastCompletedIndex')
 
