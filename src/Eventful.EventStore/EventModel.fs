@@ -139,11 +139,13 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
     member x.LastComplete =
         completeTracker.LastComplete
 
-    member x.Start (position : Position option) =  async {
+    member x.Start () =  async {
         let! position = ProcessingTracker.readPosition client
         let nullablePosition = match position with
-                               | Some position -> Nullable.op_Implicit(position)
-                               | None -> Nullable()
+                               | Some position -> Nullable(position)
+                               | None -> 
+                                    log <| "No event position found. Starting from current head."
+                                    Nullable(client.getNextPosition ())
 
         let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
         timer <- new System.Threading.Timer(updatePosition, null, TimeSpan.Zero, timeBetweenPositionSaves)

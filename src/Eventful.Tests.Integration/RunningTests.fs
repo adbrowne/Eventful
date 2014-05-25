@@ -68,12 +68,6 @@ module RunningTests =
         ExistingChildren: int
     }
 
-    let getNextPosition ( connection : IEventStoreConnection ) =
-        let position = Position.End
-        let finalSlice = connection.ReadAllEventsBackward(position, 1, false, null)
-        let nextPosition = finalSlice.NextPosition
-        nextPosition
-
     open FSharpx.Option
     open FSharp.Control
        
@@ -136,8 +130,7 @@ module RunningTests =
             
             use model = new EventModel(connection, config, esSerializer)
 
-            let nextPosition = getNextPosition connection
-            do! model.Start(Some nextPosition) |> Async.Ignore
+            do! model.Start() |> Async.Ignore
             
             let parentId = Guid.NewGuid()
             let addParentCmd : AddPersonCommand = {
@@ -229,8 +222,7 @@ module RunningTests =
             
             use model = new EventModel(connection, config, esSerializer)
 
-            let nextPosition = getNextPosition connection
-            do! model.Start(Some nextPosition) |> Async.Ignore
+            do! model.Start() |> Async.Ignore
             
             let parentId = Guid.NewGuid()
 

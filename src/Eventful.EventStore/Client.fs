@@ -38,6 +38,12 @@ type Client (connection : IEventStoreConnection) =
             do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith((fun _ -> ())) |> Async.AwaitTask
         }
 
+    member x.getNextPosition () = async {
+        let position = Position.End
+        let! (finalSlice : AllEventsSlice) = connection.ReadAllEventsBackwardAsync(position, 1, false, null)
+        let nextPosition = finalSlice.NextPosition
+        return nextPosition }
+
     member x.ensureMetadata streamId (data : StreamMetadata) = async {
         let! (metadata : StreamMetadataResult) = (connection.GetStreamMetadataAsync(streamId) |> Async.AwaitTask)
         if (metadata.MetastreamVersion = ExpectedVersion.EmptyStream) then
