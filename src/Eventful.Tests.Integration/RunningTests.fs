@@ -134,10 +134,10 @@ module RunningTests =
                     member x.DeserializeObj b t = deserializeObj b t
                     member x.Serialize o = serialize o }
             
-            let model = new EventModel(connection, config, esSerializer)
+            use model = new EventModel(connection, config, esSerializer)
 
             let nextPosition = getNextPosition connection
-            model.Start(Some nextPosition) |> ignore
+            do! model.Start(Some nextPosition) |> Async.Ignore
             
             let parentId = Guid.NewGuid()
             let addParentCmd : AddPersonCommand = {
@@ -227,10 +227,10 @@ module RunningTests =
                     member x.DeserializeObj b t = deserializeObj b t
                     member x.Serialize o = serialize o }
             
-            let model = new EventModel(connection, config, esSerializer)
+            use model = new EventModel(connection, config, esSerializer)
 
             let nextPosition = getNextPosition connection
-            model.Start(Some nextPosition) |> ignore
+            do! model.Start(Some nextPosition) |> Async.Ignore
             
             let parentId = Guid.NewGuid()
 

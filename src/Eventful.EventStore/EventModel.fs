@@ -123,16 +123,31 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
         completeTracker.Complete position
     }
 
+    let updatePosition _ =
+        let lastComplete = completeTracker.LastComplete()
+        log <| sprintf "Updating position %A" lastComplete
+        match lastComplete with
+        | Some position ->
+            ProcessingTracker.setPosition client position |> Async.RunSynchronously
+        | None -> ()
+
     let queue = new WorktrackingQueue<_,_>(groupMessageIntoStream, processMessages, 1000, 10, eventComplete)
+
+    let mutable timer : System.Threading.Timer = null
+    let mutable subscription : EventStoreAllCatchUpSubscription = null
 
     member x.LastComplete =
         completeTracker.LastComplete
 
-    member x.Start (position : Position option) = 
+    member x.Start (position : Position option) =  async {
+        let! position = ProcessingTracker.readPosition client
         let nullablePosition = match position with
                                | Some position -> Nullable.op_Implicit(position)
                                | None -> Nullable()
-        client.subscribe position x.EventAppeared
+
+        let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
+        timer <- new System.Threading.Timer(updatePosition, null, TimeSpan.Zero, timeBetweenPositionSaves)
+        subscription <- client.subscribe position x.EventAppeared }
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
         log <| sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition
@@ -151,7 +166,10 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                     |> Map.ofSeq
 
                 do! queue.Add <| Event (evt, processList, position)
-            | None -> ()
+            | None ->
+                let position = event.OriginalPosition.Value
+                do! completeTracker.Start position
+                completeTracker.Complete position
         }
 
     member x.RunCommand cmd streamId =
@@ -163,3 +181,16 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
             processMessage stream stateBuilder handler'
         | None -> 
             async { return Choice2Of2 (Seq.singleton <| sprintf "No handler for command: %A" cmdKey) }
+    interface IDisposable with
+        member x.Dispose() =
+            if timer <> null then
+                timer.Dispose()
+            else
+                ()
+
+            if subscription <> null then
+                subscription.Stop(TimeSpan.FromSeconds(30.0))
+            else
+                ()
+            
+            updatePosition ()

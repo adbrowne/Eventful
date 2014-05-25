@@ -3,6 +3,7 @@
 open FSharp.Control
 open EventStore.ClientAPI
 open System
+open FSharpx.Collections
 
 /// simple F# wrapper around EventStore functions
 type Client (connection : IEventStoreConnection) =
@@ -28,12 +29,28 @@ type Client (connection : IEventStoreConnection) =
     member x.readStreamForward streamId from =
         readStream streamId from connection.ReadStreamEventsForwardAsync
 
+    member x.readStreamHead streamId = async {
+        let! (result : StreamEventsSlice) = connection.ReadStreamEventsBackwardAsync(streamId, EventStore.ClientAPI.StreamPosition.End, 1, false) |> Async.AwaitTask
+        return result.Events |> Seq.tryHead
+    }
+
     member x.append streamId expectedVersion eventData = async {
             do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith((fun _ -> ())) |> Async.AwaitTask
         }
+
+    member x.ensureMetadata streamId (data : StreamMetadata) = async {
+        let! (metadata : StreamMetadataResult) = (connection.GetStreamMetadataAsync(streamId) |> Async.AwaitTask)
+        if (metadata.MetastreamVersion = ExpectedVersion.EmptyStream) then
+            try 
+                do! ((connection.SetStreamMetadataAsync(streamId, ExpectedVersion.EmptyStream, data).ContinueWith((fun x -> true))) |> Async.AwaitTask |> Async.Ignore)
+            with
+            | :? EventStore.ClientAPI.Exceptions.WrongExpectedVersionException -> return ()
+        else
+            return ()
+    }
 
     member x.subscribe (start : Position option) (handler : Guid -> ResolvedEvent -> Async<unit>) = 
         let nullablePosition = match start with
                                | Some position -> Nullable.op_Implicit(position)
                                | None -> Nullable()
-        connection.SubscribeToAllFrom(nullablePosition, false, (fun subscription event -> handler event.Event.EventId event |> Async.RunSynchronously )) |> ignore
+        connection.SubscribeToAllFrom(nullablePosition, false, (fun subscription event -> handler event.Event.EventId event |> Async.RunSynchronously ))

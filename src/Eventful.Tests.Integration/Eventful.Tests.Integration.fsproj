@@ -39,6 +39,7 @@
     <Compile Include="EventStorePlay.fs" />
     <Compile Include="RavenDbPlay.fs" />
     <Compile Include="RunningTests.fs" />
+    <Compile Include="PositionTests.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>
