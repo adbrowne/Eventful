@@ -3,36 +3,11 @@
 open Xunit
 open System
 open FsUnit.Xunit
+open Eventful
 
-type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'TState)>) = 
-    member x.Zero = zero
-    member x.AddHandler<'T> (f:'TState -> 'T -> 'TState) =
-        let func (state : 'TState) (message : obj) =
-            match message with
-            | :? 'T as msg -> f state msg
-            | _ -> state
-
-        let msgType = typeof<'T>
-        new StateBuilder<'TState>(zero, func::handlers)
-        
-    member x.Run (state: 'TState) (item: obj) =
-        handlers
-        |> List.fold (fun s h -> h s item) state
-
-    static member Combine<'TState1, 'TState2, 'TState> (builder1 : StateBuilder<'TState1>) (builder2 : StateBuilder<'TState2>) combiner extractor =
-       let zero = combiner builder1.Zero builder2.Zero 
-       let handler (state : 'TState) (message : obj) = 
-            let (state1, state2) = extractor state
-            let state1' = builder1.Run state1 message
-            let state2' = builder2.Run state2 message
-            combiner state1' state2'
-       new StateBuilder<'TState>(zero, [handler])
-    static member Empty zero = new StateBuilder<'TState>(zero, List.empty)
-
-module StateBuilder =
-    let Counter<'T> = 
-        let s = StateBuilder.Empty 0
-        s.AddHandler (fun c (x : 'T) -> c + 1)
+type ChildRemoved = {
+    Id : Guid
+}
 
 type ChildAdded = {
     Id : Guid
@@ -58,7 +33,7 @@ module FoldPlay =
 
     let childIdCollector = 
         StateBuilder.Empty Set.empty
-        |> (fun x -> x.AddHandler (fun s { Id = id} -> s |> Set.add id))
+        |> (fun x -> x.AddHandler (fun s { ChildAdded.Id = id} -> s |> Set.add id))
 
     [<Fact>]
     let ``Can collect ids`` () : unit =    
@@ -66,3 +41,11 @@ module FoldPlay =
         let id = Guid.NewGuid()
         let result = runState stateBuilder [{Id = id}]
         result |> should equal (1, Set.singleton id)
+
+    [<Fact>]
+    let ``Set tracker`` () : unit = 
+       let child1Id = Guid.NewGuid()
+       let child2Id = Guid.NewGuid()
+       let stateBuilder = StateBuilder.SetBuilder (fun (added:ChildAdded) -> added.Id) (fun (removed:ChildRemoved) -> removed.Id)
+       let result = runState stateBuilder [{ ChildAdded.Id = child1Id }; {ChildRemoved.Id = child1Id}; {ChildAdded.Id = child2Id}]
+       result |> should equal (Set.singleton child2Id)

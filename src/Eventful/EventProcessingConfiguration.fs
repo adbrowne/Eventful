@@ -11,14 +11,14 @@ type IStateBuilder<'TState,'TItem> =
     abstract member Version : string
     abstract member StateType : Type
 
-type StateBuilder<'TState, 'TItem> = {
+type AggregateStateBuilder<'TState, 'TItem> = {
     zero : 'TState
     fold : 'TState -> 'TItem -> 'TState
     name : string
     version : string
     types : seq<Type>
 } with  
-    static member ToInterface<'TState,'TItem> (sb : StateBuilder<'TState,'TItem>) = {
+    static member ToInterface<'TState,'TItem> (sb : AggregateStateBuilder<'TState,'TItem>) = {
             new IStateBuilder<'TState,'TItem> with 
                  member this.Fold (state : 'TState) (evt : 'TItem) = 
                     let result =  sb.fold state evt
@@ -34,7 +34,7 @@ type StateBuilder<'TState, 'TItem> = {
                     | :? IStateBuilder<'TState,'TItem> as sc -> compare sb.name sc.Name
                     | _ -> -1
         }
-    static member ToUntypedInterface<'TState,'TItem> (sb : StateBuilder<'TState,'TItem>) = {
+    static member ToUntypedInterface<'TState,'TItem> (sb : AggregateStateBuilder<'TState,'TItem>) = {
             new IStateBuilder<obj,obj> with 
              member this.Fold (state : obj) (evt : obj) = 
                 match state with
@@ -68,7 +68,7 @@ with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.em
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventProcessingConfiguration =
-    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : StateBuilder<'TState,obj>) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
+    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : AggregateStateBuilder<'TState,obj>) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
         let cmdType = typeof<'TCmd>.FullName
         let outerHandler (cmdObj : obj) =
             let realHandler (cmd : 'TCmd) =
@@ -77,14 +77,14 @@ module EventProcessingConfiguration =
                     let blah = handler cmd
                     fun (state : obj) ->
                         blah (state :?> 'TState)
-                let untypedStateBuilder = StateBuilder<_,_>.ToUntypedInterface stateBuilder
+                let untypedStateBuilder = AggregateStateBuilder<_,_>.ToUntypedInterface stateBuilder
                 (stream, untypedStateBuilder, realRealHandler)
             match cmdObj with
             | :? 'TCmd as cmd -> realHandler cmd
             | _ -> failwith <| sprintf "Unexpected command type: %A" (cmdObj.GetType())
         config
         |> (fun config -> { config with CommandHandlers = config.CommandHandlers |> Map.add cmdType (typeof<'TCmd>, outerHandler) })
-    let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : StateBuilder<'TState,obj>) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
+    let addEvent<'TEvt, 'TState> (toId: 'TEvt -> string seq) (stateBuilder : AggregateStateBuilder<'TState,obj>) (handler : 'TEvt -> 'TState -> seq<obj>) (config : EventProcessingConfiguration) =
         let evtType = config.TypeToTypeName typeof<'TEvt>
         let outerHandler (evtObj : obj) : seq<(string * IStateBuilder<obj,obj> * (obj -> seq<obj>))> =
             let realHandler (evt : 'TEvt) : seq<(string * IStateBuilder<obj,obj> * (obj -> seq<obj>))> =
@@ -94,7 +94,7 @@ module EventProcessingConfiguration =
                         let blah = handler evt
                         fun (state : obj) ->
                             blah (state :?> 'TState)
-                    let untypedStateBuilder = StateBuilder<_,_>.ToUntypedInterface stateBuilder
+                    let untypedStateBuilder = AggregateStateBuilder<_,_>.ToUntypedInterface stateBuilder
                     (stream, untypedStateBuilder, realRealHandler))
             match evtObj with
             | :? 'TEvt as evt -> realHandler evt

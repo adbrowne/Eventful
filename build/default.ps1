@@ -27,6 +27,7 @@ task Test -depends MsBuildRelease {
 task Package -depends Clean, MsBuildRelease {
   New-Item -force .\package\lib\net45 -itemtype directory
   Copy-Item .\Release\Eventful.dll .\package\lib\net45
+  Copy-Item .\Release\Eventful.EventStore.dll .\package\lib\net45
   exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version 0.0.1.5 }}
 }
 
