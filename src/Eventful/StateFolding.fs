@@ -27,6 +27,7 @@ type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'T
        new StateBuilder<'TState>(zero, [handler])
     static member Empty zero = new StateBuilder<'TState>(zero, List.empty)
 
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module StateBuilder =
     let Counter<'T> = 
         let s = StateBuilder.Empty 0
@@ -37,3 +38,6 @@ module StateBuilder =
         let s = s.AddHandler((fun (x : Set<'T>) (add : 'TAddMessage) -> x |> Set.add (addItem add)))
         let s = s.AddHandler((fun (x : Set<'T>) (remove : 'TRemoveMessage) -> x |> Set.remove (removeItem remove)))
         s
+
+    let addHandler<'T, 'TEvent> (f : accumulator<'T,'TEvent>) (b : StateBuilder<'T>) =
+        b.AddHandler f
