@@ -85,3 +85,22 @@ module FoldPlay =
             |> Map.add child1Id "1"
             |> Map.add child2Id "2child"
        result |> should equal (expectedMap)
+       
+    [<Fact>]
+    let ``Last value`` () : unit =
+        let stateBuilder = StateBuilder.lastValue<string,string> id ""
+
+        let result = runState stateBuilder ["first";"second"]
+
+        result |> should equal ("second")
+
+    [<Fact>]
+    let ``Can map message types`` () : unit =
+        let stateBuilder = 
+            StateBuilder.lastValue<Guid,Guid> id Guid.Empty
+            |> StateBuilder.mapMessages (fun (x : StatusMessage) -> x.Id)
+
+        let child1Id = Guid.NewGuid()
+        let child2Id = Guid.NewGuid()
+        let result = runState stateBuilder [{ StatusMessage.Id = child1Id; Status = "ignored" }; { StatusMessage.Id = child2Id; Status = "ignored" }]
+        result |> should equal (child2Id)

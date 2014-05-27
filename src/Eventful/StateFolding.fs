@@ -39,6 +39,17 @@ module StateBuilder =
         let s = s.AddHandler((fun (x : Set<'T>) (remove : 'TRemoveMessage) -> x |> Set.remove (removeItem remove)))
         s
 
+    let lastValue<'TState, 'TEvent> (f : 'TEvent -> 'TState) (zero : 'TState) = 
+        let s = StateBuilder.Empty zero
+        s.AddHandler (fun _ m -> f m)
+
+    let mapMessages<'TState,'TInputEvent, 'TOutputEvent> (f : 'TInputEvent -> 'TOutputEvent) (sb : StateBuilder<'TState>)=
+        let sb' = StateBuilder.Empty sb.Zero
+        let mappingAccumulator s i =
+            let outputValue = f i
+            sb.Run s (outputValue :> obj)
+        sb'.AddHandler<'TInputEvent> mappingAccumulator
+
     let addHandler<'T, 'TEvent> (f : accumulator<'T,'TEvent>) (b : StateBuilder<'T>) =
         b.AddHandler f
 
