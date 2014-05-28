@@ -61,7 +61,7 @@ module FoldPlay =
        let child2Id = Guid.NewGuid()
        let stateBuilder = 
             StateBuilder.Empty (Map.empty : Map<Guid, string>)
-            |> StateBuilder.addHandler<Map<Guid,string>,StatusMessage> (StateBuilder.mapMandler (fun x -> x.Id) (fun _ x -> x.Status) "")
+            |> StateBuilder.addHandler<Map<Guid,string>,StatusMessage> (StateBuilder.mapHandler (fun x -> x.Id) (fun _ x -> x.Status) "")
        let result = runState stateBuilder [{ StatusMessage.Id = child1Id; Status = "1" }; { StatusMessage.Id = child2Id; Status = "1" } ; { StatusMessage.Id = child2Id; Status = "2" }]
 
        let expectedMap = 
@@ -76,8 +76,8 @@ module FoldPlay =
        let child2Id = Guid.NewGuid()
        let stateBuilder = 
             StateBuilder.Empty (Map.empty : Map<Guid, string>)
-            |> StateBuilder.addHandler (StateBuilder.mapMandler<StatusMessage,_,_> (fun x -> x.Id) (fun _ x -> x.Status) "")
-            |> StateBuilder.addHandler (StateBuilder.mapMandler<ChildAdded,_,_> (fun x -> x.Id) (fun s x -> s + "child") "")
+            |> StateBuilder.addHandler (StateBuilder.mapHandler<StatusMessage,_,_> (fun x -> x.Id) (fun _ x -> x.Status) "")
+            |> StateBuilder.addHandler (StateBuilder.mapHandler<ChildAdded,_,_> (fun x -> x.Id) (fun s x -> s + "child") "")
        let result = runState stateBuilder [{ StatusMessage.Id = child1Id; Status = "1" }; { StatusMessage.Id = child2Id; Status = "1" } ; { StatusMessage.Id = child2Id; Status = "2" }; { ChildAdded.Id = child2Id }]
 
        let expectedMap = 
