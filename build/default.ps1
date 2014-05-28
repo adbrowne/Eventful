@@ -1,3 +1,4 @@
+$version = "0.0.1.6"
 properties {
   $slnPath = "..\src\Eventful.sln"
 }
@@ -28,11 +29,11 @@ task Package -depends Clean, MsBuildRelease {
   New-Item -force .\package\lib\net45 -itemtype directory
   Copy-Item .\Release\Eventful.dll .\package\lib\net45
   Copy-Item .\Release\Eventful.EventStore.dll .\package\lib\net45
-  exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version 0.0.1.5 }}
+  exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version $version }}
 }
 
 task PackagePush -depends Package {
-  exec { & {.\tools\nuget\nuget.exe push Eventful.0.0.1.5.nupkg }}
+  exec { & {.\tools\nuget\nuget.exe push Eventful.$version.nupkg }}
 }
 
 task ? -Description "Helper to display task info" {
