@@ -18,6 +18,16 @@ type StatusMessage = {
     Status : string
 }
 
+type AddOwner = {
+    Id : Guid
+    OwnerId : Guid
+}
+
+type RemoveOwner = {
+    Id : Guid
+    OwnerId : Guid
+}
+
 module FoldPlay =
     let runState<'TState> (stateBuilder : StateBuilder<'TState>) (items : obj list) =
         items
@@ -121,3 +131,26 @@ module FoldPlay =
             |> StateBuilder.mapMessages (fun (x : StatusMessage) -> x.Id)
 
         stateBuilder.Types |> should equal [typeof<StatusMessage>]
+
+    [<Fact>]
+    let ``Combine set and map`` () : unit =
+        let id = Guid.NewGuid()
+        let owner1Id = Guid.NewGuid()
+        let owner2Id = Guid.NewGuid()
+        
+        let ownerBuilder = StateBuilder.SetBuilder (fun (added:AddOwner) -> added.OwnerId) (fun (removed:RemoveOwner) -> removed.OwnerId)
+
+        let stateBuilder = 
+            StateBuilder.Empty Map.empty
+            |> StateBuilder.addHandler (StateBuilder.mapHandler (fun (added:AddOwner) -> added.Id) ownerBuilder.Run Set.empty)
+            |> StateBuilder.addHandler (StateBuilder.mapHandler (fun (removed:RemoveOwner) -> removed.Id) ownerBuilder.Run Set.empty)
+
+        let result = runState stateBuilder 
+                        [ { AddOwner.Id = id; AddOwner.OwnerId = owner1Id }  // add 1 
+                          { AddOwner.Id = id; AddOwner.OwnerId = owner2Id }  // add 2 
+                          { RemoveOwner.Id = id; RemoveOwner.OwnerId = owner1Id }  ] // remove 1
+
+        let expectedResult = Map.empty |> Map.add id (Set.singleton owner2Id) // expect only 2 remaining
+        result |> should equal expectedResult
+
+        stateBuilder.Types |> List.sortBy (fun x -> x.Name) |> should equal [typeof<AddOwner>; typeof<RemoveOwner>]
