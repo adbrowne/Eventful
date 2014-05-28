@@ -32,6 +32,10 @@ module FoldPlay =
         result |> should equal 1
 
     [<Fact>]
+    let ``Types are carried through`` () : unit =    
+        childCounter.Types |> should equal [typeof<ChildAdded>]
+
+    [<Fact>]
     let ``Counter will ignore items of other types`` () : unit =    
         let result = runState childCounter [{ChildAdded.Id = Guid.NewGuid()} :> obj; new obj()]
         result |> should equal 1
@@ -46,6 +50,11 @@ module FoldPlay =
         let id = Guid.NewGuid()
         let result = runState stateBuilder [{ChildAdded.Id = id}]
         result |> should equal (1, Set.singleton id)
+
+    [<Fact>]
+    let ``Combine combines types`` () : unit =    
+        let stateBuilder = StateBuilder.Combine childCounter childIdCollector (fun count set -> (count,set)) id
+        stateBuilder.Types |> should equal [typeof<ChildAdded>]
 
     [<Fact>]
     let ``Set builder`` () : unit = 
@@ -104,3 +113,11 @@ module FoldPlay =
         let child2Id = Guid.NewGuid()
         let result = runState stateBuilder [{ StatusMessage.Id = child1Id; Status = "ignored" }; { StatusMessage.Id = child2Id; Status = "ignored" }]
         result |> should equal (child2Id)
+
+    [<Fact>]
+    let ``Mapping message types returns outer type`` () : unit =
+        let stateBuilder = 
+            StateBuilder.lastValue<Guid,Guid> id Guid.Empty
+            |> StateBuilder.mapMessages (fun (x : StatusMessage) -> x.Id)
+
+        stateBuilder.Types |> should equal [typeof<StatusMessage>]

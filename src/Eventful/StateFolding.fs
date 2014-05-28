@@ -1,9 +1,12 @@
 ﻿namespace Eventful
 
+open System
+
 type accumulator<'TState,'TItem> = 'TState -> 'TItem -> 'TState
 
-type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'TState)>) = 
+type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'TState)>, types : List<Type>) = 
     member x.Zero = zero
+    member x.Types = types
     member x.AddHandler<'T> (f:accumulator<'TState, 'T>) =
         let func (state : 'TState) (message : obj) =
             match message with
@@ -11,7 +14,7 @@ type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'T
             | _ -> state
 
         let msgType = typeof<'T>
-        new StateBuilder<'TState>(zero, func::handlers)
+        new StateBuilder<'TState>(zero, func::handlers, (typeof<'T>)::types)
         
     member x.Run (state: 'TState) (item: obj) =
         handlers
@@ -24,8 +27,10 @@ type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'T
             let state1' = builder1.Run state1 message
             let state2' = builder2.Run state2 message
             combiner state1' state2'
-       new StateBuilder<'TState>(zero, [handler])
-    static member Empty zero = new StateBuilder<'TState>(zero, List.empty)
+
+       let types = Seq.append builder1.Types builder2.Types |> System.Linq.Enumerable.Distinct |> List.ofSeq
+       new StateBuilder<'TState>(zero, [handler], types)
+    static member Empty zero = new StateBuilder<'TState>(zero, List.empty, List.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module StateBuilder =
