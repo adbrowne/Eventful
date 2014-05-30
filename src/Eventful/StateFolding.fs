@@ -4,6 +4,30 @@ open System
 
 type accumulator<'TState,'TItem> = 'TState -> 'TItem -> 'TState
 
+type IdMapper<'TId>(handlers : List<(obj -> 'TId option)>, types : List<Type>) =
+    member x.Types = types
+    member x.Run (item: obj) =
+        handlers
+        |> List.map (fun h -> h item)
+        |> Seq.find (fun e -> match e with
+                              | Some _ -> true
+                              | None -> false)
+        |> (fun v -> v.Value)
+
+    member x.AddHandler<'T> (f: 'T -> 'TId) =
+        let msgType = typeof<'T>
+        let func (message : obj) =
+            match message with
+            | :? 'T as msg -> Some (f msg)
+            | _ -> None
+        new IdMapper<'TId>(func::handlers, (typeof<'T>)::types)
+    static member Empty = new IdMapper<'TId>(List.empty, List.empty)
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module IdMapper =
+    let addHandler<'TId, 'TEvent> (f : 'TEvent -> 'TId) (b : IdMapper<'TId>) =
+        b.AddHandler f
+
 type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'TState)>, types : List<Type>) = 
     member x.Zero = zero
     member x.Types = types
@@ -70,3 +94,42 @@ module StateBuilder =
             let childState' = accumulator childState msg
             state |> Map.add key childState'
         acc
+
+    let map2 combine extract (stateBuilder1:StateBuilder<_>) (stateBuilder2:StateBuilder<_>) =
+        let zero = combine stateBuilder1.Zero stateBuilder2.Zero
+        let types = stateBuilder1.Types |> Seq.append stateBuilder2.Types |> Seq.distinct |> List.ofSeq
+        let handler state event =
+            let (s1,s2) = extract state
+            let s1' = stateBuilder1.Run s1 event
+            let s2' = stateBuilder2.Run s2 event
+            combine s1' s2'
+
+        new StateBuilder<_>(zero, [handler], types)
+
+    let map3<'a,'b,'c,'d> (combine : 'a -> 'b -> 'c -> 'd) (extract : 'd -> ('a * 'b * 'c)) (stateBuilder1:StateBuilder<'a>) =
+        let combine2 a  b = (a, b)
+        let extract2 = id
+        let combine3 a (b,c) = combine a b c
+        let extract3 d = 
+            let (a,b,c) = extract d
+            (a,(b,c))
+        (fun stateBuilder2 stateBuilder3 ->
+            let stateBuilderRest = map2 combine2 extract2 stateBuilder2 stateBuilder3
+            map2 combine3 extract3 stateBuilder1 stateBuilderRest)
+
+    let runState<'TState> (stateBuilder : StateBuilder<'TState>) (items : obj list) =
+        items
+        |> List.fold stateBuilder.Run stateBuilder.Zero
+
+    let mapOver<'TId,'TState when 'TId : comparison> (idMapper:IdMapper<'TId>) (stateBuilder:StateBuilder<'TState>) : StateBuilder<Map<'TId,'TState>> =
+        let handler state e =
+            let id = idMapper.Run e
+            let subState = 
+                match state |> Map.tryFind id with
+                | Some subState -> subState
+                | None -> stateBuilder.Zero
+
+            let newSubState = stateBuilder.Run subState e
+            state |> Map.add id newSubState
+                
+        new StateBuilder<_>(Map.empty, [handler], stateBuilder.Types)
