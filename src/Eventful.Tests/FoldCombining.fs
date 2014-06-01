@@ -113,7 +113,7 @@ module FoldCombining =
         ChildStateBuilder.Build itemIdMapper orderItemStateBuilder
 
     let orderItemStateMap =
-        StateBuilder.mapOver orderItemStateByItem
+        StateBuilder.toMap orderItemStateByItem
 
     type AggregateState = {
         State : OrderStatus

@@ -129,7 +129,7 @@ module StateBuilder =
         items
         |> List.fold stateBuilder.Run stateBuilder.InitialState
 
-    let mapOver<'TId,'TState when 'TId : comparison> (childStateBuilder:ChildStateBuilder<'TState,'TId>) : StateBuilder<Map<'TId,'TState>> =
+    let toMap<'TId,'TState when 'TId : comparison> (childStateBuilder:ChildStateBuilder<'TState,'TId>) : StateBuilder<Map<'TId,'TState>> =
         let handler state e =
             let id = childStateBuilder.GetId e
             let subState = 
