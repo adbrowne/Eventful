@@ -141,18 +141,24 @@ module FoldCombining =
     [<Fact>]
     let ``Can create map by id`` () : unit = 
         let orderId = OrderId.New()
-        let orderId2 = OrderId.New()
         let itemId = ItemId.New()
+        let itemId2 = ItemId.New()
+
+        let groupByOrderId =
+            orderItemStateBuilder
+            |> ChildStateBuilder.Build itemIdMapper 
+            |> StateBuilder.toMap
+
         let events : obj list = [
             { OrderItemAddedEvent.OrderId = orderId; ItemId = itemId; Quantity = 1; Note = Some "initial note" }
             { OrderItemNoteSetEvent.OrderId = orderId; ItemId = itemId; Note = "note update" }
-            { OrderItemAddedEvent.OrderId = orderId2; ItemId = itemId; Quantity = 2; Note = None }
+            { OrderItemAddedEvent.OrderId = orderId; ItemId = itemId2; Quantity = 2; Note = None }
             { OrderItemRemovedEvent.OrderId = orderId; ItemId = itemId; Quantity = 1; }
         ]
         let result = StateBuilder.runState orderItemStateMap events
         let expected =
             Map.empty 
-            |> Map.add orderId { Note = Some "note update"; Quantity = 0 }
-            |> Map.add orderId2 { Note = None; Quantity = 2 }
+            |> Map.add itemId { Note = Some "note update"; Quantity = 0 }
+            |> Map.add itemId2 { Note = None; Quantity = 2 }
 
         result |> should equal expected
