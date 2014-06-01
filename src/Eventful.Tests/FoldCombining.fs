@@ -5,72 +5,72 @@ open System
 open FsUnit.Xunit
 open Eventful
 
-type CustomerId = {
-    Id : Guid
-}
-with 
-    static member New () = 
-        { Id = Guid.NewGuid() }
-
-type OrderId = {
-    Id : Guid
-}
-with 
-    static member New () = 
-        { Id = Guid.NewGuid() }
-
-type ItemId = {
-    Id : Guid
-}
-with 
-    static member New () = 
-        { Id = Guid.NewGuid() }
-
-type OrderCreatedEvent = {
-    CustomerId : CustomerId
-    OrderId : OrderId
-}
-
-type OrderItemAddedEvent = {
-    OrderId : OrderId
-    ItemId : ItemId
-    Quantity : int
-    Note : string option
-}
-
-type OrderItemNoteSetEvent = {
-    OrderId : OrderId
-    ItemId : ItemId
-    Note : string
-}
-
-type OrderItemRemovedEvent = {
-    OrderId : OrderId
-    ItemId : ItemId
-    Quantity : int
-}
-
-type OrderCancelledEvent = {
-    OrderId : OrderId
-}
-
-type OrderPaidEvent = {
-    OrderId : OrderId
-    Amount : Decimal
-}
-
-type OrderStatus =
-    | Created
-    | ItemsAdded
-    | Paid
-    | Cancelled
-
-type ItemState = {
-    Quantity : int
-    Note : string option
-}
 
 module FoldCombining = 
+    type CustomerId = {
+        Id : Guid
+    }
+    with 
+        static member New () = 
+            { Id = Guid.NewGuid() }
+
+    type OrderId = {
+        Id : Guid
+    }
+    with 
+        static member New () = 
+            { Id = Guid.NewGuid() }
+
+    type ItemId = {
+        Id : Guid
+    }
+    with 
+        static member New () = 
+            { Id = Guid.NewGuid() }
+
+    type OrderCreatedEvent = {
+        CustomerId : CustomerId
+        OrderId : OrderId
+    }
+
+    type OrderItemAddedEvent = {
+        OrderId : OrderId
+        ItemId : ItemId
+        Quantity : int
+        Note : string option
+    }
+
+    type OrderItemNoteSetEvent = {
+        OrderId : OrderId
+        ItemId : ItemId
+        Note : string
+    }
+
+    type OrderItemRemovedEvent = {
+        OrderId : OrderId
+        ItemId : ItemId
+        Quantity : int
+    }
+
+    type OrderCancelledEvent = {
+        OrderId : OrderId
+    }
+
+    type OrderPaidEvent = {
+        OrderId : OrderId
+        Amount : Decimal
+    }
+
+    type OrderStatus =
+        | Created
+        | ItemsAdded
+        | Paid
+        | Cancelled
+
+    type ItemState = {
+        Quantity : int
+        Note : string option
+    }
 
     let orderStateBuilder =
         StateBuilder.Empty OrderStatus.Created
@@ -110,7 +110,7 @@ module FoldCombining =
             orderItemNoteBuilder
 
     let orderItemStateByItem =
-        ChildStateBuilder.Build itemIdMapper orderItemStateBuilder
+        ChildStateBuilder.BuildWithMagicMapper<ItemId> orderItemStateBuilder
 
     let orderItemStateMap =
         StateBuilder.toMap orderItemStateByItem
@@ -138,16 +138,15 @@ module FoldCombining =
         let result = StateBuilder.runState orderItemStateBuilder events
         result |> should equal { Note = Some "note update"; Quantity = 2 }
 
+    let groupByOrderId : StateBuilder<Map<ItemId,ItemState>> =
+        ChildStateBuilder.BuildWithMagicMapper<ItemId> orderItemStateBuilder
+        |> StateBuilder.toMap
+
     [<Fact>]
     let ``Can create map by id`` () : unit = 
         let orderId = OrderId.New()
         let itemId = ItemId.New()
         let itemId2 = ItemId.New()
-
-        let groupByOrderId =
-            orderItemStateBuilder
-            |> ChildStateBuilder.Build itemIdMapper 
-            |> StateBuilder.toMap
 
         let events : obj list = [
             { OrderItemAddedEvent.OrderId = orderId; ItemId = itemId; Quantity = 1; Note = Some "initial note" }

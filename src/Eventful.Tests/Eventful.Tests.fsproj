@@ -51,6 +51,7 @@
     <Compile Include="LastCompleteTrackerTests.fs" />
     <Compile Include="LastCompleteItemTracker.fs" />
     <Compile Include="AggregateTests.fs" />
+    <Compile Include="MagicMapper.fs" />
     <Compile Include="FoldPlay.fs" />
     <Compile Include="FoldCombining.fs" />
   </ItemGroup>

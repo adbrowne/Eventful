@@ -14,14 +14,14 @@ namespace Eventful.CsTests
                 Items = new List<OrderItem>();
             }
 
-            public OrderStatus Status { get; set; }
+            public FoldCombining.OrderStatus Status { get; set; }
             public List<OrderItem> Items { get; set; }
         }
 
         public class OrderItem
         {
-            public ItemId ItemId { get; set; }
-            public ItemState State { get; set; }
+            public FoldCombining.ItemId ItemId { get; set; }
+            public FoldCombining.ItemState State { get; set; }
         }
 
         public class MyProjector : BaseProjector<MyOrderDocument>
@@ -29,13 +29,13 @@ namespace Eventful.CsTests
             public MyProjector()
             {
                 MapState(FoldCombining.orderStateBuilder, x => x.Status, (x, v) => x.Status = v);
-                MapChildState<ItemState,ItemId>(
+                MapChildState<FoldCombining.ItemState,FoldCombining.ItemId>(
                     FoldCombining.orderItemStateByItem, 
                     (doc, itemId) => GetItem(doc, itemId).State,
                     (doc, itemId, value) => GetItem(doc, itemId).State = value);
             }
 
-            private OrderItem GetItem(MyOrderDocument doc, ItemId itemId)
+            private OrderItem GetItem(MyOrderDocument doc, FoldCombining.ItemId itemId)
             {
                 var itemDoc = doc.Items.SingleOrDefault(x => x.ItemId.Equals(itemId));
 
@@ -64,7 +64,7 @@ namespace Eventful.CsTests
         {
         }
 
-        protected void MapChildState<TState, TChildId>(ChildStateBuilder<TState, ItemId> childStateBuilder, Func<T, TChildId, TState> getter, Action<T, TChildId, TState> setter)
+        protected void MapChildState<TState, TChildId>(ChildStateBuilder<TState, FoldCombining.ItemId> childStateBuilder, Func<T, TChildId, TState> getter, Action<T, TChildId, TState> setter)
         {
             
         }

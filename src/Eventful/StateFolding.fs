@@ -63,6 +63,19 @@ type ChildStateBuilder<'TState,'TChildId>(idMapper:IdMapper<'TChildId>, stateBui
     member x.Types = stateBuilder.Types
     static member Build (idMapper:IdMapper<'TChildId>) (stateBuilder:StateBuilder<'TState>) =
         new ChildStateBuilder<_,_>(idMapper, stateBuilder)
+    static member BuildWithMagicMapper<'TChildId> (stateBuilder:StateBuilder<'TState>) =
+        for t in stateBuilder.Types do
+            match MagicMapper.magicPropertyGetter<'TChildId> t with
+            | Some _ -> ()
+            | None -> failwith <| sprintf "Cannot get id of type %A from type %A" typeof<'TChildId> t
+        let handler obj =
+            let t = obj.GetType()
+            match MagicMapper.magicPropertyGetter t with 
+            | Some getter -> Some (getter obj)
+            | None -> None
+
+        let idMapper = new IdMapper<'TChildId>([handler], stateBuilder.Types)
+        new ChildStateBuilder<_,_>(idMapper, stateBuilder)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module StateBuilder =
