@@ -64,7 +64,7 @@ namespace Eventful.CsTests
         {
         }
 
-        protected void MapChildState<TState, TChildId>(ChildStateBuilder<TState, FoldCombining.ItemId> childStateBuilder, Func<T, TChildId, TState> getter, Action<T, TChildId, TState> setter)
+        protected void MapChildState<TState, TChildId>(ChildStateBuilder<TState, TChildId> childStateBuilder, Func<T, TChildId, TState> getter, Action<T, TChildId, TState> setter)
         {
             
         }
