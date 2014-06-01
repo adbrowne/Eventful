@@ -144,13 +144,17 @@ module StateBuilder =
 
     let toMap<'TId,'TState when 'TId : comparison> (childStateBuilder:ChildStateBuilder<'TState,'TId>) : StateBuilder<Map<'TId,'TState>> =
         let handler state e =
-            let id = childStateBuilder.GetId e
-            let subState = 
-                match state |> Map.tryFind id with
-                | Some subState -> subState
-                | None -> childStateBuilder.InitialState
+            let eventType = e.GetType()
+            if (childStateBuilder.Types |> List.exists(fun i -> i = eventType)) then
+                let id = childStateBuilder.GetId e
+                let subState = 
+                    match state |> Map.tryFind id with
+                    | Some subState -> subState
+                    | None -> childStateBuilder.InitialState
 
-            let newSubState = childStateBuilder.RunState subState e
-            state |> Map.add id newSubState
+                let newSubState = childStateBuilder.RunState subState e
+                state |> Map.add id newSubState
+            else
+                state
                 
         new StateBuilder<_>(Map.empty, [handler], childStateBuilder.Types)
