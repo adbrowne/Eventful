@@ -101,7 +101,6 @@ module FoldCombining =
         |> IdMapper.addHandler (fun (e:OrderItemAddedEvent) -> e.OrderId)
         |> IdMapper.addHandler (fun (e:OrderItemNoteSetEvent) -> e.OrderId)
         |> IdMapper.addHandler (fun (e:OrderItemRemovedEvent) -> e.OrderId)
-
             
     let orderItemStateBuilder =
         StateBuilder.map2 
@@ -111,7 +110,10 @@ module FoldCombining =
             orderItemNoteBuilder
 
     let orderItemStateByItem =
-        StateBuilder.mapOver<ItemId,_> itemIdMapper orderItemStateBuilder
+        ChildStateBuilder.Build itemIdMapper orderItemStateBuilder
+
+    let orderItemStateMap =
+        StateBuilder.mapOver orderItemStateByItem
 
     type AggregateState = {
         State : OrderStatus
@@ -121,7 +123,7 @@ module FoldCombining =
     let orderAggregateStateBuilder =
         let combine state itemDetails = { State = state; OrderItemDetails = itemDetails }
         let extract { State = state; OrderItemDetails = itemDetails } = (state, itemDetails)
-        StateBuilder.map2 combine extract orderStateBuilder orderItemStateByItem
+        StateBuilder.map2 combine extract orderStateBuilder orderItemStateMap
 
     [<Fact>]
     let ``Can combine stateBuilders`` () : unit = 
@@ -147,7 +149,7 @@ module FoldCombining =
             { OrderItemAddedEvent.OrderId = orderId2; ItemId = itemId; Quantity = 2; Note = None }
             { OrderItemRemovedEvent.OrderId = orderId; ItemId = itemId; Quantity = 1; }
         ]
-        let result = StateBuilder.runState orderItemStateByItem events
+        let result = StateBuilder.runState orderItemStateMap events
         let expected =
             Map.empty 
             |> Map.add orderId { Note = Some "note update"; Quantity = 0 }

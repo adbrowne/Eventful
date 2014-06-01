@@ -47,6 +47,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DocumentStateTests.cs" />
     <Compile Include="WorktrackingQueueTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -55,6 +56,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Eventful.Tests\Eventful.Tests.fsproj">
+      <Project>{08132179-eea4-43fa-82e6-5e58b9f17473}</Project>
+      <Name>Eventful.Tests</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful\Eventful.fsproj">
       <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
       <Name>Eventful</Name>

@@ -56,6 +56,14 @@ type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'T
        new StateBuilder<'TState>(zero, [handler], types)
     static member Empty zero = new StateBuilder<'TState>(zero, List.empty, List.empty)
 
+type ChildStateBuilder<'TState,'TChildId>(idMapper:IdMapper<'TChildId>, stateBuilder : StateBuilder<'TState>) =
+    member x.Zero = stateBuilder.Zero
+    member x.GetId = idMapper.Run
+    member x.RunState = stateBuilder.Run
+    member x.Types = stateBuilder.Types
+    static member Build (idMapper:IdMapper<'TChildId>) (stateBuilder:StateBuilder<'TState>) =
+        new ChildStateBuilder<_,_>(idMapper, stateBuilder)
+
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module StateBuilder =
     let Counter<'T> = 
@@ -121,15 +129,15 @@ module StateBuilder =
         items
         |> List.fold stateBuilder.Run stateBuilder.Zero
 
-    let mapOver<'TId,'TState when 'TId : comparison> (idMapper:IdMapper<'TId>) (stateBuilder:StateBuilder<'TState>) : StateBuilder<Map<'TId,'TState>> =
+    let mapOver<'TId,'TState when 'TId : comparison> (childStateBuilder:ChildStateBuilder<'TState,'TId>) : StateBuilder<Map<'TId,'TState>> =
         let handler state e =
-            let id = idMapper.Run e
+            let id = childStateBuilder.GetId e
             let subState = 
                 match state |> Map.tryFind id with
                 | Some subState -> subState
-                | None -> stateBuilder.Zero
+                | None -> childStateBuilder.Zero
 
-            let newSubState = stateBuilder.Run subState e
+            let newSubState = childStateBuilder.RunState subState e
             state |> Map.add id newSubState
                 
-        new StateBuilder<_>(Map.empty, [handler], stateBuilder.Types)
+        new StateBuilder<_>(Map.empty, [handler], childStateBuilder.Types)
