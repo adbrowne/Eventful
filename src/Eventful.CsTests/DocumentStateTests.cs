@@ -43,7 +43,7 @@ namespace Eventful.CsTests
                 {
                     itemDoc = new OrderItem
                         {
-                            ItemId = itemId, State = FoldCombining.orderItemStateByItem.Zero
+                            ItemId = itemId, State = FoldCombining.orderItemStateByItem.InitialState
                         };
                     doc.Items.Add(itemDoc);
                 }

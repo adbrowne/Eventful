@@ -28,8 +28,8 @@ module IdMapper =
     let addHandler<'TId, 'TEvent> (f : 'TEvent -> 'TId) (b : IdMapper<'TId>) =
         b.AddHandler f
 
-type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'TState)>, types : List<Type>) = 
-    member x.Zero = zero
+type StateBuilder<'TState>(initialState : 'TState, handlers : List<('TState -> obj -> 'TState)>, types : List<Type>) = 
+    member x.InitialState = initialState
     member x.Types = types
     member x.AddHandler<'T> (f:accumulator<'TState, 'T>) =
         let func (state : 'TState) (message : obj) =
@@ -38,14 +38,14 @@ type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'T
             | _ -> state
 
         let msgType = typeof<'T>
-        new StateBuilder<'TState>(zero, func::handlers, (typeof<'T>)::types)
+        new StateBuilder<'TState>(initialState, func::handlers, (typeof<'T>)::types)
         
     member x.Run (state: 'TState) (item: obj) =
         handlers
         |> List.fold (fun s h -> h s item) state
 
     static member Combine<'TState1, 'TState2, 'TState> (builder1 : StateBuilder<'TState1>) (builder2 : StateBuilder<'TState2>) combiner extractor =
-       let zero = combiner builder1.Zero builder2.Zero 
+       let initialState = combiner builder1.InitialState builder2.InitialState 
        let handler (state : 'TState) (message : obj) = 
             let (state1, state2) = extractor state
             let state1' = builder1.Run state1 message
@@ -53,11 +53,11 @@ type StateBuilder<'TState>(zero : 'TState, handlers : List<('TState -> obj -> 'T
             combiner state1' state2'
 
        let types = Seq.append builder1.Types builder2.Types |> System.Linq.Enumerable.Distinct |> List.ofSeq
-       new StateBuilder<'TState>(zero, [handler], types)
-    static member Empty zero = new StateBuilder<'TState>(zero, List.empty, List.empty)
+       new StateBuilder<'TState>(initialState, [handler], types)
+    static member Empty initialState = new StateBuilder<'TState>(initialState, List.empty, List.empty)
 
 type ChildStateBuilder<'TState,'TChildId>(idMapper:IdMapper<'TChildId>, stateBuilder : StateBuilder<'TState>) =
-    member x.Zero = stateBuilder.Zero
+    member x.InitialState = stateBuilder.InitialState
     member x.GetId = idMapper.Run
     member x.RunState = stateBuilder.Run
     member x.Types = stateBuilder.Types
@@ -76,12 +76,12 @@ module StateBuilder =
         let s = s.AddHandler((fun (x : Set<'T>) (remove : 'TRemoveMessage) -> x |> Set.remove (removeItem remove)))
         s
 
-    let lastValue<'TState, 'TEvent> (f : 'TEvent -> 'TState) (zero : 'TState) = 
-        let s = StateBuilder.Empty zero
+    let lastValue<'TState, 'TEvent> (f : 'TEvent -> 'TState) (initialState : 'TState) = 
+        let s = StateBuilder.Empty initialState
         s.AddHandler (fun _ m -> f m)
 
     let mapMessages<'TState,'TInputEvent, 'TOutputEvent> (f : 'TInputEvent -> 'TOutputEvent) (sb : StateBuilder<'TState>)=
-        let sb' = StateBuilder.Empty sb.Zero
+        let sb' = StateBuilder.Empty sb.InitialState
         let mappingAccumulator s i =
             let outputValue = f i
             sb.Run s (outputValue :> obj)
@@ -90,21 +90,21 @@ module StateBuilder =
     let addHandler<'T, 'TEvent> (f : accumulator<'T,'TEvent>) (b : StateBuilder<'T>) =
         b.AddHandler f
 
-    let mapHandler<'TMsg,'TKey,'TState when 'TKey : comparison> (getKey : 'TMsg -> 'TKey) (accumulator : accumulator<'TState,'TMsg>) (zero : 'TState) : accumulator<Map<'TKey,'TState>,'TMsg> =
+    let mapHandler<'TMsg,'TKey,'TState when 'TKey : comparison> (getKey : 'TMsg -> 'TKey) (accumulator : accumulator<'TState,'TMsg>) (initialState : 'TState) : accumulator<Map<'TKey,'TState>,'TMsg> =
         let acc (state : Map<'TKey,'TState>) msg =
             let key = getKey msg
             let childState = 
                 if state |> Map.containsKey key then
                     state |> Map.find key
                 else
-                    zero
+                    initialState
 
             let childState' = accumulator childState msg
             state |> Map.add key childState'
         acc
 
     let map2 combine extract (stateBuilder1:StateBuilder<_>) (stateBuilder2:StateBuilder<_>) =
-        let zero = combine stateBuilder1.Zero stateBuilder2.Zero
+        let initialState = combine stateBuilder1.InitialState stateBuilder2.InitialState
         let types = stateBuilder1.Types |> Seq.append stateBuilder2.Types |> Seq.distinct |> List.ofSeq
         let handler state event =
             let (s1,s2) = extract state
@@ -112,7 +112,7 @@ module StateBuilder =
             let s2' = stateBuilder2.Run s2 event
             combine s1' s2'
 
-        new StateBuilder<_>(zero, [handler], types)
+        new StateBuilder<_>(initialState, [handler], types)
 
     let map3<'a,'b,'c,'d> (combine : 'a -> 'b -> 'c -> 'd) (extract : 'd -> ('a * 'b * 'c)) (stateBuilder1:StateBuilder<'a>) =
         let combine2 a  b = (a, b)
@@ -127,7 +127,7 @@ module StateBuilder =
 
     let runState<'TState> (stateBuilder : StateBuilder<'TState>) (items : obj list) =
         items
-        |> List.fold stateBuilder.Run stateBuilder.Zero
+        |> List.fold stateBuilder.Run stateBuilder.InitialState
 
     let mapOver<'TId,'TState when 'TId : comparison> (childStateBuilder:ChildStateBuilder<'TState,'TId>) : StateBuilder<Map<'TId,'TState>> =
         let handler state e =
@@ -135,7 +135,7 @@ module StateBuilder =
             let subState = 
                 match state |> Map.tryFind id with
                 | Some subState -> subState
-                | None -> childStateBuilder.Zero
+                | None -> childStateBuilder.InitialState
 
             let newSubState = childStateBuilder.RunState subState e
             state |> Map.add id newSubState

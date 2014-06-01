@@ -31,7 +31,7 @@ type RemoveOwner = {
 module FoldPlay =
     let runState<'TState> (stateBuilder : StateBuilder<'TState>) (items : obj list) =
         items
-        |> List.fold stateBuilder.Run stateBuilder.Zero
+        |> List.fold stateBuilder.Run stateBuilder.InitialState
 
     let childCounter = 
         StateBuilder.Counter<ChildAdded>
