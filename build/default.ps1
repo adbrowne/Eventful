@@ -1,4 +1,4 @@
-$version = "0.0.1.10"
+$version = "0.0.1.11"
 properties {
   $slnPath = "..\src\Eventful.sln"
 }
