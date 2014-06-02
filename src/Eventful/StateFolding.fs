@@ -138,6 +138,17 @@ module StateBuilder =
             let stateBuilderRest = map2 combine2 extract2 stateBuilder2 stateBuilder3
             map2 combine3 extract3 stateBuilder1 stateBuilderRest)
 
+    let map4<'a,'b,'c,'d,'e> (combine : 'a -> 'b -> 'c -> 'd -> 'e) (extract : 'e -> ('a * 'b * 'c * 'd)) (stateBuilder1:StateBuilder<'a>) =
+        let combine3 a b c = (a, b, c)
+        let extract3 = id
+        let combine4 a (b, c, d) = combine a b c d
+        let extract4 d = 
+            let (a,b,c,d) = extract d
+            (a,(b,c,d))
+        (fun stateBuilder2 stateBuilder3 stateBuilder4 ->
+            let stateBuilderRest = map3 combine3 extract3 stateBuilder2 stateBuilder3 stateBuilder4
+            map2 combine4 extract4 stateBuilder1 stateBuilderRest)
+
     let runState<'TState> (stateBuilder : StateBuilder<'TState>) (items : obj list) =
         items
         |> List.fold stateBuilder.Run stateBuilder.InitialState
