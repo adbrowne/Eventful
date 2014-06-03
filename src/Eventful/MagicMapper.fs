@@ -47,7 +47,7 @@ module MagicMapper =
 
             match findMatch with
             | [(case, field)] -> 
-                FSharpValue.MakeUnion(case, [|value|])
+                FSharpValue.MakeUnion(case, [|value|]) :?> 'TUnion
             | _ -> failwith <| sprintf "No unique case for type %A in union type %A" fieldType typeof<'TUnion>
         ) 
 
