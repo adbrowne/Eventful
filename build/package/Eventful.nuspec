@@ -2,7 +2,7 @@
 <package >
   <metadata minClientVersion="2.5">
     <id>Eventful</id>
-    <version>0.0.1.12</version>
+    <version>0.0.1.13</version>
     <authors>Andrew Browne</authors>
     <owners>Andrew Browne</owners>
     <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
