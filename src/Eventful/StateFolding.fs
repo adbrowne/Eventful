@@ -1,6 +1,8 @@
 ﻿namespace Eventful
 
 open System
+open FSharpx
+open Eventful
 
 type accumulator<'TState,'TItem> = 'TState -> 'TItem -> 'TState
 
@@ -127,38 +129,38 @@ module StateBuilder =
 
         new StateBuilder<_>(initialState, [handler], types)
 
-    let map3<'a,'b,'c,'d> (combine : 'a -> 'b -> 'c -> 'd) (extract : 'd -> ('a * 'b * 'c)) (stateBuilder1:StateBuilder<'a>) =
-        let combine2 a  b = (a, b)
-        let extract2 = id
-        let combine3 a (b,c) = combine a b c
-        let extract3 d = 
-            let (a,b,c) = extract d
-            (a,(b,c))
-        (fun stateBuilder2 stateBuilder3 ->
-            let stateBuilderRest = map2 combine2 extract2 stateBuilder2 stateBuilder3
-            map2 combine3 extract3 stateBuilder1 stateBuilderRest)
+    // this is a pattern through these but I don't have a name
+    let weirdApply2 f g = (fun a b -> f (g a b))
+    let weirdApply3 f g = (fun a b c -> f (g a b c))
+    let weirdApply4 f g = (fun a b c d -> f (g a b c d))
+    let weirdApply5 f g = (fun a b c d e -> f (g a b c d e))
+    let weirdApply6 f_ g_ = (fun a b c d e f -> f_ (g_ a b c d e f))
+    let weirdApply7 f_ g_ = (fun a b c d e f g -> f_ (g_ a b c d e f g))
 
-    let map4<'a,'b,'c,'d,'e> (combine : 'a -> 'b -> 'c -> 'd -> 'e) (extract : 'e -> ('a * 'b * 'c * 'd)) (stateBuilder1:StateBuilder<'a>) =
-        let combine3 a b c = (a, b, c)
-        let extract3 = id
-        let combine4 a (b, c, d) = combine a b c d
-        let extract4 d = 
-            let (a,b,c,d) = extract d
-            (a,(b,c,d))
-        (fun stateBuilder2 stateBuilder3 stateBuilder4 ->
-            let stateBuilderRest = map3 combine3 extract3 stateBuilder2 stateBuilder3 stateBuilder4
-            map2 combine4 extract4 stateBuilder1 stateBuilderRest)
+    let map3 combine extract stateBuilder1 =
+        let combiner a = applyTuple2 (combine a)
+        let extractor = extract >> tupleFst3
+        weirdApply2 (map2 combiner extractor stateBuilder1) (map2 tuple2 id)
 
-    let map5<'a,'b,'c,'d,'e,'f> (combine : 'a -> 'b -> 'c -> 'd -> 'e -> 'f) (extract : 'f -> ('a * 'b * 'c * 'd * 'e)) (stateBuilder1:StateBuilder<'a>) =
-        let combine4 a b c d = (a, b, c, d)
-        let extract4 = id
-        let combine5 a (b, c, d, e) = combine a b c d e
-        let extract5 f = 
-            let (a,b,c,d,e) = extract f
-            (a,(b,c,d,e))
-        (fun stateBuilder2 stateBuilder3 stateBuilder4 stateBuilder5 ->
-            let stateBuilderRest = map4 combine4 extract4 stateBuilder2 stateBuilder3 stateBuilder4 stateBuilder5
-            map2 combine5 extract5 stateBuilder1 stateBuilderRest)
+    let map4 combine extract stateBuilder1 =
+        let combiner a = applyTuple3 (combine a)
+        let extractor = extract >> tupleFst4
+        weirdApply3 (map2 combiner extractor stateBuilder1) (map3 tuple3 id)
+
+    let map5 combine extract stateBuilder1 =
+        let combiner a = applyTuple4 (combine a)
+        let extractor = extract >> tupleFst5
+        weirdApply4 (map2 combiner extractor stateBuilder1) (map4 tuple4 id)
+
+    let map6 combine extract stateBuilder1 =
+        let combiner a = applyTuple5 (combine a)
+        let extractor = extract >> tupleFst6
+        weirdApply5 (map2 combiner extractor stateBuilder1) (map5 tuple5 id)
+
+    let map7 combine extract stateBuilder1 =
+        let combiner a = applyTuple6 (combine a)
+        let extractor = extract >> tupleFst7
+        weirdApply6 (map2 combiner extractor stateBuilder1) (map6 tuple6 id)
 
     let runState<'TState> (stateBuilder : StateBuilder<'TState>) (items : obj list) =
         items

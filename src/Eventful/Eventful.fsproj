@@ -40,6 +40,7 @@
       <Link>AssemblyInfo.fs</Link>
     </Compile>
     <Compile Include="Agent.fs" />
+    <Compile Include="Prelude.fs" />
     <Compile Include="Helpers.fs" />
     <Compile Include="Bucket.fs" />
     <Compile Include="LastCompleteTracker.fs" />
@@ -69,6 +70,10 @@
     </Reference>
     <Reference Include="FSharpx.Collections">
       <HintPath>..\packages\FSharpx.Collections.1.9.2\lib\net35\FSharpx.Collections.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="FSharpx.Core">
+      <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />
