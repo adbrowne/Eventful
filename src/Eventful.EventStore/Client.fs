@@ -35,7 +35,7 @@ type Client (connection : IEventStoreConnection) =
     }
 
     member x.append streamId expectedVersion eventData = async {
-            do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith((fun _ -> ())) |> Async.AwaitTask
+            do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.Ignore
         }
 
     member x.getNextPosition () = async {
