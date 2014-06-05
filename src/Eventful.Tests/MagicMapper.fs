@@ -27,6 +27,14 @@ module MagicMapperTests =
         result |> should equal id
 
     [<Fact>]
+    let ``can precompute id getter`` () : unit =
+        let id = Guid.NewGuid()
+        let myRecord = { Id = id }        
+        let getter = MagicMapper.magicIdFromType<Guid, FooRecord> 
+        let result = getter myRecord
+        result |> should equal id
+
+    [<Fact>]
     let ``Will throw where there is no property of the type`` () : unit =
         let id = Guid.NewGuid()
         let myRecord = { Id = id }        

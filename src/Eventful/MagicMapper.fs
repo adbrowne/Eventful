@@ -24,6 +24,12 @@ module MagicMapper =
         | [pi] -> Some (fun o -> pi.GetMethod.Invoke(o, [||])  :?> 'TId)
         | _ -> None
 
+    let magicIdFromType<'TId,'T> =
+        let getter = magicPropertyGetter<'TId> typeof<'T>
+        match getter with
+        | Some getter -> (fun t -> getter t)
+        | None -> failwith <| sprintf "Unable to find unambiguous property %A on type: %A" typeof<'TId> typeof<'T>
+
     let magicId<'TId> (item:obj) =
         let objType = item.GetType()
         let getter = magicPropertyGetter<'TId> objType
