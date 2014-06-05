@@ -30,7 +30,7 @@ module MagicMapperTests =
     let ``can precompute id getter`` () : unit =
         let id = Guid.NewGuid()
         let myRecord = { Id = id }        
-        let getter = MagicMapper.magicIdFromType<Guid, FooRecord> 
+        let getter = MagicMapper.magicIdFromType<Guid> (typeof<FooRecord>)
         let result = getter myRecord
         result |> should equal id
 
