@@ -30,7 +30,6 @@ module TestEventStore =
         { store with Events = store.Events |> Map.add stream streamEvents' }
 
 type Settings<'TAggregateType,'TCommandMetadata> = {
-    // tenancyId -> aggregateType -> id
     GetStreamName : 'TCommandMetadata -> 'TAggregateType -> IIdentity -> string
 }
 

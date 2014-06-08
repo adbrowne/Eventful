@@ -68,11 +68,11 @@ with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.em
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventProcessingConfiguration =
-    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> string) (stateBuilder : AggregateStateBuilder<'TState,obj>) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
+    let addCommand<'TCmd, 'TState> (toId : 'TCmd -> IIdentity) (stateBuilder : AggregateStateBuilder<'TState,obj>) (handler : 'TCmd -> 'TState -> Choice<seq<obj>, seq<string>>) (config : EventProcessingConfiguration) = 
         let cmdType = typeof<'TCmd>.FullName
         let outerHandler (cmdObj : obj) =
             let realHandler (cmd : 'TCmd) =
-                let stream = toId cmd
+                let stream = (toId cmd).GetId
                 let realRealHandler = 
                     let blah = handler cmd
                     fun (state : obj) ->

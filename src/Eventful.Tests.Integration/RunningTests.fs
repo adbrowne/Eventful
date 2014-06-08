@@ -43,28 +43,36 @@ module RunningTests =
         let reader = new StringReader(str) :> TextReader
         let result = serializer.Deserialize(reader, objType) 
         result
+
+    type PersonId = 
+        {
+            Id : Guid
+        } 
+        interface IIdentity with
+            member this.GetId = MagicMapper.getGuidId this
+        static member New () = { Id = Guid.NewGuid() }
         
     type AddPersonCommand = {
-        Id : Guid
+        Id : PersonId
         Name : string
-        ParentId : Guid option
+        ParentId : PersonId option
     }
 
     type PersonAddedEvent = {
-        Id : Guid
+        Id : PersonId
         Name : string
-        ParentId : Guid option
+        ParentId : PersonId option
     }
 
     type ChildAddedEvent = {
-        Id : Guid
-        ChildId : Guid
+        Id : PersonId
+        ChildId : PersonId
         ExistingChildren: int
     }
 
     type ChildAddedEvent2 = {
-        Id : Guid
-        ChildId : Guid
+        Id : PersonId
+        ChildId : PersonId
         ExistingChildren: int
     }
 
@@ -119,7 +127,7 @@ module RunningTests =
 
             let config = 
                 EventProcessingConfiguration.Empty
-                |> EventProcessingConfiguration.addCommand (fun (cmd : AddPersonCommand) -> cmd.Id.ToString()) myStateBuilder myCmdHandler
+                |> EventProcessingConfiguration.addCommand (fun (cmd : AddPersonCommand) -> cmd.Id :> IIdentity) myStateBuilder myCmdHandler
                 |> EventProcessingConfiguration.addEvent evtId myStateBuilder onChildAdded
                 |> EventProcessingConfiguration.addEvent evtId2 myStateBuilder onChildAdded2
 
@@ -132,14 +140,14 @@ module RunningTests =
 
             do! model.Start() |> Async.Ignore
             
-            let parentId = Guid.NewGuid()
+            let parentId = PersonId.New()
             let addParentCmd : AddPersonCommand = {
                 Id = parentId
                 Name = "Parent"
                 ParentId = None
             }
 
-            let childId = Guid.NewGuid()
+            let childId = PersonId.New()
 
             let addChildCmd : AddPersonCommand = {
                 Id = childId
@@ -187,7 +195,7 @@ module RunningTests =
         } |> Async.RunSynchronously
 
     type AddedEvent = {
-        Id : Guid
+        Id : PersonId
         Count : int
     }
 
@@ -213,7 +221,7 @@ module RunningTests =
 
             let config = 
                 EventProcessingConfiguration.Empty
-                |> EventProcessingConfiguration.addCommand (fun (cmd : AddPersonCommand) -> cmd.Id.ToString()) myStateBuilder myCmdHandler
+                |> EventProcessingConfiguration.addCommand (fun (cmd : AddPersonCommand) -> cmd.Id :> IIdentity) myStateBuilder myCmdHandler
 
             let esSerializer = 
                 { new ISerializer with
@@ -224,9 +232,9 @@ module RunningTests =
 
             do! model.Start() |> Async.Ignore
             
-            let parentId = Guid.NewGuid()
+            let parentId = PersonId.New()
 
-            let childId = Guid.NewGuid()
+            let childId = PersonId.New()
 
             let addChildCmd : AddPersonCommand = {
                 Id = childId
@@ -244,7 +252,7 @@ module RunningTests =
             let sw = System.Diagnostics.Stopwatch.StartNew()
             let client = new Client(connection)
 
-            let last = client.readStreamBackward <| childId.ToString() |> AsyncSeq.take 1 |> Seq.ofAsyncSeq |> Seq.head
+            let last = client.readStreamBackward <| (childId :> IIdentity).GetId |> AsyncSeq.take 1 |> Seq.ofAsyncSeq |> Seq.head
 
             let lastEvent = deserializeObj last.Event.Data last.Event.EventType :?> AddedEvent
 
