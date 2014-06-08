@@ -48,14 +48,14 @@ open Eventful.AggregateActionBuilder
 module Teacher =
     let handlers = 
         aggregate<unit,TeacherEvents,TeacherId> {
-            yield buildSimpleCmdHandler 
-               (fun (cmd : AddTeacherCommand) -> 
-                   Added { 
-                       TeacherId = cmd.TeacherId
-                       FirstName = cmd.FirstName
-                       LastName = cmd.LastName 
-                   } 
-               )
+            let addTeacher (cmd : AddTeacherCommand) =
+               Added { 
+                   TeacherId = cmd.TeacherId
+                   FirstName = cmd.FirstName
+                   LastName = cmd.LastName 
+               } 
+                
+            yield buildSimpleCmdHandler addTeacher
         }
 
 type AddReportCommand = {
@@ -81,9 +81,7 @@ module Report =
                        TeacherId = x.TeacherId
                        Name = x.Name } 
 
-            yield addReport
-                  |> simpleHandler
-                  |> buildCmd
+            yield buildSimpleCmdHandler addReport
         }
 
 type TeacherReportEvents =
