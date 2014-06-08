@@ -54,7 +54,6 @@ type AggregateStateBuilder<'TState, 'TItem> = {
                     | _ -> -1
     }
 
-
 type cmdHandler = obj -> (string * IStateBuilder<obj,obj> * (obj -> Choice<seq<obj>, seq<string>>))
 
 type EventProcessingConfiguration = {
@@ -64,7 +63,15 @@ type EventProcessingConfiguration = {
     TypeToTypeName : Type -> string
     TypeNameToType : string -> Type
 }
-with static member Empty = { CommandHandlers = Map.empty; StateBuilders = Set.empty; EventHandlers = Map.empty; TypeToTypeName = (fun t -> t.FullName); TypeNameToType = System.Type.GetType } 
+with 
+    static member Empty = 
+        { 
+            CommandHandlers = Map.empty
+            StateBuilders = Set.empty
+            EventHandlers = Map.empty 
+            TypeToTypeName = (fun t -> t.FullName)
+            TypeNameToType = System.Type.GetType 
+        } 
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventProcessingConfiguration =
