@@ -96,14 +96,14 @@ module Aggregate2 =
     type AggregateBuilder<'TState,'TEvent,'TId> () = 
         member this.Zero() = AggregateHandlers<'TState,'TEvent,'TId>.Empty
 
-//        member x.Delay(f : unit -> AggregateHandlers<'TState,'TEvent>) = f ()
+        member x.Delay(f : unit -> AggregateHandlers<'TState,'TEvent,'TId>) = f ()
 
         member this.Yield(x:IHandler<'TState,'TEvent,'TId>) :  AggregateHandlers<'TState,'TEvent,'TId> =
             let empty = AggregateHandlers<'TState,'TEvent,'TId>.Empty 
             let result = x.add empty
             result
-//        member this.Combine (a:AggregateHandlers<_,_>,b:AggregateHandlers<_,_>) =
-//            a.Combine b
+        member this.Combine (a:AggregateHandlers<'TState,'TEvent,'TId>,b:AggregateHandlers<'TState,'TEvent,'TId>) =
+            a.Combine b
 
 //        [<CustomOperation("ldc_i4", MaintainsVariableSpace=true)>]
 //        member __.Ldc_I4((Instrs f : Instrs<'a,'r,_>, j), [<ProjectionParameter>]h:_->int) : Instrs<V<int> * 'a,'r,Nok> * _ =

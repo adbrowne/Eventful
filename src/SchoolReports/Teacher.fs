@@ -10,6 +10,10 @@ type TeacherId = {
     Id : Guid
 }
 
+type ReportId = {
+    Id : Guid
+}
+
 type TeacherAddedEvent = {
     TeacherId : TeacherId
     FirstName : string
@@ -43,60 +47,55 @@ module Teacher =
                   |> buildCmd
         }
 
+type AddReportCommand = {
+    ReportId : ReportId
+    TeacherId : TeacherId
+    Name : string
+}
+
+type ReportAddedEvent = {
+    ReportId : ReportId
+    TeacherId : TeacherId
+    Name : string
+}
+
+type ReportEvents =
+    | Added of ReportAddedEvent
+
+module Report =
+    let handlers =
+        aggregate<unit,ReportEvents,ReportId> {
+            let addReport (x : AddReportCommand) =
+               Added { ReportId = x.ReportId
+                       TeacherId = x.TeacherId
+                       Name = x.Name } 
+
+            yield addReport
+                  |> simpleHandler
+                  |> buildCmd
+        }
+
 type TeacherReportEvents =
     | TeacherAdded of TeacherAddedEvent
+    | ReportAdded of ReportAddedEvent
 
-module TeacherReports =
+module TeacherReport =
     let handlers =
         aggregate<unit,TeacherReportEvents,TeacherId> {
             yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
+            yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
         }
 
 open Xunit
 open FsUnit.Xunit
-
-type Aggregate (commandTypes : Type list, runCommand : obj -> obj list) =
-    member x.CommandTypes = commandTypes
-    member x.Run (cmd:obj) =
-        runCommand cmd 
-    
-type TestSystem (aggregates : seq<Aggregate>, lastEvents : list<obj>) =
-    member x.Aggregates = aggregates
-
-    member x.LastEvents = lastEvents
-
-    member x.Run (cmd : obj) =
-        let cmdType = cmd.GetType()
-        let aggregate = 
-            aggregates
-            |> Seq.filter (fun a -> a.CommandTypes |> Seq.exists (fun c -> c = cmdType))
-            |> Seq.toList
-            |> function
-            | [aggregate] -> aggregate
-            | [] -> failwith <| sprintf "Could not find aggregate to handle %A" cmdType
-            | xs -> failwith <| sprintf "Found more than one aggreate %A to handle %A" xs cmdType
-
-        let result = aggregate.Run cmd
-        new TestSystem(aggregates, result)
+open Eventful.Testing
 
 module TeacherTests = 
-    let toAggregate (handlers : AggregateHandlers<'TState, 'TEvents, 'TId>) =
-        let commandTypes = 
-            handlers.CommandHandlers
-            |> Seq.map (fun x -> x.CmdType)
-            |> Seq.toList
-
-        let runCmd (cmd : obj) =
-            let cmdType = cmd.GetType()
-            let handler = 
-                handlers.CommandHandlers
-                |> Seq.find (fun x -> x.CmdType = cmdType)
-            handler.Handler None cmd
-            |> function
-            | Choice1Of2 events -> events |> Seq.map (fun x -> x :> obj) |> List.ofSeq
-            | _ -> []
-
-        new Aggregate(commandTypes, runCmd)
+    let newTestSystem () =
+        TestSystem.Empty
+        |> (fun x -> x.AddAggregate Teacher.handlers)
+        |> (fun x -> x.AddAggregate Report.handlers)
+        |> (fun x -> x.AddAggregate TeacherReport.handlers)
 
     [<Fact>]
     let ``Given empty When Add Teacher Then TeacherAddedEvent is produced`` () : unit =
@@ -108,13 +107,35 @@ module TeacherTests =
             LastName = "Browne"
         }
 
-        let teacherAggregate = toAggregate Teacher.handlers
-        let testSystem = new TestSystem(Seq.singleton teacherAggregate, [])
-        let result = testSystem.Run command
+        let result = newTestSystem().RunCommand command
 
-        let expectedEvent = Added {
+        let expectedEvent = {
             TeacherAddedEvent.TeacherId = teacherId
             FirstName = command.FirstName
             LastName = command.LastName } :> obj
 
         result.LastEvents |> should equal [ expectedEvent ]
+
+    [<Fact>]
+    let ``Given Existing Teacher When Report added Then teacher report count is incrimented`` () : unit =
+        let teacherId =  { TeacherId.Id = Guid.NewGuid() }
+        let reportId =  { ReportId.Id = Guid.NewGuid() }
+        
+        let result = 
+            newTestSystem().Run 
+                [{
+                    AddTeacherCommand.TeacherId = teacherId
+                    FirstName = "Andrew"
+                    LastName = "Browne" }
+                 {
+                    AddReportCommand.ReportId = reportId
+                    TeacherId = teacherId
+                    Name = "Test Report" }]
+
+        let stateBuilder = 
+            StateBuilder.Empty 0
+            |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
+
+        let state = result.EvaluateState(stateBuilder)
+
+        state |> should equal 1
