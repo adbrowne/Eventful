@@ -91,11 +91,15 @@ open FsUnit.Xunit
 open Eventful.Testing
 
 module TeacherTests = 
+    let settings = { 
+        GetStreamName = fun tenancy aggregate id -> sprintf "%A-%A-%A" "test" aggregate id 
+    }
+
     let newTestSystem () =
-        TestSystem.Empty
-        |> (fun x -> x.AddAggregate Teacher.handlers)
-        |> (fun x -> x.AddAggregate Report.handlers)
-        |> (fun x -> x.AddAggregate TeacherReport.handlers)
+        TestSystem.Empty settings
+        |> (fun x -> x.AddAggregate Teacher.handlers "Teacher")
+        |> (fun x -> x.AddAggregate Report.handlers "Report")
+        |> (fun x -> x.AddAggregate TeacherReport.handlers "TeacherReport")
 
     [<Fact>]
     let ``Given empty When Add Teacher Then TeacherAddedEvent is produced`` () : unit =
@@ -114,7 +118,10 @@ module TeacherTests =
             FirstName = command.FirstName
             LastName = command.LastName } :> obj
 
-        result.LastEvents |> should equal [ expectedEvent ]
+        result.LastEvents 
+        |> Seq.map (fun (streamName, evt, _) -> evt)  
+        |> Seq.toList
+        |> should equal [ expectedEvent ]
 
     [<Fact>]
     let ``Given Existing Teacher When Report added Then teacher report count is incrimented`` () : unit =
@@ -136,6 +143,7 @@ module TeacherTests =
             StateBuilder.Empty 0
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
 
-        let state = result.EvaluateState(stateBuilder)
+        let stream = settings.GetStreamName ("test" :> obj) ("Report" :> obj) (reportId :> obj)
+        let state = result.EvaluateState stream stateBuilder
 
         state |> should equal 1

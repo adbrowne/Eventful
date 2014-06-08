@@ -5,8 +5,14 @@ open FSharpx.Choice
 
 type ValidationFailure = string
 
+type EventMetadata = {
+    MessageId : Guid
+    SourceMessageId : Guid
+}
+
 type ICommandHandler<'TState,'TEvent,'TId> =
     abstract member CmdType : Type
+    abstract member GetId : obj -> 'TId
     abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,seq<ValidationFailure>>
 
 type IEventHandler<'TState,'TEvent,'TId> =
@@ -49,6 +55,11 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd> = {
  with
     static member ToInterface<'TState,'TEvent> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd>) = {
             new ICommandHandler<'TState,'TEvent,'TId> with 
+                 member this.GetId cmd = 
+                    match cmd with
+                    | :? 'TCmd as cmd ->
+                        sb.GetId cmd
+                    | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
                  member this.CmdType = typeof<'TCmd>
                  member this.Handler state cmd =
                     choose {
