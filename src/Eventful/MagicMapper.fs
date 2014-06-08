@@ -72,3 +72,6 @@ module MagicMapper =
             else 
                 failwith <| sprintf "Not a union type value %A" (value.GetType())
         ) 
+    
+    let inline getGuidId (arg:^a) =    
+       (^a : (member Id : Guid) arg).ToString("N")
