@@ -4,7 +4,7 @@ open System
 open Eventful
 open FSharpx.Collections
 
-type Aggregate (commandTypes : Type list, runCommand : obj -> obj list, getId : obj -> obj, aggregateType) =
+type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> obj list, getId : obj -> obj, aggregateType : 'TAggregateType) =
     member x.CommandTypes = commandTypes
     member x.GetId = getId
     member x.AggregateType = aggregateType
@@ -29,17 +29,17 @@ module TestEventStore =
         let streamEvents' = streamEvents |> Vector.conj (event, metadata)
         { store with Events = store.Events |> Map.add stream streamEvents' }
 
-type Settings = {
+type Settings<'TAggregateType> = {
     // tenancyId -> aggregateType -> id
-    GetStreamName : obj -> obj -> obj -> string
+    GetStreamName : obj -> 'TAggregateType -> obj -> string
 }
 
-type TestSystem 
+type TestSystem<'TAggregateType> 
     (
-        aggregates : list<Aggregate>, 
+        aggregates : list<Aggregate<'TAggregateType>>, 
         lastEvents : list<string * obj * EventMetadata>, 
         allEvents : TestEventStore, 
-        settings : Settings
+        settings : Settings<'TAggregateType>
     ) =
     let testTenancy = Guid.Parse("A1028FC2-67D2-4F52-A69F-714A0F571D8A") :> obj
     member x.RunCommand (cmd : obj) =    
@@ -71,7 +71,7 @@ type TestSystem
             result
             |> Seq.fold (fun s e -> s |> TestEventStore.addEvent e) allEvents
 
-        new TestSystem(aggregates, result, allEvents',settings)
+        new TestSystem<'TAggregateType>(aggregates, result, allEvents',settings)
 
     member x.Aggregates = aggregates
 
@@ -100,12 +100,12 @@ type TestSystem
             | Choice1Of2 events -> events |> Seq.map unwrapper |> List.ofSeq
             | _ -> []
 
-        let aggregate = new Aggregate(commandTypes, runCmd, getId, aggregateType)
-        new TestSystem(aggregate::aggregates, lastEvents, allEvents, settings)
+        let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, aggregateType)
+        new TestSystem<'TAggregateType>(aggregate::aggregates, lastEvents, allEvents, settings)
 
     member x.Run (cmds : obj list) =
         cmds
-        |> List.fold (fun (s:TestSystem) cmd -> s.RunCommand cmd) x
+        |> List.fold (fun (s:TestSystem<_>) cmd -> s.RunCommand cmd) x
 
     member x.EvaluateState<'TState> (stream : string) (stateBuilder : StateBuilder<'TState>) =
         let streamEvents = 
@@ -121,4 +121,4 @@ type TestSystem
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 
     static member Empty settings =
-        new TestSystem(List.empty, List.empty, TestEventStore.empty, settings)
+        new TestSystem<_>(List.empty, List.empty, TestEventStore.empty, settings)
