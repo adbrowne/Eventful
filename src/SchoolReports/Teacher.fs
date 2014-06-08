@@ -47,16 +47,18 @@ type TeacherEvents =
 open Eventful.AggregateActionBuilder
 module Teacher =
     let handlers = 
-        aggregate<unit,TeacherEvents,TeacherId> {
-            let addTeacher (cmd : AddTeacherCommand) =
-               Added { 
-                   TeacherId = cmd.TeacherId
-                   FirstName = cmd.FirstName
-                   LastName = cmd.LastName 
+        aggregate<unit,TeacherEvents,TeacherId,AggregateType> 
+            AggregateType.Teacher 
+            {
+               let addTeacher (cmd : AddTeacherCommand) =
+                   Added { 
+                       TeacherId = cmd.TeacherId
+                       FirstName = cmd.FirstName
+                       LastName = cmd.LastName 
                } 
                 
-            yield buildSimpleCmdHandler addTeacher
-        }
+               yield buildSimpleCmdHandler addTeacher
+            }
 
 type AddReportCommand = {
     ReportId : ReportId
@@ -75,14 +77,16 @@ type ReportEvents =
 
 module Report =
     let handlers =
-        aggregate<unit,ReportEvents,ReportId> {
-            let addReport (x : AddReportCommand) =
-               Added { ReportId = x.ReportId
-                       TeacherId = x.TeacherId
-                       Name = x.Name } 
+        aggregate<unit,ReportEvents,ReportId,AggregateType> 
+            AggregateType.Report 
+            {
+                let addReport (x : AddReportCommand) =
+                   Added { ReportId = x.ReportId
+                           TeacherId = x.TeacherId
+                           Name = x.Name } 
 
-            yield buildSimpleCmdHandler addReport
-        }
+                yield buildSimpleCmdHandler addReport
+            }
 
 type TeacherReportEvents =
     | TeacherAdded of TeacherAddedEvent
@@ -90,10 +94,12 @@ type TeacherReportEvents =
 
 module TeacherReport =
     let handlers =
-        aggregate<unit,TeacherReportEvents,TeacherId> {
-            yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
-            yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
-        }
+        aggregate<unit,TeacherReportEvents,TeacherId, AggregateType> 
+            AggregateType.TeacherReport 
+            {
+                yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
+                yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
+            }
 
 open Xunit
 open FsUnit.Xunit
@@ -106,9 +112,9 @@ module TeacherTests =
 
     let newTestSystem () =
         TestSystem<_>.Empty settings
-        |> (fun x -> x.AddAggregate Teacher.handlers AggregateType.Teacher)
-        |> (fun x -> x.AddAggregate Report.handlers AggregateType.Report)
-        |> (fun x -> x.AddAggregate TeacherReport.handlers AggregateType.TeacherReport)
+        |> (fun x -> x.AddAggregate Teacher.handlers)
+        |> (fun x -> x.AddAggregate Report.handlers)
+        |> (fun x -> x.AddAggregate TeacherReport.handlers)
 
     [<Fact>]
     let ``Given empty When Add Teacher Then TeacherAddedEvent is produced`` () : unit =

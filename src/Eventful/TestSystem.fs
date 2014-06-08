@@ -77,7 +77,7 @@ type TestSystem<'TAggregateType>
 
     member x.LastEvents = lastEvents
 
-    member x.AddAggregate (handlers : AggregateHandlers<'TState, 'TEvents, 'TId>) aggregateType=
+    member x.AddAggregate (handlers : AggregateHandlers<'TState, 'TEvents, 'TId, 'TAggregateType>) =
         let commandTypes = 
             handlers.CommandHandlers
             |> Seq.map (fun x -> x.CmdType)
@@ -100,7 +100,7 @@ type TestSystem<'TAggregateType>
             | Choice1Of2 events -> events |> Seq.map unwrapper |> List.ofSeq
             | _ -> []
 
-        let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, aggregateType)
+        let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, handlers.AggregateType)
         new TestSystem<'TAggregateType>(aggregate::aggregates, lastEvents, allEvents, settings)
 
     member x.Run (cmds : obj list) =
