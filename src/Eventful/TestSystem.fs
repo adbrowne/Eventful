@@ -4,7 +4,7 @@ open System
 open Eventful
 open FSharpx.Collections
 
-type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> obj list, getId : obj -> obj, aggregateType : 'TAggregateType) =
+type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> obj list, getId : obj -> IIdentity, aggregateType : 'TAggregateType) =
     member x.CommandTypes = commandTypes
     member x.GetId = getId
     member x.AggregateType = aggregateType
@@ -29,9 +29,9 @@ module TestEventStore =
         let streamEvents' = streamEvents |> Vector.conj (event, metadata)
         { store with Events = store.Events |> Map.add stream streamEvents' }
 
-type Settings<'TAggregateType> = {
+type Settings<'TAggregateType,'TCommandMetadata> = {
     // tenancyId -> aggregateType -> id
-    GetStreamName : obj -> 'TAggregateType -> obj -> string
+    GetStreamName : 'TCommandMetadata -> 'TAggregateType -> IIdentity -> string
 }
 
 type TestSystem<'TAggregateType> 
@@ -39,7 +39,7 @@ type TestSystem<'TAggregateType>
         aggregates : list<Aggregate<'TAggregateType>>, 
         lastEvents : list<string * obj * EventMetadata>, 
         allEvents : TestEventStore, 
-        settings : Settings<'TAggregateType>
+        settings : Settings<'TAggregateType,unit>
     ) =
     let testTenancy = Guid.Parse("A1028FC2-67D2-4F52-A69F-714A0F571D8A") :> obj
     member x.RunCommand (cmd : obj) =    
@@ -55,7 +55,7 @@ type TestSystem<'TAggregateType>
             | xs -> failwith <| sprintf "Found more than one aggreate %A to handle %A" xs cmdType
 
         let id = aggregate.GetId cmd
-        let streamName = settings.GetStreamName testTenancy aggregate.AggregateType id
+        let streamName = settings.GetStreamName () aggregate.AggregateType id
 
         let result = 
             aggregate.Run cmd
@@ -91,7 +91,7 @@ type TestSystem<'TAggregateType>
 
         let getId (cmd : obj) =
             let handler = getHandler (cmd.GetType())
-            handler.GetId cmd :> obj
+            handler.GetId cmd :> IIdentity
             
         let runCmd (cmd : obj) =
             let handler = getHandler (cmd.GetType())

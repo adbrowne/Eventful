@@ -10,7 +10,7 @@ type EventMetadata = {
     SourceMessageId : Guid
 }
 
-type ICommandHandler<'TState,'TEvent,'TId> =
+type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
     abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,seq<ValidationFailure>>
@@ -23,7 +23,7 @@ type IEventLinker<'TEvent,'TId> =
     abstract member EventType : Type
     abstract member GetId : obj -> 'TId
 
-type AggregateHandlers<'TState,'TEvent,'TId> private 
+type AggregateHandlers<'TState,'TEvent,'TId when 'TId :> IIdentity> private 
     (
         commandHandlers : list<ICommandHandler<'TState,'TEvent,'TId>>, 
         eventHandlers : list<IEventHandler<'TState,'TEvent,'TId>>,
@@ -44,10 +44,10 @@ type AggregateHandlers<'TState,'TEvent,'TId> private
 
     static member Empty = new AggregateHandlers<'TState,'TEvent,'TId>(List.empty, List.empty, List.empty)
     
-type IHandler<'TState,'TEvent,'TId> = 
+type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> = 
     abstract member add : AggregateHandlers<'TState,'TEvent,'TId> -> AggregateHandlers<'TState,'TEvent,'TId>
 
-type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd> = {
+type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
     Validate : 'TCmd -> 'TState option -> Choice<'TValidatedCmd,seq<ValidationFailure>>
     Handler : 'TValidatedCmd -> seq<'TEvent>
@@ -78,7 +78,7 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd> = {
         }
 
 module AggregateActionBuilder =
-    let simpleHandler<'TId,'TCmd,'TEvent,'TState> (f : 'TCmd -> 'TEvent) =
+    let simpleHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (f : 'TCmd -> 'TEvent) =
         {
             GetId = MagicMapper.magicId<'TId>
             Validate = (fun cmd _ -> Choice1Of2 cmd)
@@ -96,7 +96,7 @@ module AggregateActionBuilder =
                 | _ -> failwith (sprintf "Expecting event of type: %A received %A" typeof<'TLinkEvent> (event.GetType()))
     }
         
-    let linkEvent<'TLinkEvent,'TEvent,'TId,'TState> fId (linkEvent : 'TLinkEvent -> 'TEvent) = {
+    let linkEvent<'TLinkEvent,'TEvent,'TId,'TState when 'TId :> IIdentity> fId (linkEvent : 'TLinkEvent -> 'TEvent) = {
         new IHandler<'TState,'TEvent,'TId> with
             member x.add handlers =
                 let linkerInterface = (getLinkerInterface<'TLinkEvent,'TEvent,'TId> fId)
@@ -104,7 +104,7 @@ module AggregateActionBuilder =
     }
 
 module Aggregate2 = 
-    type AggregateBuilder<'TState,'TEvent,'TId> () = 
+    type AggregateBuilder<'TState,'TEvent,'TId when 'TId :> IIdentity> () = 
         member this.Zero() = AggregateHandlers<'TState,'TEvent,'TId>.Empty
 
         member x.Delay(f : unit -> AggregateHandlers<'TState,'TEvent,'TId>) = f ()
@@ -120,4 +120,4 @@ module Aggregate2 =
 //        member __.Ldc_I4((Instrs f : Instrs<'a,'r,_>, j), [<ProjectionParameter>]h:_->int) : Instrs<V<int> * 'a,'r,Nok> * _ =
 //            Instrs(f +> fun s -> s.ilg.Emit(OpCodes.Ldc_I4, h j)), j
 
-    let aggregate<'TState,'TEvent,'TId> = new AggregateBuilder<'TState,'TEvent,'TId>()
+    let aggregate<'TState,'TEvent,'TId when 'TId :> IIdentity> = new AggregateBuilder<'TState,'TEvent,'TId>()

@@ -11,13 +11,19 @@ type AggregateType =
 | Report
 | TeacherReport
 
-type TeacherId = {
-    Id : Guid
-}
+type TeacherId = 
+    {
+        Id : Guid
+    } 
+    interface IIdentity with
+        member this.GetId = this.Id.ToString("N")
 
-type ReportId = {
-    Id : Guid
-}
+type ReportId = 
+    {
+        Id : Guid
+    }
+    interface IIdentity with
+        member this.GetId = this.Id.ToString("N")
 
 type TeacherAddedEvent = {
     TeacherId : TeacherId
@@ -97,11 +103,11 @@ open Eventful.Testing
 
 module TeacherTests = 
     let settings = { 
-        GetStreamName = fun tenancy aggregate id -> sprintf "%A-%A-%A" "test" aggregate id 
+        GetStreamName = fun () aggregate id -> sprintf "%A-%A-%A" "test" aggregate id 
     }
 
     let newTestSystem () =
-        TestSystem.Empty settings
+        TestSystem<_>.Empty settings
         |> (fun x -> x.AddAggregate Teacher.handlers AggregateType.Teacher)
         |> (fun x -> x.AddAggregate Report.handlers AggregateType.Report)
         |> (fun x -> x.AddAggregate TeacherReport.handlers AggregateType.TeacherReport)
@@ -148,7 +154,7 @@ module TeacherTests =
             StateBuilder.Empty 0
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
 
-        let stream = settings.GetStreamName ("test" :> obj) (AggregateType.Report :> obj) (reportId :> obj)
+        let stream = settings.GetStreamName () (AggregateType.Report :> obj) (reportId :> IIdentity)
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal 1
