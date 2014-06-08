@@ -87,6 +87,9 @@ module AggregateActionBuilder =
 
     let buildCmd (handler: CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TCmd>) = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TCmd>.ToAdded handler
 
+    let buildSimpleCmdHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> = 
+        simpleHandler<'TId,'TCmd,'TEvent,'TState> >> buildCmd
+
     let getLinkerInterface<'TLinkEvent,'TEvent,'TId> fId : IEventLinker<'TEvent,'TId> = {
         new IEventLinker<'TEvent,'TId> with
             member x.EventType = typeof<'TLinkEvent>
