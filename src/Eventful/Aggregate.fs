@@ -64,7 +64,3 @@
         member m.GetZeroState () =
             let stateGen = stateGenerators |> List.head 
             stateGen.Zero
-
-    module Aggregate =
-        let AddCmdHandlerM (f : 'TState -> 'TCmd -> 'TResult) (aggregate : Aggregate<'TResult>) =
-            aggregate.AddCmdHandler f
