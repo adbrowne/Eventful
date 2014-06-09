@@ -5,7 +5,7 @@ open Microsoft.FSharp.Core
 open Eventful
 open FSharpx
 open FSharpx.Choice
-open Eventful.Aggregate2
+open Eventful.Aggregate
 
 type AggregateType =
 | Teacher

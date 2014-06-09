@@ -149,7 +149,7 @@ module AggregateActionBuilder =
                 handlers.AddEventLinker linkerInterface
     }
 
-module Aggregate2 = 
+module Aggregate = 
     type AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity> (aggregateType : 'TAggregateType, stateBuilder : StateBuilder<'TState>) = 
         member this.Zero() = AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>.Empty
 
