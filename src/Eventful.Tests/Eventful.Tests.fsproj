@@ -64,6 +64,8 @@
     <None Include="log4net.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Compile Include="TestSystem.fs" />
+    <Compile Include="TestHelpers.fs" />
     <Compile Include="CounterAgent.fs" />
     <Compile Include="BoundedWorkQueueTests.fs" />
     <Compile Include="OrderedGroupingQueueTests.fs" />

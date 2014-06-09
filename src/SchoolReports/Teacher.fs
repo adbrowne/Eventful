@@ -56,8 +56,28 @@ module Teacher =
                        FirstName = cmd.FirstName
                        LastName = cmd.LastName 
                } 
-                
-               yield buildSimpleCmdHandler addTeacher
+               
+               let validate (cmd : AddTeacherCommand) _ =
+                    let errors = seq {
+                        if String.IsNullOrWhiteSpace cmd.FirstName then
+                            yield "FirstName must not be blank"
+
+                        if String.IsNullOrWhiteSpace cmd.LastName then
+                            yield "LastName must not be blank"
+                    }
+
+                    if Seq.isEmpty errors then
+                        Choice1Of2 cmd
+                    else
+                        Choice2Of2 errors
+                    
+               yield {
+                        GetId = (fun (cmd: AddTeacherCommand) -> cmd.TeacherId)
+                        StateValidation = (fun _ -> Seq.empty)
+                        Validate = validate
+                        Handler = addTeacher >> Seq.singleton
+                     } 
+                     |> CommandHandler<AddTeacherCommand, unit, TeacherId, TeacherEvents>.ToAdded
             }
 
 type AddReportCommand = {
@@ -104,6 +124,7 @@ module TeacherReport =
 open Xunit
 open FsUnit.Xunit
 open Eventful.Testing
+open Eventful.Testing.TestHelpers
 
 module TeacherTests = 
     let settings = { 
@@ -128,15 +149,31 @@ module TeacherTests =
 
         let result = newTestSystem().RunCommand command
 
-        let expectedEvent = {
-            TeacherAddedEvent.TeacherId = teacherId
-            FirstName = command.FirstName
-            LastName = command.LastName } :> obj
+        let expectedEvent : TeacherAddedEvent -> bool = function
+            | {
+                    TeacherId = Equals teacherId
+                    FirstName = Equals command.FirstName
+                    LastName = Equals command.LastName
+              } -> true
+            | _ -> false
 
-        result.LastEvents 
-        |> Seq.map (fun (streamName, evt, _) -> evt)  
-        |> Seq.toList
-        |> should equal [ expectedEvent ]
+        result.LastResult
+        |> should beSuccessWithEvent expectedEvent
+
+    [<Fact>]
+    let ``When AddTeacherCommand has no names Then validation errors are returned`` () : unit =
+        let teacherId =  { TeacherId.Id = Guid.NewGuid() }
+        
+        let command : AddTeacherCommand = {
+            TeacherId = teacherId
+            FirstName = ""
+            LastName = ""
+        }
+
+        let result = newTestSystem().RunCommand command
+
+        result.LastResult |> should containError "FirstName must not be blank"
+        result.LastResult |> should containError "LastName must not be blank"
 
     [<Fact>]
     let ``Given Existing Teacher When Report added Then teacher report count is incrimented`` () : unit =

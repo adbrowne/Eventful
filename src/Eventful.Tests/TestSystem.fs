@@ -3,8 +3,9 @@
 open System
 open Eventful
 open FSharpx.Collections
+open FSharpx.Choice
 
-type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> obj list, getId : obj -> IIdentity, aggregateType : 'TAggregateType) =
+type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> Choice<obj list, ValidationFailure seq>, getId : obj -> IIdentity, aggregateType : 'TAggregateType) =
     member x.CommandTypes = commandTypes
     member x.GetId = getId
     member x.AggregateType = aggregateType
@@ -36,7 +37,7 @@ type Settings<'TAggregateType,'TCommandMetadata> = {
 type TestSystem<'TAggregateType> 
     (
         aggregates : list<Aggregate<'TAggregateType>>, 
-        lastEvents : list<string * obj * EventMetadata>, 
+        lastResult : Choice<list<string * obj * EventMetadata>,ValidationFailure seq>, 
         allEvents : TestEventStore, 
         settings : Settings<'TAggregateType,unit>
     ) =
@@ -57,24 +58,31 @@ type TestSystem<'TAggregateType>
         let streamName = settings.GetStreamName () aggregate.AggregateType id
 
         let result = 
-            aggregate.Run cmd
-            |> Seq.map (fun evt -> 
-                            let metadata = {
-                                SourceMessageId = sourceMessageId
-                                MessageId = Guid.NewGuid() 
-                            }
-                            (streamName,evt, metadata))
-            |> List.ofSeq
+            choose {
+                let! result = aggregate.Run cmd
+                return
+                    result
+                    |> Seq.map (fun evt -> 
+                                let metadata = {
+                                    SourceMessageId = sourceMessageId
+                                    MessageId = Guid.NewGuid() 
+                                }
+                                (streamName,evt, metadata))
+                    |> List.ofSeq
+            }
             
         let allEvents' =
-            result
-            |> Seq.fold (fun s e -> s |> TestEventStore.addEvent e) allEvents
+            match result with
+            | Choice1Of2 resultingEvents ->
+                resultingEvents
+                |> Seq.fold (fun s e -> s |> TestEventStore.addEvent e) allEvents
+            | _ -> allEvents
 
         new TestSystem<'TAggregateType>(aggregates, result, allEvents',settings)
 
     member x.Aggregates = aggregates
 
-    member x.LastEvents = lastEvents
+    member x.LastResult = lastResult
 
     member x.AddAggregate (handlers : AggregateHandlers<'TState, 'TEvents, 'TId, 'TAggregateType>) =
         let commandTypes = 
@@ -94,13 +102,16 @@ type TestSystem<'TAggregateType>
             
         let runCmd (cmd : obj) =
             let handler = getHandler (cmd.GetType())
-            handler.Handler None cmd
-            |> function
-            | Choice1Of2 events -> events |> Seq.map unwrapper |> List.ofSeq
-            | _ -> []
+            choose {
+                let! result = handler.Handler None cmd
+                return
+                    result 
+                    |> Seq.map unwrapper
+                    |> List.ofSeq
+            }
 
         let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, handlers.AggregateType)
-        new TestSystem<'TAggregateType>(aggregate::aggregates, lastEvents, allEvents, settings)
+        new TestSystem<'TAggregateType>(aggregate::aggregates, lastResult, allEvents, settings)
 
     member x.Run (cmds : obj list) =
         cmds
@@ -120,4 +131,4 @@ type TestSystem<'TAggregateType>
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 
     static member Empty settings =
-        new TestSystem<_>(List.empty, List.empty, TestEventStore.empty, settings)
+        new TestSystem<_>(List.empty, Choice1Of2 List.empty, TestEventStore.empty, settings)

@@ -51,14 +51,14 @@ type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdent
 type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> = 
     abstract member add : AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType> -> AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>
 
-type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd when 'TId :> IIdentity> = {
+type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
     StateValidation : 'TState option -> seq<ValidationFailure>
-    Validate : 'TCmd -> 'TState option -> Choice<'TValidatedCmd,seq<ValidationFailure>>
-    Handler : 'TValidatedCmd -> seq<'TEvent>
+    Validate : 'TCmd -> 'TState option -> Choice<'TCmd,seq<ValidationFailure>>
+    Handler : 'TCmd -> seq<'TEvent>
 }
  with
-    static member ToInterface<'TState,'TEvent> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd>) = {
+    static member ToInterface<'TState,'TEvent> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = {
             new ICommandHandler<'TState,'TEvent,'TId> with 
                  member this.GetId cmd = 
                     match cmd with
@@ -76,10 +76,10 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd when 'TId :> I
                         | _ -> return! Choice2Of2 <| Seq.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
                     }
         }
-    static member ToAdded<'TState,'TEvent,'TId> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd>) : IHandler<'TState,'TEvent,'TId> = {
+    static member ToAdded<'TState,'TEvent,'TId> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TState,'TEvent,'TId> = {
             new IHandler<'TState,'TEvent,'TId> with
                 member x.add handlers =
-                    let cmdInterface = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd>.ToInterface sb
+                    let cmdInterface = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>.ToInterface sb
                     handlers.AddCommandHandler cmdInterface
         }
 
@@ -90,9 +90,9 @@ module AggregateActionBuilder =
             StateValidation = (fun _ -> Seq.empty)
             Validate = (fun cmd _ -> Choice1Of2 cmd)
             Handler = f >> Seq.singleton
-        } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TCmd> 
+        } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent> 
 
-    let buildCmd (handler: CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TCmd>) = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TCmd>.ToAdded handler
+    let buildCmd (handler: CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>.ToAdded handler
 
     let buildSimpleCmdHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> = 
         simpleHandler<'TId,'TCmd,'TEvent,'TState> >> buildCmd
