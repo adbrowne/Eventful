@@ -2,6 +2,7 @@
 
 open System
 open FSharpx.Choice
+open FSharpx.Collections
 
 type ValidationFailure = string
 
@@ -10,11 +11,13 @@ type EventMetadata = {
     SourceMessageId : Guid
 }
 
+type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
+
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
     abstract member StateValidation : 'TState option -> seq<ValidationFailure>
-    abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,seq<ValidationFailure>>
+    abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,NonEmptyList<ValidationFailure>>
 
 type IEventHandler<'TState,'TEvent,'TId> =
     abstract member CmdType : Type
@@ -54,7 +57,7 @@ type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
 type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
     StateValidation : 'TState option -> seq<ValidationFailure>
-    Validate : 'TCmd -> 'TState option -> Choice<'TCmd,seq<ValidationFailure>>
+    Validate : 'TCmd -> 'TState option -> Choice<'TCmd,NonEmptyList<ValidationFailure>>
     Handler : 'TCmd -> seq<'TEvent>
 }
  with
@@ -73,7 +76,7 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
                         | :? 'TCmd as cmd -> 
                             let! validated = sb.Validate cmd state
                             return sb.Handler validated
-                        | _ -> return! Choice2Of2 <| Seq.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
+                        | _ -> return! Choice2Of2 <| NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
                     }
         }
     static member ToAdded<'TState,'TEvent,'TId> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TState,'TEvent,'TId> = {

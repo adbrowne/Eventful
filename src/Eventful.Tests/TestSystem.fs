@@ -5,7 +5,7 @@ open Eventful
 open FSharpx.Collections
 open FSharpx.Choice
 
-type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> Choice<obj list, ValidationFailure seq>, getId : obj -> IIdentity, aggregateType : 'TAggregateType) =
+type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> Choice<obj list, NonEmptyList<ValidationFailure>>, getId : obj -> IIdentity, aggregateType : 'TAggregateType) =
     member x.CommandTypes = commandTypes
     member x.GetId = getId
     member x.AggregateType = aggregateType
@@ -37,7 +37,7 @@ type Settings<'TAggregateType,'TCommandMetadata> = {
 type TestSystem<'TAggregateType> 
     (
         aggregates : list<Aggregate<'TAggregateType>>, 
-        lastResult : Choice<list<string * obj * EventMetadata>,ValidationFailure seq>, 
+        lastResult : CommandResult, 
         allEvents : TestEventStore, 
         settings : Settings<'TAggregateType,unit>
     ) =

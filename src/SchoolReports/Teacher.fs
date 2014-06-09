@@ -3,6 +3,7 @@
 open System
 open Microsoft.FSharp.Core
 open Eventful
+open FSharpx
 open FSharpx.Choice
 open Eventful.Aggregate2
 
@@ -45,6 +46,8 @@ type TeacherEvents =
     | Added of TeacherAddedEvent
 
 open Eventful.AggregateActionBuilder
+open Eventful.Validation
+
 module Teacher =
     let handlers = 
         aggregate<unit,TeacherEvents,TeacherId,AggregateType> 
@@ -56,20 +59,14 @@ module Teacher =
                        FirstName = cmd.FirstName
                        LastName = cmd.LastName 
                } 
-               
+
                let validate (cmd : AddTeacherCommand) _ =
-                    let errors = seq {
-                        if String.IsNullOrWhiteSpace cmd.FirstName then
-                            yield "FirstName must not be blank"
-
-                        if String.IsNullOrWhiteSpace cmd.LastName then
-                            yield "LastName must not be blank"
-                    }
-
-                    if Seq.isEmpty errors then
-                        Choice1Of2 cmd
-                    else
-                        Choice2Of2 errors
+                    let v = new FSharpx.Validation.NonEmptyListValidation<ValidationFailure>()
+                    let firstName = (notBlank (fun x -> x.FirstName) "FirstName" cmd)
+                    let lastName = (notBlank (fun x -> x.LastName) "LastName" cmd)
+                    Choice.returnM cmd
+                    |> v.apl firstName
+                    |> v.apl lastName 
                     
                yield {
                         GetId = (fun (cmd: AddTeacherCommand) -> cmd.TeacherId)

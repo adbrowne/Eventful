@@ -2,6 +2,8 @@
 
 open Eventful
 
+open FSharpx.Collections
+
 module TestHelpers = 
     let (|Equals|_|) expected value =
        if expected = value
@@ -18,7 +20,7 @@ module TestHelpers =
             sprintf "Matches %A" x, 
             (fun a ->
                 match a with
-                | :? Choice<list<string * obj * EventMetadata>,ValidationFailure seq> as result -> 
+                | :? CommandResult as result -> 
                     match result with
                     | Choice1Of2 events ->
                         events |> List.exists matches
@@ -32,10 +34,10 @@ module TestHelpers =
             sprintf "Matches %A" x, 
             (fun a ->
                 match a with
-                | :? Choice<list<string * obj * EventMetadata>,ValidationFailure seq> as result -> 
+                | :? CommandResult as result -> 
                     match result with
                     | Choice2Of2 errors ->
-                        errors |> Seq.exists matches
+                        errors |> NonEmptyList.toSeq |> Seq.exists matches
                     | _ -> false
                 | _ -> false)
         )
