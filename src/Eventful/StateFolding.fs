@@ -105,7 +105,11 @@ module StateBuilder =
     let addHandler<'T, 'TEvent> (f : accumulator<'T,'TEvent>) (b : StateBuilder<'T>) =
         b.AddHandler f
 
-    let mapHandler<'TMsg,'TKey,'TState when 'TKey : comparison> (getKey : 'TMsg -> 'TKey) (accumulator : accumulator<'TState,'TMsg>) (initialState : 'TState) : accumulator<Map<'TKey,'TState>,'TMsg> =
+    let mapHandler<'TMsg,'TKey,'TState when 'TKey : comparison> 
+        (getKey : 'TMsg -> 'TKey) 
+        (accumulator : accumulator<'TState,'TMsg>) 
+        (initialState : 'TState) 
+        : accumulator<Map<'TKey,'TState>,'TMsg> =
         let acc (state : Map<'TKey,'TState>) msg =
             let key = getKey msg
             let childState = 
