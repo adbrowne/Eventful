@@ -4,8 +4,6 @@ open System
 open FSharpx.Choice
 open FSharpx.Collections
 
-type ValidationFailure = string
-
 type EventMetadata = {
     MessageId : Guid
     SourceMessageId : Guid
@@ -16,7 +14,8 @@ type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<Vali
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
-    abstract member StateValidation : 'TState option -> seq<ValidationFailure>
+//    abstract member StateValidation : 'TState option -> seq<ValidationFailure>
+//    abstract member CommandValidation : 'TCmd -> seq<ValidationFailure>
     abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,NonEmptyList<ValidationFailure>>
 
 type IEventHandler<'TState,'TEvent,'TId> =
@@ -54,9 +53,13 @@ type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdent
 type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> = 
     abstract member add : AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType> -> AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>
 
+open FSharpx
+open Eventful.Validation
+
 type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
-    StateValidation : 'TState option -> seq<ValidationFailure>
+    StateValidation : 'TState option -> Option<NonEmptyList<ValidationFailure>>
+    CommandValidation : 'TCmd -> Choice<'TCmd,NonEmptyList<ValidationFailure>>
     Validate : 'TCmd -> 'TState option -> Choice<'TCmd,NonEmptyList<ValidationFailure>>
     Handler : 'TCmd -> seq<'TEvent>
 }
@@ -69,12 +72,16 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
                         sb.GetId cmd
                     | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
                  member this.CmdType = typeof<'TCmd>
-                 member this.StateValidation state = sb.StateValidation state
+                 // member this.StateValidation state = sb.StateValidation state
                  member this.Handler state cmd =
                     choose {
                         match cmd with
                         | :? 'TCmd as cmd -> 
+                            let! validated = sb.StateValidation state
+                                             |> Option.map Failure
+                                             |> Option.getOrElse (Success cmd)
                             let! validated = sb.Validate cmd state
+                            let! validated = sb.CommandValidation cmd
                             return sb.Handler validated
                         | _ -> return! Choice2Of2 <| NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
                     }
@@ -86,11 +93,14 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
                     handlers.AddCommandHandler cmdInterface
         }
 
+open Eventful.Validation
+
 module AggregateActionBuilder =
     let simpleHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (f : 'TCmd -> 'TEvent) =
         {
             GetId = MagicMapper.magicId<'TId>
-            StateValidation = (fun _ -> Seq.empty)
+            StateValidation = (fun _ -> None)
+            CommandValidation = Success
             Validate = (fun cmd _ -> Choice1Of2 cmd)
             Handler = f >> Seq.singleton
         } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent> 

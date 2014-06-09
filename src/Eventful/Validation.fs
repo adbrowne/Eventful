@@ -5,6 +5,8 @@ open FSharpx
 open FSharpx.Validation
 open FSharpx.Collections
 
+type ValidationFailure = string
+
 module Validation = 
     let Success = Choice1Of2
     let Failure = Choice2Of2
