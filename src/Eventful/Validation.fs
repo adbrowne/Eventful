@@ -16,3 +16,9 @@ module Validation =
             sprintf "%s must not be blank" fieldName |> Seq.singleton
         else
             Seq.empty
+
+    let isNone (f:'A -> 'B option) msg (x:'A) : seq<ValidationFailure> = 
+        if f x |> Option.isNone then
+            Seq.empty
+        else
+            msg |> Seq.singleton

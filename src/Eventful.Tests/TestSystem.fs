@@ -5,12 +5,17 @@ open Eventful
 open FSharpx.Collections
 open FSharpx.Choice
 
-type Aggregate<'TAggregateType>(commandTypes : Type list, runCommand : obj -> Choice<obj list, NonEmptyList<ValidationFailure>>, getId : obj -> IIdentity, aggregateType : 'TAggregateType) =
+type Aggregate<'TAggregateType>
+    (
+        commandTypes : Type list, 
+        runCommand : obj -> Option<seq<obj>> -> Choice<obj list, NonEmptyList<ValidationFailure>>, 
+        getId : obj -> IIdentity, aggregateType : 'TAggregateType
+    ) =
     member x.CommandTypes = commandTypes
     member x.GetId = getId
     member x.AggregateType = aggregateType
-    member x.Run (cmd:obj) =
-        runCommand cmd 
+    member x.Run (cmd:obj) (events:Option<seq<obj>>) =
+        runCommand cmd events 
     
 open FSharpx.Collections
 
@@ -57,9 +62,18 @@ type TestSystem<'TAggregateType>
         let id = aggregate.GetId cmd
         let streamName = settings.GetStreamName () aggregate.AggregateType id
 
+        let streamEvents = 
+            match allEvents.Events |> Map.tryFind streamName with
+            | Some events -> 
+                events 
+                |> Vector.map fst 
+                |> Vector.toSeq
+                |> Some
+            | None -> None
+
         let result = 
             choose {
-                let! result = aggregate.Run cmd
+                let! result = aggregate.Run cmd streamEvents
                 return
                     result
                     |> Seq.map (fun evt -> 
@@ -100,10 +114,17 @@ type TestSystem<'TAggregateType>
             let handler = getHandler (cmd.GetType())
             handler.GetId cmd :> IIdentity
             
-        let runCmd (cmd : obj) =
+        let runCmd (cmd : obj) (events : Option<seq<obj>>) =
+            let state = 
+                match events with
+                | Some events ->
+                    events
+                    |> Seq.fold handlers.StateBuilder.Run handlers.StateBuilder.InitialState
+                    |> Some
+                | None -> None
             let handler = getHandler (cmd.GetType())
             choose {
-                let! result = handler.Handler None cmd
+                let! result = handler.Handler state cmd
                 return
                     result 
                     |> Seq.map unwrapper
@@ -132,3 +153,7 @@ type TestSystem<'TAggregateType>
 
     static member Empty settings =
         new TestSystem<_>(List.empty, Choice1Of2 List.empty, TestEventStore.empty, settings)
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module TestSystem = 
+    let runCommand x (y:TestSystem<_>) = y.RunCommand x

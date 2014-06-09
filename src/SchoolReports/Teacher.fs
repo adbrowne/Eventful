@@ -49,9 +49,13 @@ open Eventful.AggregateActionBuilder
 open Eventful.Validation
 
 module Teacher =
+    let stateBuilder = 
+        StateBuilder.Empty { TeacherState.TeacherId = { TeacherId.Id = Guid.NewGuid() }}
+        |> StateBuilder.addHandler (fun s (e:TeacherAddedEvent) -> { s with TeacherId = e.TeacherId })
+
     let handlers = 
-        aggregate<unit,TeacherEvents,TeacherId,AggregateType> 
-            AggregateType.Teacher 
+        aggregate<TeacherState,TeacherEvents,TeacherId,AggregateType> 
+            AggregateType.Teacher stateBuilder
             {
                let addTeacher (cmd : AddTeacherCommand) =
                    Added { 
@@ -62,6 +66,7 @@ module Teacher =
 
                yield addTeacher
                      |> simpleHandler
+                     |> ensureFirstCommand
                      |> addValidator (CommandValidator (notBlank (fun x -> x.FirstName) "FirstName"))
                      |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
                      |> buildCmd
@@ -85,7 +90,7 @@ type ReportEvents =
 module Report =
     let handlers =
         aggregate<unit,ReportEvents,ReportId,AggregateType> 
-            AggregateType.Report 
+            AggregateType.Report (StateBuilder.Empty ())
             {
                 let addReport (x : AddReportCommand) =
                    Added { ReportId = x.ReportId
@@ -102,7 +107,7 @@ type TeacherReportEvents =
 module TeacherReport =
     let handlers =
         aggregate<unit,TeacherReportEvents,TeacherId, AggregateType> 
-            AggregateType.TeacherReport 
+            AggregateType.TeacherReport (StateBuilder.Empty ())
             {
                 yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
                 yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
@@ -134,7 +139,9 @@ module TeacherTests =
             LastName = "Browne"
         }
 
-        let result = newTestSystem().RunCommand command
+        let result = 
+            newTestSystem()
+            |> TestSystem.runCommand command
 
         let expectedEvent : TeacherAddedEvent -> bool = function
             | {
@@ -146,6 +153,31 @@ module TeacherTests =
 
         result.LastResult
         |> should beSuccessWithEvent expectedEvent
+
+    [<Fact>]
+    let ``Given Teacher Exists When Add Teacher Then Error`` () : unit =
+        let teacherId =  { TeacherId.Id = Guid.NewGuid() }
+        
+        let command : AddTeacherCommand = {
+            TeacherId = teacherId
+            FirstName = "Andrew"
+            LastName = "Browne"
+        }
+
+        let result = 
+            newTestSystem()
+            |> TestSystem.runCommand command
+            |> TestSystem.runCommand command // run a second time - oops
+             
+        let expectedEvent : TeacherAddedEvent -> bool = function
+            | {
+                    TeacherId = Equals teacherId
+                    FirstName = Equals command.FirstName
+                    LastName = Equals command.LastName
+              } -> true
+            | _ -> false
+
+        result.LastResult |> should containError "Must be the first command"
 
     [<Fact>]
     let ``When AddTeacherCommand has no names Then validation errors are returned`` () : unit =
