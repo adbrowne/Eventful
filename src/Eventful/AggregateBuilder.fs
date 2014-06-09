@@ -159,12 +159,9 @@ module Aggregate =
             let empty = AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>.Empty aggregateType stateBuilder
             let result = x.add empty
             result
+
         member this.Combine (a:AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>,b:AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>) =
             a.Combine b
-
-//        [<CustomOperation("ldc_i4", MaintainsVariableSpace=true)>]
-//        member __.Ldc_I4((Instrs f : Instrs<'a,'r,_>, j), [<ProjectionParameter>]h:_->int) : Instrs<V<int> * 'a,'r,Nok> * _ =
-//            Instrs(f +> fun s -> s.ilg.Emit(OpCodes.Ldc_I4, h j)), j
 
     let aggregate<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity> aggregateType stateBuilder = 
         new AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, stateBuilder)
