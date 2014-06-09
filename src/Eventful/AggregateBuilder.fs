@@ -56,11 +56,14 @@ type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
 open FSharpx
 open Eventful.Validation
 
+type Validator<'TCmd,'TState> = 
+| CommandValidator of ('TCmd -> seq<ValidationFailure>)
+| StateValidator of ('TState option -> seq<ValidationFailure>)
+| CombinedValidator of ('TCmd -> 'TState option -> seq<ValidationFailure>)
+
 type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
-    StateValidation : 'TState option -> Option<NonEmptyList<ValidationFailure>>
-    CommandValidation : 'TCmd -> Choice<'TCmd,NonEmptyList<ValidationFailure>>
-    Validate : 'TCmd -> 'TState option -> Choice<'TCmd,NonEmptyList<ValidationFailure>>
+    Validators : Validator<'TCmd,'TState> list
     Handler : 'TCmd -> seq<'TEvent>
 }
  with
@@ -75,13 +78,22 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
                  // member this.StateValidation state = sb.StateValidation state
                  member this.Handler state cmd =
                     choose {
+                        let v = new FSharpx.Validation.NonEmptyListValidation<ValidationFailure>()
                         match cmd with
                         | :? 'TCmd as cmd -> 
-                            let! validated = sb.StateValidation state
-                                             |> Option.map Failure
-                                             |> Option.getOrElse (Success cmd)
-                            let! validated = sb.Validate cmd state
-                            let! validated = sb.CommandValidation cmd
+                            let toChoiceValidator r =
+                                if r |> Seq.isEmpty then
+                                    Success cmd
+                                else
+                                    NonEmptyList.create (r |> Seq.head) (r |> Seq.tail |> List.ofSeq) |> Failure
+                            let! validated = sb.Validators
+                                             |> List.map (function
+                                                            | CommandValidator validator -> validator cmd |> toChoiceValidator
+                                                            | StateValidator validator -> validator state |> toChoiceValidator
+                                                            | CombinedValidator validator -> validator cmd state |> toChoiceValidator)
+                                             |> List.map (fun x -> x)
+                                             |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
+
                             return sb.Handler validated
                         | _ -> return! Choice2Of2 <| NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
                     }
@@ -99,13 +111,16 @@ module AggregateActionBuilder =
     let simpleHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (f : 'TCmd -> 'TEvent) =
         {
             GetId = MagicMapper.magicId<'TId>
-            StateValidation = (fun _ -> None)
-            CommandValidation = Success
-            Validate = (fun cmd _ -> Choice1Of2 cmd)
+            Validators = List.empty
             Handler = f >> Seq.singleton
         } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent> 
 
     let buildCmd (handler: CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>.ToAdded handler
+
+    let addValidator 
+        (validator : Validator<'TCmd,'TState>) 
+        (handler: CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = 
+        { handler with Validators = validator::handler.Validators }
 
     let buildSimpleCmdHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> = 
         simpleHandler<'TId,'TCmd,'TEvent,'TState> >> buildCmd

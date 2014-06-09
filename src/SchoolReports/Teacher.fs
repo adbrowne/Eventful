@@ -60,24 +60,11 @@ module Teacher =
                        LastName = cmd.LastName 
                } 
 
-               let validate (cmd : AddTeacherCommand) =
-                    let v = new FSharpx.Validation.NonEmptyListValidation<ValidationFailure>()
-                    let firstName = (notBlank (fun x -> x.FirstName) "FirstName" cmd)
-                    let lastName = (notBlank (fun x -> x.LastName) "LastName" cmd)
-                    Choice.returnM cmd
-                    |> v.apl firstName
-                    |> v.apl lastName 
-
-               let validateFirstName = (notBlank (fun x -> x.FirstName) "FirstName")
-                    
-               yield {
-                        GetId = (fun (cmd: AddTeacherCommand) -> cmd.TeacherId)
-                        StateValidation = (fun _ -> None)
-                        CommandValidation = validate
-                        Validate = (fun x _ -> Success x)
-                        Handler = addTeacher >> Seq.singleton
-                     } 
-                     |> CommandHandler<AddTeacherCommand, unit, TeacherId, TeacherEvents>.ToAdded
+               yield addTeacher
+                     |> simpleHandler
+                     |> addValidator (CommandValidator (notBlank (fun x -> x.FirstName) "FirstName"))
+                     |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
+                     |> buildCmd
             }
 
 type AddReportCommand = {
