@@ -18,22 +18,6 @@ type AggregateStateBuilder<'TState, 'TItem> = {
     version : string
     types : seq<Type>
 } with  
-    static member ToInterface<'TState,'TItem> (sb : AggregateStateBuilder<'TState,'TItem>) = {
-            new IStateBuilder<'TState,'TItem> with 
-                 member this.Fold (state : 'TState) (evt : 'TItem) = 
-                    let result =  sb.fold state evt
-                    result
-                 member this.Zero = sb.zero
-                 member this.Name = sb.name
-                 member this.Types = sb.types
-                 member this.Version = sb.version
-                 member this.StateType = typeof<'TState>
-            interface IComparable with
-                member this.CompareTo(obj) =
-                    match obj with
-                    | :? IStateBuilder<'TState,'TItem> as sc -> compare sb.name sc.Name
-                    | _ -> -1
-        }
     static member ToUntypedInterface<'TState,'TItem> (sb : AggregateStateBuilder<'TState,'TItem>) = {
             new IStateBuilder<obj,obj> with 
              member this.Fold (state : obj) (evt : obj) = 
