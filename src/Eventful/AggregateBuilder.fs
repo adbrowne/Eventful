@@ -96,15 +96,16 @@ module AggregateActionBuilder =
          |> List.map (fun x -> x)
          |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
 
+    let untypedGetId<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) (cmd:obj) =
+        match cmd with
+        | :? 'TCmd as cmd ->
+            sb.GetId cmd
+        | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
+
     let ToInterface<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = {
             new ICommandHandler<'TState,'TEvent,'TId> with 
-                 member this.GetId cmd = 
-                    match cmd with
-                    | :? 'TCmd as cmd ->
-                        sb.GetId cmd
-                    | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
+                 member this.GetId cmd = untypedGetId sb cmd
                  member this.CmdType = typeof<'TCmd>
-                 // member this.StateValidation state = sb.StateValidation state
                  member this.Handler state cmd =
                     choose {
                         match cmd with
