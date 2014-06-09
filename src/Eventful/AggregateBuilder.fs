@@ -69,44 +69,6 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     Validators : Validator<'TCmd,'TState> list
     Handler : 'TCmd -> seq<'TEvent>
 }
- with
-    static member ToInterface<'TState,'TEvent> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = {
-            new ICommandHandler<'TState,'TEvent,'TId> with 
-                 member this.GetId cmd = 
-                    match cmd with
-                    | :? 'TCmd as cmd ->
-                        sb.GetId cmd
-                    | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
-                 member this.CmdType = typeof<'TCmd>
-                 // member this.StateValidation state = sb.StateValidation state
-                 member this.Handler state cmd =
-                    choose {
-                        let v = new FSharpx.Validation.NonEmptyListValidation<ValidationFailure>()
-                        match cmd with
-                        | :? 'TCmd as cmd -> 
-                            let toChoiceValidator r =
-                                if r |> Seq.isEmpty then
-                                    Success cmd
-                                else
-                                    NonEmptyList.create (r |> Seq.head) (r |> Seq.tail |> List.ofSeq) |> Failure
-                            let! validated = sb.Validators
-                                             |> List.map (function
-                                                            | CommandValidator validator -> validator cmd |> toChoiceValidator
-                                                            | StateValidator validator -> validator state |> toChoiceValidator
-                                                            | CombinedValidator validator -> validator cmd state |> toChoiceValidator)
-                                             |> List.map (fun x -> x)
-                                             |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
-
-                            return sb.Handler validated
-                        | _ -> return! Choice2Of2 <| NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
-                    }
-        }
-    static member ToAdded<'TState,'TEvent,'TId> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TState,'TEvent,'TId> = {
-            new IHandler<'TState,'TEvent,'TId> with
-                member x.add handlers =
-                    let cmdInterface = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>.ToInterface sb
-                    handlers.AddCommandHandler cmdInterface
-        }
 
 open Eventful.Validation
 
@@ -118,7 +80,48 @@ module AggregateActionBuilder =
             Handler = f >> Seq.singleton
         } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent> 
 
-    let buildCmd (handler: CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>.ToAdded handler
+    let toChoiceValidator cmd r =
+        if r |> Seq.isEmpty then
+            Success cmd
+        else
+            NonEmptyList.create (r |> Seq.head) (r |> Seq.tail |> List.ofSeq) |> Failure
+
+    let runValidation validators cmd state =
+        let v = new FSharpx.Validation.NonEmptyListValidation<ValidationFailure>()
+        validators
+        |> List.map (function
+                        | CommandValidator validator -> validator cmd |> (toChoiceValidator cmd)
+                        | StateValidator validator -> validator state |> (toChoiceValidator cmd)
+                        | CombinedValidator validator -> validator cmd state |> (toChoiceValidator cmd))
+         |> List.map (fun x -> x)
+         |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
+
+    let ToInterface<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = {
+            new ICommandHandler<'TState,'TEvent,'TId> with 
+                 member this.GetId cmd = 
+                    match cmd with
+                    | :? 'TCmd as cmd ->
+                        sb.GetId cmd
+                    | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
+                 member this.CmdType = typeof<'TCmd>
+                 // member this.StateValidation state = sb.StateValidation state
+                 member this.Handler state cmd =
+                    choose {
+                        match cmd with
+                        | :? 'TCmd as cmd -> 
+                            let! validated = runValidation sb.Validators cmd state
+
+                            return sb.Handler validated
+                        | _ -> return! Choice2Of2 <| NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
+                    }
+        }
+
+    let buildCmd<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TState,'TEvent,'TId> = {
+            new IHandler<'TState,'TEvent,'TId> with
+                member x.add handlers =
+                    let cmdInterface = ToInterface sb
+                    handlers.AddCommandHandler cmdInterface
+        }
 
     let addValidator 
         (validator : Validator<'TCmd,'TState>) 
