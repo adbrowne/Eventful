@@ -13,6 +13,7 @@ type EventMetadata = {
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
+    abstract member StateValidation : 'TState option -> seq<ValidationFailure>
     abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,seq<ValidationFailure>>
 
 type IEventHandler<'TState,'TEvent,'TId> =
@@ -52,6 +53,7 @@ type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
 
 type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
+    StateValidation : 'TState option -> seq<ValidationFailure>
     Validate : 'TCmd -> 'TState option -> Choice<'TValidatedCmd,seq<ValidationFailure>>
     Handler : 'TValidatedCmd -> seq<'TEvent>
 }
@@ -64,6 +66,7 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TValidatedCmd when 'TId :> I
                         sb.GetId cmd
                     | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
                  member this.CmdType = typeof<'TCmd>
+                 member this.StateValidation state = sb.StateValidation state
                  member this.Handler state cmd =
                     choose {
                         match cmd with
@@ -84,6 +87,7 @@ module AggregateActionBuilder =
     let simpleHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (f : 'TCmd -> 'TEvent) =
         {
             GetId = MagicMapper.magicId<'TId>
+            StateValidation = (fun _ -> Seq.empty)
             Validate = (fun cmd _ -> Choice1Of2 cmd)
             Handler = f >> Seq.singleton
         } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent, 'TCmd> 

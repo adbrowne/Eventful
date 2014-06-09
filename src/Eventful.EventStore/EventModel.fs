@@ -142,8 +142,8 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
     member x.Start () =  async {
         let! position = ProcessingTracker.readPosition client
         let! nullablePosition = match position with
-                               | Some position -> async { return  Nullable(position) }
-                               | None -> 
+                                | Some position -> async { return  Nullable(position) }
+                                | None -> 
                                     log <| "No event position found. Starting from current head."
                                     async {
                                         let! nextPosition = client.getNextPosition ()

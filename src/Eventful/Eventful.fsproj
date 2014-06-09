@@ -82,8 +82,8 @@
     <Compile Include="MagicMapper.fs" />
     <Compile Include="StateFolding.fs" />
     <Compile Include="Identity.fs" />
-    <Compile Include="EventProcessingConfiguration.fs" />
     <Compile Include="AggregateBuilder.fs" />
+    <Compile Include="EventProcessingConfiguration.fs" />
     <Compile Include="TestSystem.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
