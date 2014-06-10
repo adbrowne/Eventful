@@ -27,6 +27,8 @@ module FreeMonad =
         | Free of Toy<Free<'F,'R>>
         | Pure of 'R
 
+    type FreeProgram<'A> = Free<obj,'A>
+
     let empty = Pure ()
 
     // liftF :: (Functor f) => f r -> Free f r -- haskell signature
@@ -43,45 +45,45 @@ module FreeMonad =
         | Free x -> Free (fmap (bind f) x)
         | Pure r -> f r
 
-    type FreeBuilder<'F>() =
+    type FreeBuilder() =
         member x.Zero() = returnM ()
         member x.Return(r:'R) : Free<'F,'R> = returnM r
         member x.ReturnFrom(r:Free<'F,'R>) : Free<'F,'R> = r
         member x.Bind (inp : Free<'F,'R>, body : ('R -> Free<'F,'U>)) : Free<'F,'U>  = bind body inp
 
-    let free<'F> = new FreeBuilder<'F>()
+    let free = new FreeBuilder()
 
 open FreeMonad 
 open Xunit
+open FsUnit.Xunit
 
 module Play =
     
-    let toyProgram<'A> = free<Toy<'A>> {
-        do! output 1
-        let! value = getValue
-        return value
-    }
-
     let rec interpret prog = 
         match prog with
         | Free (GetValue g) -> 
-            printfn "GetValue" 
             let next = g 1
-            interpret next
+            "GetValue" :: interpret next
         | Free (Output (v, next)) ->
-            printfn "Output %A" v
-            interpret next
+            (sprintf "Output %A" v) :: interpret next
         | Free (Bell next) ->
-            printfn "Bell"
-            interpret next
+            "Bell"::interpret next
         | Pure result ->
-            printfn "Pure %A" result
+            [sprintf "Pure %A" result]
         | Free Done ->
-            printfn "Done"
+            ["Done"]
 
     [<Fact>]
     let ``can run program`` () : unit =
-        interpret toyProgram
+        let toyProgram : FreeProgram<int> = free {
+            do! output 1
+            let! value = getValue
+            return value
+        }
+
+        let result = interpret toyProgram
+
+        result |> should equal ["Output 1"; "GetValue"; "Pure 1"]
 
 //module StreamWorker =
 //    type StreamWorkerState<'T> =
