@@ -1,10 +1,19 @@
 ﻿namespace Eventful
 
 module FreeMonad =
-    type ToyF<'T> =
-    | Output of 'T * ToyF<'T>
-    | Bell of ToyF<'T>
+    type IFunctor<'A> =
+        abstract member Fmap : ('A -> 'B) -> IFunctor<'B>
+            
+    type Toy<'T,'N> =
+    | Output of 'T * 'N
+    | Bell of 'N
     | Done
+        interface IFunctor<'N> with
+            member this.Fmap f = 
+                match this with
+                | Output (x, next) -> Output (x, (f next)) :> IFunctor<_>
+                | Bell next -> Bell (f next) :> IFunctor<_>
+                | Done -> Done :> IFunctor<_>
 
     let fmap f toy = 
         match toy with
@@ -12,31 +21,48 @@ module FreeMonad =
         | Bell next -> Bell (f next)
         | Done -> Done
 
-    type Free<'F,'R> = 
-        | Free of 'F * (Free<'F,'R>) 
+    type Free<'F,'T,'R> = 
+        | Free of Toy<'T,Free<'F,'T,'R>>
         | Pure of 'R
 
-    type Toy<'T> = Free<ToyF<'T>,'T>
-
     let empty = Pure ()
-    let output x = Free (Output (x, Pure ()))
+    let output x = Free (Output(x, Pure ()))
     let bell = Free (Bell (Pure ()))
+    let done2 = Free (Done)
 
-    let liftF cmd = Free (fmap Pure, command) 
+    let returnM = Pure
+    let rec bind f v =
+        match v with
+        | Free x -> Free (fmap (bind f) x)
+        | Pure r -> f r
 
-    let output x = Free (Output x ())
+    type FreeBuilder<'T,'F>() =
+        member x.Return(r:'R) : Free<'F,'T,'R> = returnM r
+        member x.ReturnFrom(r:Free<'F,'T,'R>) : Free<'F,'T,'R> = r
+        member x.Bind (inp : Free<'F,'T,'R>, body : ('R -> Free<'F,'T,'U>)) : Free<'F,'T,'U>  = bind body inp
 
-module StreamWorker =
-    type StreamWorkerState<'T> =
-    | Result of 'T
-    | ReadStreamItem of int * string * StreamWorkerState<'T>
-    | WriteStreamItem of int * string * StreamWorkerState<'T>
+    let free<'T,'F> = new FreeBuilder<'T,'F>()
 
-    let bind
+open FreeMonad 
 
-    type StreamWorkerBuilder() =
-        member x.Return(()) = StreamWorkerState.None 
-        member x.Bind (inp:StreamWorkerState<'T>, body : 'T -> StreamWorkerState<'U>) : StreamWorkerState<'U> = 
-          bind(inp, body)
+module Play =
+    
+    let result<'A> = free<char,Toy<char,'A>> {
+        do! output 'a'
+        // return! done2
+    }
 
-    let streamWorker = StreamWorkerBuilder()
+//module StreamWorker =
+//    type StreamWorkerState<'T> =
+//    | Result of 'T
+//    | ReadStreamItem of int * string * StreamWorkerState<'T>
+//    | WriteStreamItem of int * string * StreamWorkerState<'T>
+//
+//    let bind
+//
+//    type StreamWorkerBuilder() =
+//        member x.Return(()) = StreamWorkerState.None 
+//        member x.Bind (inp:StreamWorkerState<'T>, body : 'T -> StreamWorkerState<'U>) : StreamWorkerState<'U> = 
+//          bind(inp, body)
+//
+//    let streamWorker = StreamWorkerBuilder()
