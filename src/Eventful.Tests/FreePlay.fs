@@ -1,20 +1,12 @@
 ﻿namespace Eventful
 
 module FreeMonad =
-    type IFunctor<'A> =
-        abstract member Fmap : ('A -> 'B) -> IFunctor<'B>
             
     type Toy<'N> =
     | Output of int * 'N
     | GetValue of (int -> 'N)
     | Bell of 'N
     | Done
-//        interface IFunctor<'N> with
-//            member this.Fmap f = 
-//                match this with
-//                | Output (x, next) -> Output (x, (f next)) :> IFunctor<_>
-//                | Bell next -> Bell (f next) :> IFunctor<_>
-//                | Done -> Done :> IFunctor<_>
 
     let fmap f toy = 
         match toy with
@@ -34,20 +26,19 @@ module FreeMonad =
     // liftF :: (Functor f) => f r -> Free f r -- haskell signature
     let liftF command = Free (fmap Pure command)
 
-    let output x = Free (Output(x, Pure ()))
-    let getValue<'T> : Free<'T,int> = liftF (GetValue id) // Free (GetValue(Pure 1))
-    let bell = Free (Bell (Pure ()))
-    let done2 = Free (Done)
+    let output x = liftF (Output (x,()))
+    let getValue<'T> = liftF (GetValue id) // Free (GetValue(Pure 1))
+    let bell<'T> = liftF (Bell ())
+    let endProgram = Free (Done)
 
-    let returnM = Pure
     let rec bind f v =
         match v with
         | Free x -> Free (fmap (bind f) x)
         | Pure r -> f r
 
     type FreeBuilder() =
-        member x.Zero() = returnM ()
-        member x.Return(r:'R) : Free<'F,'R> = returnM r
+        member x.Zero() = Pure ()
+        member x.Return(r:'R) : Free<'F,'R> = Pure r
         member x.ReturnFrom(r:Free<'F,'R>) : Free<'F,'R> = r
         member x.Bind (inp : Free<'F,'R>, body : ('R -> Free<'F,'U>)) : Free<'F,'U>  = bind body inp
 
