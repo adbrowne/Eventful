@@ -77,7 +77,7 @@
     <Compile Include="MagicMapper.fs" />
     <Compile Include="FoldPlay.fs" />
     <Compile Include="FoldCombining.fs" />
-    <Compile Include="StreamWorker.fs" />
+    <Compile Include="FreePlay.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Common.Logging">
