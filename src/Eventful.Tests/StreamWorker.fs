@@ -4,29 +4,36 @@ module FreeMonad =
     type IFunctor<'A> =
         abstract member Fmap : ('A -> 'B) -> IFunctor<'B>
             
-    type Toy<'T,'N> =
-    | Output of 'T * 'N
+    type Toy<'N> =
+    | Output of int * 'N
+    | GetValue of (int -> 'N)
     | Bell of 'N
     | Done
-        interface IFunctor<'N> with
-            member this.Fmap f = 
-                match this with
-                | Output (x, next) -> Output (x, (f next)) :> IFunctor<_>
-                | Bell next -> Bell (f next) :> IFunctor<_>
-                | Done -> Done :> IFunctor<_>
+//        interface IFunctor<'N> with
+//            member this.Fmap f = 
+//                match this with
+//                | Output (x, next) -> Output (x, (f next)) :> IFunctor<_>
+//                | Bell next -> Bell (f next) :> IFunctor<_>
+//                | Done -> Done :> IFunctor<_>
 
     let fmap f toy = 
         match toy with
         | Output (x, next) -> Output (x, (f next))
+        | GetValue (x) -> GetValue (x >> f)
         | Bell next -> Bell (f next)
         | Done -> Done
 
-    type Free<'F,'T,'R> = 
-        | Free of Toy<'T,Free<'F,'T,'R>>
+    type Free<'F,'R> = 
+        | Free of Toy<Free<'F,'R>>
         | Pure of 'R
 
     let empty = Pure ()
+
+    // liftF :: (Functor f) => f r -> Free f r -- haskell signature
+    let liftF command = Free (fmap Pure command)
+
     let output x = Free (Output(x, Pure ()))
+    let getValue<'T> : Free<'T,int> = liftF (GetValue id) // Free (GetValue(Pure 1))
     let bell = Free (Bell (Pure ()))
     let done2 = Free (Done)
 
@@ -36,21 +43,45 @@ module FreeMonad =
         | Free x -> Free (fmap (bind f) x)
         | Pure r -> f r
 
-    type FreeBuilder<'T,'F>() =
-        member x.Return(r:'R) : Free<'F,'T,'R> = returnM r
-        member x.ReturnFrom(r:Free<'F,'T,'R>) : Free<'F,'T,'R> = r
-        member x.Bind (inp : Free<'F,'T,'R>, body : ('R -> Free<'F,'T,'U>)) : Free<'F,'T,'U>  = bind body inp
+    type FreeBuilder<'F>() =
+        member x.Zero() = returnM ()
+        member x.Return(r:'R) : Free<'F,'R> = returnM r
+        member x.ReturnFrom(r:Free<'F,'R>) : Free<'F,'R> = r
+        member x.Bind (inp : Free<'F,'R>, body : ('R -> Free<'F,'U>)) : Free<'F,'U>  = bind body inp
 
-    let free<'T,'F> = new FreeBuilder<'T,'F>()
+    let free<'F> = new FreeBuilder<'F>()
 
 open FreeMonad 
+open Xunit
 
 module Play =
     
-    let result<'A> = free<char,Toy<char,'A>> {
-        do! output 'a'
-        // return! done2
+    let toyProgram<'A> = free<Toy<'A>> {
+        do! output 1
+        let! value = getValue
+        return value
     }
+
+    let rec interpret prog = 
+        match prog with
+        | Free (GetValue g) -> 
+            printfn "GetValue" 
+            let next = g 1
+            interpret next
+        | Free (Output (v, next)) ->
+            printfn "Output %A" v
+            interpret next
+        | Free (Bell next) ->
+            printfn "Bell"
+            interpret next
+        | Pure result ->
+            printfn "Pure %A" result
+        | Free Done ->
+            printfn "Done"
+
+    [<Fact>]
+    let ``can run program`` () : unit =
+        interpret toyProgram
 
 //module StreamWorker =
 //    type StreamWorkerState<'T> =
