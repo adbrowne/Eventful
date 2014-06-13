@@ -20,11 +20,15 @@ task MsBuildRelease {
   exec { msbuild /t:Build $slnPath -p:Configuration=Release /maxcpucount:8 /verbosity:quiet }
 }
 
+task RestorePackages {
+  exec { & {.\tools\nuget\nuget.exe restore ..\src\Eventful.sln }}
+}
+
 task Test -depends MsBuildRelease {
 	exec { & { ..\src\packages\xunit.runners.1.9.2\tools\xunit.console.clr4.exe .\Release\Eventful.Tests.dll }}
 }
 
-task Package -depends Clean, MsBuildRelease, CreateNugetPackage {
+task Package -depends Clean, RestorePackages, MsBuildRelease, CreateNugetPackage {
 }
 
 task CreateNugetPackage {
@@ -35,6 +39,7 @@ task CreateNugetPackage {
   exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version $version }}
   Copy-Item Eventful.$version.nupkg output.nupkg
 }
+
 task PackagePush -depends Package {
   $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
   exec { & {.\tools\nuget\nuget.exe push Eventful.$version.nupkg }}
