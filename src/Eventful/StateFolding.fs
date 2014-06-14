@@ -3,6 +3,7 @@
 open System
 open FSharpx
 open Eventful
+open Eventful.EventStream
 
 type accumulator<'TState,'TItem> = 'TState -> 'TItem -> 'TState
 
@@ -186,3 +187,17 @@ module StateBuilder =
                 state
                 
         new StateBuilder<_>(Map.empty, [handler], childStateBuilder.Types)
+
+    let toStreamProgram streamName (stateBuilder:StateBuilder<'TState>) = eventStream {
+        let rec loop nextEventNumber state = eventStream {
+            let! token = readFromStream streamName nextEventNumber
+            match token with
+            | Some token -> 
+                // todo replace with actual type
+                let! value = readValue token typeof<obj> 
+                let state' = stateBuilder.Run state value
+                return! loop (nextEventNumber + 1) state'
+            | None -> return state }
+            
+        return! loop 0 stateBuilder.InitialState 
+    }

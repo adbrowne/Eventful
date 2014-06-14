@@ -79,10 +79,10 @@
     <Compile Include="CounterAgent.fs" />
     <Compile Include="ReadModel.fs" />
     <Compile Include="MagicMapper.fs" />
+    <Compile Include="EventStream.fs" />
     <Compile Include="StateFolding.fs" />
     <Compile Include="Identity.fs" />
     <Compile Include="Validation.fs" />
-    <Compile Include="EventStream.fs" />
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventProcessingConfiguration.fs" />
     <None Include="packages.config" />
