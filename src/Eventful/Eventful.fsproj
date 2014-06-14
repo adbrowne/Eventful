@@ -82,9 +82,9 @@
     <Compile Include="StateFolding.fs" />
     <Compile Include="Identity.fs" />
     <Compile Include="Validation.fs" />
+    <Compile Include="EventStream.fs" />
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventProcessingConfiguration.fs" />
-    <Compile Include="EventStream.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>
