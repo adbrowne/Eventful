@@ -39,6 +39,33 @@ type Settings<'TAggregateType,'TCommandMetadata> = {
     GetStreamName : 'TCommandMetadata -> 'TAggregateType -> IIdentity -> string
 }
 
+open Eventful.EventStream
+
+module TestInterpreter =
+    let rec interpret prog (eventStore : TestEventStore) (values : Map<EventToken,obj>) = 
+        match prog with
+        | FreeEventStream (ReadFromStream (stream, eventNumber, g)) -> 
+            let streamEvents = eventStore.Events.[stream] // todo what if it doesn't exist
+            let (evt, metadata) = streamEvents.[eventNumber] // todo what if it doesn't exist
+            let eventToken = {
+                                Stream = stream
+                                Number = eventNumber
+                                EventType = evt.GetType().Name
+                             }
+
+            let next = g eventToken            
+            let values' = values |> Map.add eventToken evt
+            interpret next eventStore values'
+        | FreeEventStream (ReadValue (token, eventType, g)) ->
+            let eventObj = values.[token]
+            let next = g eventObj
+            interpret next eventStore values
+        | FreeEventStream (WriteToStream (_,_,next)) ->
+            // todo
+            interpret next eventStore values
+        | Pure result ->
+            result
+    
 type TestSystem<'TAggregateType> 
     (
         aggregates : list<Aggregate<'TAggregateType>>, 
@@ -46,7 +73,9 @@ type TestSystem<'TAggregateType>
         allEvents : TestEventStore, 
         settings : Settings<'TAggregateType,unit>
     ) =
+
     let testTenancy = Guid.Parse("A1028FC2-67D2-4F52-A69F-714A0F571D8A") :> obj
+
     member x.RunCommand (cmd : obj) =    
         let cmdType = cmd.GetType()
         let sourceMessageId = Guid.NewGuid()

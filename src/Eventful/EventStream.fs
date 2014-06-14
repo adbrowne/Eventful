@@ -34,7 +34,7 @@ module EventStream =
     // liftF :: (Functor f) => f r -> Free f r -- haskell signature
     let liftF command = FreeEventStream (fmap Pure command)
 
-    let output stream number = 
+    let readFromStream stream number = 
         ReadFromStream (stream, number, id) |> liftF
     let readValue eventToken eventType = 
         ReadValue(eventToken, eventType, id) |> liftF
