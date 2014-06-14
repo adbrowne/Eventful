@@ -135,13 +135,6 @@ type TestSystem<'TAggregateType>
                     |> List.ofSeq
             }
             
-//        let allEvents' =
-//            match result with
-//            | Choice1Of2 resultingEvents ->
-//                resultingEvents
-//                |> Seq.fold (fun s e -> s |> TestEventStore.addEvent e) allEvents
-//            | _ -> allEvents
-
         new TestSystem<'TAggregateType>(aggregates, result, allEvents',settings)
 
     member x.Aggregates = aggregates

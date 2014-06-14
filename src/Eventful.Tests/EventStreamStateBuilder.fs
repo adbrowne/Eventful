@@ -5,6 +5,7 @@ open FsUnit.Xunit
 open System
 open Eventful
 open Eventful.EventStream
+open FSharpx.Collections
 
 module EventStreamStateBuilder = 
 
@@ -15,6 +16,9 @@ module EventStreamStateBuilder =
     let stateBuilder =
         StateBuilder.Empty List.empty
         |> StateBuilder.addHandler (fun s (e:WidgetAddedEvent) -> e.Name::s)
+
+    let runProgram eventStoreState p = 
+        TestInterpreter.interpret p eventStoreState Map.empty Vector.empty |> snd
 
     [<Fact>]
     let ``Can build state from single event`` () : unit =
@@ -31,7 +35,7 @@ module EventStreamStateBuilder =
             |> TestEventStore.addEvent (streamName, { Name = "Widget1" }, newMetadata())
 
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
-        let result = TestInterpreter.interpret program eventStoreState Map.empty
+        let result = runProgram eventStoreState program
 
         result |> should equal (Some ["Widget1"])
 
@@ -54,10 +58,7 @@ module EventStreamStateBuilder =
 
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
 
-        let runProgram p = 
-            TestInterpreter.interpret p eventStoreState Map.empty
-
-        let result = runProgram program
+        let result = runProgram eventStoreState program
 
         result |> should equal (Some ["Widget2";"Widget1"])
 
