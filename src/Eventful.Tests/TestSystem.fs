@@ -10,14 +10,14 @@ open Eventful.EventStream
 type Aggregate<'TAggregateType>
     (
         commandTypes : Type list, 
-        runCommand : obj -> Option<seq<obj>> -> string -> EventStreamProgram<Choice<obj list, NonEmptyList<ValidationFailure>>>, 
+        runCommand : obj -> string -> EventStreamProgram<Choice<obj list, NonEmptyList<ValidationFailure>>>, 
         getId : obj -> IIdentity, aggregateType : 'TAggregateType
     ) =
     member x.CommandTypes = commandTypes
     member x.GetId = getId
     member x.AggregateType = aggregateType
-    member x.Run (cmd:obj) (events:Option<seq<obj>>) =
-        runCommand cmd events 
+    member x.Run (cmd:obj) =
+        runCommand cmd
     
 open FSharpx.Collections
 
@@ -102,18 +102,9 @@ type TestSystem<'TAggregateType>
         let id = aggregate.GetId cmd
         let streamName = settings.GetStreamName () aggregate.AggregateType id
 
-        let streamEvents = 
-            match allEvents.Events |> Map.tryFind streamName with
-            | Some events -> 
-                events 
-                |> Vector.map fst 
-                |> Vector.toSeq
-                |> Some
-            | None -> None
-
         let result = 
             choose {
-                let program = aggregate.Run cmd streamEvents streamName
+                let program = aggregate.Run cmd streamName
                 let! result = TestInterpreter.interpret program allEvents Map.empty
                 return
                     result
@@ -155,7 +146,7 @@ type TestSystem<'TAggregateType>
             let handler = getHandler (cmd.GetType())
             handler.GetId cmd :> IIdentity
             
-        let runCmd (cmd : obj) (events : Option<seq<obj>>) stream =
+        let runCmd (cmd : obj) stream =
             eventStream {
                 let! state = handlers.StateBuilder |> StateBuilder.toStreamProgram stream
                 let handler = getHandler (cmd.GetType())
