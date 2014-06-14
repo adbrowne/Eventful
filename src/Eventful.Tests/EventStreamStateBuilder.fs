@@ -33,7 +33,7 @@ module EventStreamStateBuilder =
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
         let result = TestInterpreter.interpret program eventStoreState Map.empty
 
-        result |> should equal ["Widget1"]
+        result |> should equal (Some ["Widget1"])
 
         ()
 
@@ -53,8 +53,12 @@ module EventStreamStateBuilder =
             |> TestEventStore.addEvent (streamName, { Name = "Widget2" }, newMetadata())
 
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
-        let result = TestInterpreter.interpret program eventStoreState Map.empty
 
-        result |> should equal ["Widget2";"Widget1"]
+        let runProgram p = 
+            TestInterpreter.interpret p eventStoreState Map.empty
+
+        let result = runProgram program
+
+        result |> should equal (Some ["Widget2";"Widget1"])
 
         ()

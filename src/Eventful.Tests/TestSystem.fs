@@ -5,10 +5,12 @@ open Eventful
 open FSharpx.Collections
 open FSharpx.Choice
 
+open Eventful.EventStream
+
 type Aggregate<'TAggregateType>
     (
         commandTypes : Type list, 
-        runCommand : obj -> Option<seq<obj>> -> Choice<obj list, NonEmptyList<ValidationFailure>>, 
+        runCommand : obj -> Option<seq<obj>> -> string -> EventStreamProgram<Choice<obj list, NonEmptyList<ValidationFailure>>>, 
         getId : obj -> IIdentity, aggregateType : 'TAggregateType
     ) =
     member x.CommandTypes = commandTypes
@@ -111,7 +113,8 @@ type TestSystem<'TAggregateType>
 
         let result = 
             choose {
-                let! result = aggregate.Run cmd streamEvents
+                let program = aggregate.Run cmd streamEvents streamName
+                let! result = TestInterpreter.interpret program allEvents Map.empty
                 return
                     result
                     |> Seq.map (fun evt -> 
@@ -152,21 +155,17 @@ type TestSystem<'TAggregateType>
             let handler = getHandler (cmd.GetType())
             handler.GetId cmd :> IIdentity
             
-        let runCmd (cmd : obj) (events : Option<seq<obj>>) =
-            let state = 
-                match events with
-                | Some events ->
-                    events
-                    |> Seq.fold handlers.StateBuilder.Run handlers.StateBuilder.InitialState
-                    |> Some
-                | None -> None
-            let handler = getHandler (cmd.GetType())
-            choose {
-                let! result = handler.Handler state cmd
-                return
-                    result 
-                    |> Seq.map unwrapper
-                    |> List.ofSeq
+        let runCmd (cmd : obj) (events : Option<seq<obj>>) stream =
+            eventStream {
+                let! state = handlers.StateBuilder |> StateBuilder.toStreamProgram stream
+                let handler = getHandler (cmd.GetType())
+                return choose {
+                    let! result = handler.Handler state cmd
+                    return
+                        result 
+                        |> Seq.map unwrapper
+                        |> List.ofSeq
+                }
             }
 
         let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, handlers.AggregateType)

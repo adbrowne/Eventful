@@ -29,8 +29,6 @@ module EventStream =
 
     let empty = Pure ()
 
-    type EventStreamProgram<'A> = FreeEventStream<obj,'A>
-
     // liftF :: (Functor f) => f r -> Free f r -- haskell signature
     let liftF command = FreeEventStream (fmap Pure command)
 
@@ -53,3 +51,5 @@ module EventStream =
         member x.Bind (inp : FreeEventStream<'F,'R>, body : ('R -> FreeEventStream<'F,'U>)) : FreeEventStream<'F,'U>  = bind body inp
 
     let eventStream = new EventStreamBuilder()
+
+    type EventStreamProgram<'A> = FreeEventStream<obj,'A>

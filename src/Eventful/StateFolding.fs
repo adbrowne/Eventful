@@ -193,11 +193,12 @@ module StateBuilder =
             let! token = readFromStream streamName nextEventNumber
             match token with
             | Some token -> 
-                // todo replace with actual type
+                // todo replace with actual type instead of obj
                 let! value = readValue token typeof<obj> 
-                let state' = stateBuilder.Run state value
-                return! loop (nextEventNumber + 1) state'
+                let currentState = state |> Option.getOrElse stateBuilder.InitialState
+                let state' = stateBuilder.Run currentState value
+                return! loop (nextEventNumber + 1) (Some state')
             | None -> return state }
             
-        return! loop 0 stateBuilder.InitialState 
+        return! loop 0 None
     }

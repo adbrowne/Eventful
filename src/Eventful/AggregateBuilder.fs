@@ -4,6 +4,8 @@ open System
 open FSharpx.Choice
 open FSharpx.Collections
 
+open Eventful.EventStream
+
 type EventMetadata = {
     MessageId : Guid
     SourceMessageId : Guid
@@ -17,7 +19,7 @@ type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
 //    abstract member StateValidation : 'TState option -> seq<ValidationFailure>
 //    abstract member CommandValidation : 'TCmd -> seq<ValidationFailure>
     abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,NonEmptyList<ValidationFailure>>
-    abstract member Process : obj -> EventStream.EventStreamProgram<CommandResult>
+    abstract member Process : obj -> EventStreamProgram<CommandResult>
 
 type IEventHandler<'TState,'TEvent,'TId> =
     abstract member CmdType : Type
@@ -69,7 +71,7 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
     Validators : Validator<'TCmd,'TState> list
     Handler : 'TCmd -> seq<'TEvent>
-    Process : 'TCmd -> EventStream.EventStreamProgram<CommandResult>
+    Process : 'TCmd -> EventStreamProgram<CommandResult>
 }
 
 open Eventful.EventStream
