@@ -6,11 +6,6 @@ open FSharpx.Collections
 
 open Eventful.EventStream
 
-type EventMetadata = {
-    MessageId : Guid
-    SourceMessageId : Guid
-}
-
 type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
 
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
@@ -84,7 +79,6 @@ module AggregateActionBuilder =
             Validators = List.empty
             Handler = f >> Seq.singleton
             Process = (fun cmd -> EventStream.eventStream { 
-                do! writeToStream "andrew" 1; 
                 return NonEmptyList.singleton "todo" |> Failure
             })
         } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent> 

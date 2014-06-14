@@ -4,6 +4,7 @@ open System
 open Eventful
 open FSharpx.Collections
 open FSharpx.Choice
+open FSharpx.Option
 
 open Eventful.EventStream
 
@@ -45,7 +46,7 @@ open Eventful.EventStream
 open FSharpx.Option
 
 module TestInterpreter =
-    let rec interpret prog (eventStore : TestEventStore) (values : Map<EventToken,obj>) = 
+    let rec interpret prog (eventStore : TestEventStore) (values : Map<EventToken,obj>) (writes : Vector<string * int * obj * EventMetadata>)= 
         match prog with
         | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
             let readEvent = maybe {
@@ -63,19 +64,34 @@ module TestInterpreter =
             | Some (eventToken, evt) -> 
                 let next = f (Some eventToken)
                 let values' = values |> Map.add eventToken evt
-                interpret next eventStore values'
+                interpret next eventStore values' writes
             | None ->
                 let next = f None
-                interpret next eventStore values
+                interpret next eventStore values writes
         | FreeEventStream (ReadValue (token, eventType, g)) ->
             let eventObj = values.[token]
             let next = g eventObj
-            interpret next eventStore values
-        | FreeEventStream (WriteToStream (_,_,next)) ->
-            // todo
-            interpret next eventStore values
+            interpret next eventStore values writes
+        | FreeEventStream (WriteToStream (stream, expectedValue, data, metadata, next)) ->
+            let writes' = writes |> Vector.conj (stream, expectedValue, data, metadata)
+            interpret next eventStore values writes'
+        | FreeEventStream (NotYetDone g) ->
+            let next = g ()
+            interpret next eventStore values writes
         | Pure result ->
-            result
+            let writeEvent store (stream, exepectedValue, data, metadata) =
+                // todo check expected value
+                let streamEvents = 
+                    store.Events 
+                    |> Map.tryFind stream 
+                    |> FSharpx.Option.getOrElse Vector.empty
+                    |> Vector.conj (data, metadata)
+                
+                { store with Events = store.Events |> Map.add stream streamEvents }
+
+            let eventStore' = 
+                writes |> Vector.fold writeEvent eventStore
+            (eventStore',result)
     
 type TestSystem<'TAggregateType> 
     (
@@ -102,10 +118,12 @@ type TestSystem<'TAggregateType>
         let id = aggregate.GetId cmd
         let streamName = settings.GetStreamName () aggregate.AggregateType id
 
+        let program = aggregate.Run cmd streamName
+        let (allEvents', result) = TestInterpreter.interpret program allEvents Map.empty Vector.empty
+
         let result = 
             choose {
-                let program = aggregate.Run cmd streamName
-                let! result = TestInterpreter.interpret program allEvents Map.empty
+                let! result = result
                 return
                     result
                     |> Seq.map (fun evt -> 
@@ -117,12 +135,12 @@ type TestSystem<'TAggregateType>
                     |> List.ofSeq
             }
             
-        let allEvents' =
-            match result with
-            | Choice1Of2 resultingEvents ->
-                resultingEvents
-                |> Seq.fold (fun s e -> s |> TestEventStore.addEvent e) allEvents
-            | _ -> allEvents
+//        let allEvents' =
+//            match result with
+//            | Choice1Of2 resultingEvents ->
+//                resultingEvents
+//                |> Seq.fold (fun s e -> s |> TestEventStore.addEvent e) allEvents
+//            | _ -> allEvents
 
         new TestSystem<'TAggregateType>(aggregates, result, allEvents',settings)
 
@@ -150,13 +168,23 @@ type TestSystem<'TAggregateType>
             eventStream {
                 let! state = handlers.StateBuilder |> StateBuilder.toStreamProgram stream
                 let handler = getHandler (cmd.GetType())
-                return choose {
+                let result = choose {
                     let! result = handler.Handler state cmd
                     return
                         result 
                         |> Seq.map unwrapper
                         |> List.ofSeq
                 }
+
+                match result with
+                | Choice1Of2 events ->
+                    for event in events do
+                        // todo should not be zero
+                        let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
+                        do! writeToStream stream 0 event metadata
+                | _ -> ()
+
+                return result
             }
 
         let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, handlers.AggregateType)
