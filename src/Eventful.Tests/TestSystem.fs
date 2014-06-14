@@ -40,22 +40,31 @@ type Settings<'TAggregateType,'TCommandMetadata> = {
 }
 
 open Eventful.EventStream
+open FSharpx.Option
 
 module TestInterpreter =
     let rec interpret prog (eventStore : TestEventStore) (values : Map<EventToken,obj>) = 
         match prog with
-        | FreeEventStream (ReadFromStream (stream, eventNumber, g)) -> 
-            let streamEvents = eventStore.Events.[stream] // todo what if it doesn't exist
-            let (evt, metadata) = streamEvents.[eventNumber] // todo what if it doesn't exist
-            let eventToken = {
-                                Stream = stream
-                                Number = eventNumber
-                                EventType = evt.GetType().Name
-                             }
+        | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
+            let readEvent = maybe {
+                    let! streamEvents = eventStore.Events |> Map.tryFind stream
+                    let! (evt, metadata) = streamEvents |> Vector.tryNth eventNumber
+                    let eventToken = {
+                        Stream = stream
+                        Number = eventNumber
+                        EventType = evt.GetType().Name
+                    }
+                    return (eventToken, evt)
+                }
 
-            let next = g eventToken            
-            let values' = values |> Map.add eventToken evt
-            interpret next eventStore values'
+            match readEvent with
+            | Some (eventToken, evt) -> 
+                let next = f (Some eventToken)
+                let values' = values |> Map.add eventToken evt
+                interpret next eventStore values'
+            | None ->
+                let next = f None
+                interpret next eventStore values
         | FreeEventStream (ReadValue (token, eventType, g)) ->
             let eventObj = values.[token]
             let next = g eventObj

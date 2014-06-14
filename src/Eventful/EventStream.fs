@@ -10,7 +10,7 @@ module EventStream =
     }
 
     type EventStreamLanguage<'N> =
-    | ReadFromStream of string * int * (EventToken -> 'N)
+    | ReadFromStream of string * int * (EventToken option -> 'N)
     | ReadValue of EventToken * Type * (obj -> 'N)
     | WriteToStream of string * int * 'N
 
