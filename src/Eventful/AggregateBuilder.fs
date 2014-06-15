@@ -13,7 +13,7 @@ type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member GetId : obj -> 'TId
 //    abstract member StateValidation : 'TState option -> seq<ValidationFailure>
 //    abstract member CommandValidation : 'TCmd -> seq<ValidationFailure>
-    abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,NonEmptyList<ValidationFailure>>
+    abstract member Handler : obj -> string -> EventStreamProgram<CommandResult>
     abstract member Process : obj -> EventStreamProgram<CommandResult>
 
 type IEventHandler<'TState,'TEvent,'TId> =
@@ -64,6 +64,7 @@ type Validator<'TCmd,'TState> =
 
 type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
+    StateBuilder : StateBuilder<'TState>
     Validators : Validator<'TCmd,'TState> list
     Handler : 'TCmd -> seq<'TEvent>
     Process : 'TCmd -> EventStreamProgram<CommandResult>
@@ -73,9 +74,10 @@ open Eventful.EventStream
 open Eventful.Validation
 
 module AggregateActionBuilder =
-    let simpleHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (f : 'TCmd -> 'TEvent) =
+    let simpleHandler<'TId, 'TState,'TCmd,'TEvent when 'TId :> IIdentity> stateBuilder (f : 'TCmd -> 'TEvent) =
         {
             GetId = MagicMapper.magicId<'TId>
+            StateBuilder = stateBuilder
             Validators = List.empty
             Handler = f >> Seq.singleton
             Process = (fun cmd -> EventStream.eventStream { 
@@ -110,15 +112,37 @@ module AggregateActionBuilder =
                  member this.GetId cmd = untypedGetId sb cmd
                  member this.CmdType = typeof<'TCmd>
                  member this.Process cmd = sb.Process (cmd :?> 'TCmd)
-                 member this.Handler state cmd =
-                    choose {
+                 member this.Handler cmd stream =
+                    let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
+                    eventStream {
                         match cmd with
                         | :? 'TCmd as cmd -> 
-                            let! validated = runValidation sb.Validators cmd state
+                            let! state = sb.StateBuilder |> StateBuilder.toStreamProgram stream
 
-                            return sb.Handler validated
-                        | _ -> return! Choice2Of2 <| NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
+                            let result = choose {
+                                let! validated = runValidation sb.Validators cmd state
+
+                                let result = sb.Handler validated
+                                return
+                                    result 
+                                    |> Seq.map unwrapper
+                                    |> Seq.map (fun evt -> 
+                                                    let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
+                                                    (stream, evt, metadata))
+                                    |> List.ofSeq
+                            }
+
+                            match result with
+                            | Choice1Of2 events ->
+                                for (stream, event, metadata) in events do
+                                    // todo should not be zero
+                                    do! writeToStream stream 0 event metadata
+                            | _ -> ()
+
+                            return result
+                        | _ -> return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
                     }
+                    
         }
 
     let buildCmd<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TState,'TEvent,'TId> = {
@@ -135,8 +159,8 @@ module AggregateActionBuilder =
 
     let ensureFirstCommand x = addValidator (StateValidator (isNone id "Must be the first command")) x
 
-    let buildSimpleCmdHandler<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> = 
-        simpleHandler<'TId,'TCmd,'TEvent,'TState> >> buildCmd
+    let buildSimpleCmdHandler<'TId,'TState,'TCmd,'TEvent when 'TId :> IIdentity> stateBuilder = 
+        (simpleHandler<'TId,'TState,'TCmd,'TEvent> stateBuilder) >> buildCmd
 
     let getLinkerInterface<'TLinkEvent,'TEvent,'TId> fId : IEventLinker<'TEvent,'TId> = {
         new IEventLinker<'TEvent,'TId> with

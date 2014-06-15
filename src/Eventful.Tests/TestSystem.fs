@@ -11,7 +11,7 @@ open Eventful.EventStream
 type Aggregate<'TAggregateType>
     (
         commandTypes : Type list, 
-        runCommand : obj -> string -> EventStreamProgram<Choice<obj list, NonEmptyList<ValidationFailure>>>, 
+        runCommand : obj -> string -> EventStreamProgram<CommandResult>, 
         getId : obj -> IIdentity, aggregateType : 'TAggregateType
     ) =
     member x.CommandTypes = commandTypes
@@ -121,20 +121,6 @@ type TestSystem<'TAggregateType>
         let program = aggregate.Run cmd streamName
         let (allEvents', result) = TestInterpreter.interpret program allEvents Map.empty Vector.empty
 
-        let result = 
-            choose {
-                let! result = result
-                return
-                    result
-                    |> Seq.map (fun evt -> 
-                                let metadata = {
-                                    SourceMessageId = sourceMessageId
-                                    MessageId = Guid.NewGuid() 
-                                }
-                                (streamName,evt, metadata))
-                    |> List.ofSeq
-            }
-            
         new TestSystem<'TAggregateType>(aggregates, result, allEvents',settings)
 
     member x.Aggregates = aggregates
@@ -158,27 +144,8 @@ type TestSystem<'TAggregateType>
             handler.GetId cmd :> IIdentity
             
         let runCmd (cmd : obj) stream =
-            eventStream {
-                let! state = handlers.StateBuilder |> StateBuilder.toStreamProgram stream
-                let handler = getHandler (cmd.GetType())
-                let result = choose {
-                    let! result = handler.Handler state cmd
-                    return
-                        result 
-                        |> Seq.map unwrapper
-                        |> List.ofSeq
-                }
-
-                match result with
-                | Choice1Of2 events ->
-                    for event in events do
-                        // todo should not be zero
-                        let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
-                        do! writeToStream stream 0 event metadata
-                | _ -> ()
-
-                return result
-            }
+            let handler = getHandler (cmd.GetType())
+            handler.Handler cmd stream
 
         let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, handlers.AggregateType)
         new TestSystem<'TAggregateType>(aggregate::aggregates, lastResult, allEvents, settings)

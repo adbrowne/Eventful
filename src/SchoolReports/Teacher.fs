@@ -65,7 +65,7 @@ module Teacher =
                } 
 
                yield addTeacher
-                     |> simpleHandler
+                     |> simpleHandler stateBuilder
                      |> ensureFirstCommand
                      |> addValidator (CommandValidator (notBlank (fun x -> x.FirstName) "FirstName"))
                      |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
@@ -97,7 +97,7 @@ module Report =
                            TeacherId = x.TeacherId
                            Name = x.Name } 
 
-                yield buildSimpleCmdHandler addReport
+                yield buildSimpleCmdHandler (StateBuilder.Empty ()) addReport
             }
 
 type TeacherReportEvents =
