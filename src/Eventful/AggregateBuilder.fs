@@ -14,7 +14,6 @@ type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
 //    abstract member StateValidation : 'TState option -> seq<ValidationFailure>
 //    abstract member CommandValidation : 'TCmd -> seq<ValidationFailure>
     abstract member Handler : obj -> string -> EventStreamProgram<CommandResult>
-    abstract member Process : obj -> EventStreamProgram<CommandResult>
 
 type IEventHandler<'TState,'TEvent,'TId> =
     abstract member CmdType : Type
@@ -67,7 +66,6 @@ type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     StateBuilder : StateBuilder<'TState>
     Validators : Validator<'TCmd,'TState> list
     Handler : 'TCmd -> seq<'TEvent>
-    Process : 'TCmd -> EventStreamProgram<CommandResult>
 }
 
 open Eventful.EventStream
@@ -80,9 +78,6 @@ module AggregateActionBuilder =
             StateBuilder = stateBuilder
             Validators = List.empty
             Handler = f >> Seq.singleton
-            Process = (fun cmd -> EventStream.eventStream { 
-                return NonEmptyList.singleton "todo" |> Failure
-            })
         } : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent> 
 
     let toChoiceValidator cmd r =
@@ -111,7 +106,6 @@ module AggregateActionBuilder =
             new ICommandHandler<'TState,'TEvent,'TId> with 
                  member this.GetId cmd = untypedGetId sb cmd
                  member this.CmdType = typeof<'TCmd>
-                 member this.Process cmd = sb.Process (cmd :?> 'TCmd)
                  member this.Handler cmd stream =
                     let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
                     eventStream {
