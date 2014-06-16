@@ -7,10 +7,6 @@ open Eventful
 open FSharp.Control
 open FSharp.Data
 
-type ISerializer = 
-    abstract Serialize<'T> : 'T -> byte[]
-    abstract DeserializeObj : byte[] -> string -> obj
-
 type Message = 
 |    Event of (obj * Map<string,seq<(string *  IStateBuilder<obj,obj> * (obj -> seq<obj>))>> * Position)
 

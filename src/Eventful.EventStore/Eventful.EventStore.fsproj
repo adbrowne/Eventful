@@ -56,12 +56,14 @@
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
     <Error Condition="!Exists('$(SolutionDir)\.nuget\NuGet.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)\.nuget\NuGet.targets'))" />
-  </Target> 
+  </Target>
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="app.config" />
     <Compile Include="Client.fs" />
     <Compile Include="ProcessingTracker.fs" />
+    <Compile Include="ISerializer.fs" />
+    <Compile Include="EventStreamInterpreter.fs" />
     <Compile Include="EventModel.fs" />
   </ItemGroup>
   <ItemGroup>

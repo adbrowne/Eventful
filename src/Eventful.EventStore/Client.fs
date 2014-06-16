@@ -22,6 +22,9 @@ type Client (connection : IEventStoreConnection) =
                     yield! loop events.NextEventNumber
             }
         loop startPosition
+
+    member x.readEvent streamId eventNumber =
+        connection.ReadEventAsync(streamId, eventNumber, false) |> Async.AwaitTask
         
     member x.readStreamBackward streamId =
         readStream streamId EventStore.ClientAPI.StreamPosition.End connection.ReadStreamEventsBackwardAsync
