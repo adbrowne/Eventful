@@ -41,7 +41,6 @@ module EventStreamInterpreter =
                 loop next  values writes
             | FreeEventStream (WriteToStream (stream, expectedValue, data, metadata, next)) ->
                 let writes' = writes |> Vector.conj (stream, expectedValue, data, metadata)
-                printfn "Writing %A" writes'
                 loop next values writes'
             | FreeEventStream (NotYetDone g) ->
                 let next = g ()
@@ -49,7 +48,6 @@ module EventStreamInterpreter =
             | Pure result ->
                 async {
                     for (streamId, eventNumber, dataObj, metadata) in writes do
-                        printfn "Really writing %A" dataObj
                         let serializedData = serializer.Serialize(dataObj)
                         let serializedMetadata = serializer.Serialize(metadata)
                         let typeString = dataObj.GetType().FullName
