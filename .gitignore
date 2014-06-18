@@ -175,3 +175,6 @@ FakesAssemblies/
 
 *.dll
 *.nupkg
+
+# Mono Develop
+*.userprefs
