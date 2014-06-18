@@ -72,8 +72,10 @@ module TestInterpreter =
             let eventObj = values.[token]
             let next = g eventObj
             interpret next eventStore values writes
-        | FreeEventStream (WriteToStream (stream, expectedValue, data, metadata, next)) ->
-            let writes' = writes |> Vector.conj (stream, expectedValue, data, metadata)
+        | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
+            let addEvent w (data, metadata) = 
+                w |> Vector.conj (stream, expectedValue, data, metadata) 
+            let writes' = Seq.fold addEvent writes events
             interpret next eventStore values writes'
         | FreeEventStream (NotYetDone g) ->
             let next = g ()

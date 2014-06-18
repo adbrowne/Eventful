@@ -38,7 +38,8 @@ module EventStoreStreamInterpreterTests =
 
             let! writeResult = 
                 eventStream {
-                    do! writeToStream stream EventStore.ClientAPI.ExpectedVersion.EmptyStream event metadata
+                    let writes = Seq.singleton (event :> obj, metadata)
+                    let! ignore = writeToStream stream EventStore.ClientAPI.ExpectedVersion.EmptyStream writes
                     return "Write Complete"
                 } |> run
 

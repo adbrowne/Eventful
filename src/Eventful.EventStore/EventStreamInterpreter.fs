@@ -39,20 +39,28 @@ module EventStreamInterpreter =
                 let dataObj = serializer.DeserializeObj(data) token.EventType
                 let next = g dataObj
                 loop next  values writes
-            | FreeEventStream (WriteToStream (stream, expectedValue, data, metadata, next)) ->
-                let writes' = writes |> Vector.conj (stream, expectedValue, data, metadata)
-                loop next values writes'
+            | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->
+                let toEventData (dataObj, metadata) =
+                    let serializedData = serializer.Serialize(dataObj)
+                    let serializedMetadata = serializer.Serialize(metadata)
+                    let typeString = dataObj.GetType().FullName
+                    let eventData = new EventData(System.Guid.NewGuid(), typeString, true, serializedData, serializedMetadata) 
+                    eventData
+
+                let eventDataArray = 
+                    events
+                    |> Seq.map toEventData
+                    |> Array.ofSeq
+
+                async {
+                    do! eventStore.append streamId eventNumber eventDataArray
+                    return! loop next values writes
+                }
             | FreeEventStream (NotYetDone g) ->
                 let next = g ()
                 loop next values writes
             | Pure result ->
                 async {
-                    for (streamId, eventNumber, dataObj, metadata) in writes do
-                        let serializedData = serializer.Serialize(dataObj)
-                        let serializedMetadata = serializer.Serialize(metadata)
-                        let typeString = dataObj.GetType().FullName
-                        let eventData = new EventData(System.Guid.NewGuid(), typeString, true, serializedData, serializedMetadata) 
-                        do! eventStore.append streamId eventNumber [|eventData|]
                     return result
                 }
         loop prog Map.empty Vector.empty

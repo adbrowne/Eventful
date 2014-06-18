@@ -130,7 +130,7 @@ module AggregateActionBuilder =
                             | Choice1Of2 events ->
                                 for (stream, event, metadata) in events do
                                     // todo should not be zero
-                                    do! writeToStream stream 0 event metadata
+                                    do! writeToStream stream 0 (Seq.singleton (event, metadata))
                             | _ -> ()
 
                             return result
