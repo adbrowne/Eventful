@@ -8,6 +8,8 @@ open Eventful
 open Eventful.EventStream
 open Eventful.EventStore
 
+open FSharpx.Option
+
 module EventStoreStreamInterpreterTests = 
 
     type MyEvent = {
@@ -33,13 +35,27 @@ module EventStoreStreamInterpreterTests =
 
             let writeARandomEvent = eventStream {
                 do! writeToStream stream EventStore.ClientAPI.ExpectedVersion.EmptyStream event metadata
-                return "Andrew"
+                return "Write Complete"
+             
             }
 
-            let interpreted = EventStreamInterpreter.interpret client RunningTests.esSerializer writeARandomEvent
+            let! writeResult = EventStreamInterpreter.interpret client RunningTests.esSerializer writeARandomEvent
+            writeResult |> should equal "Write Complete"
 
-            let! result = interpreted
+            let readEventProgram = eventStream {
+                let! item = readFromStream stream EventStore.ClientAPI.StreamPosition.Start
+                return!
+                    match item with
+                    | Some x -> 
+                        eventStream { 
+                            let! objValue = readValue x typeof<MyEvent>
+                            let value = objValue :?> MyEvent
+                            return Some value.Name
+                        }
+                    | None -> eventStream { return None } 
+            }
 
-            result |> should equal "Andrew"
+            let! readResult = EventStreamInterpreter.interpret client RunningTests.esSerializer readEventProgram
+            readResult |> should equal (Some "Andrew Browne")
+
         } |> Async.RunSynchronously
-
