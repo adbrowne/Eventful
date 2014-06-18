@@ -53,8 +53,8 @@ module EventStreamInterpreter =
                     |> Array.ofSeq
 
                 async {
-                    do! eventStore.append streamId eventNumber eventDataArray
-                    return! loop next values writes
+                    let! writeResult = eventStore.append streamId eventNumber eventDataArray
+                    return! loop (next writeResult) values writes
                 }
             | FreeEventStream (NotYetDone g) ->
                 let next = g ()

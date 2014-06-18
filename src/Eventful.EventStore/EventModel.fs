@@ -73,13 +73,13 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                     newEvents
                     |> Seq.map (fun x -> new EventData(Guid.NewGuid(),  config.TypeToTypeName (x.GetType()), true, serializer.Serialize(x), null))
                     |> Array.ofSeq
-                do! client.append streamId expectedVersion eventData
+                do! client.append streamId expectedVersion eventData |> Async.Ignore
                 let eventCount = expectedVersion + eventData.Length + 1
                 if (eventCount > 1 && expectedVersion % 100 = 0) then
                     let snapshotStream = streamId + "-" + stateBuilder.Name + "-" + stateBuilder.Version
                     if (unsnapshotted > 100) then
                         let eventData = new EventData(Guid.NewGuid(), state.GetType().FullName, true, serializer.Serialize state, (System.Text.Encoding.UTF8.GetBytes (sprintf "{ \"lastEventNumber\": %d }" expectedVersion)))
-                        do! client.append snapshotStream EventStore.ClientAPI.ExpectedVersion.Any [|eventData|]
+                        do! client.append snapshotStream EventStore.ClientAPI.ExpectedVersion.Any [|eventData|] |> Async.Ignore 
                     else
                         ()
                 else

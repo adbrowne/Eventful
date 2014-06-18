@@ -76,7 +76,7 @@ module TestInterpreter =
             let addEvent w (data, metadata) = 
                 w |> Vector.conj (stream, expectedValue, data, metadata) 
             let writes' = Seq.fold addEvent writes events
-            interpret next eventStore values writes'
+            interpret (next WriteSuccess) eventStore values writes'
         | FreeEventStream (NotYetDone g) ->
             let next = g ()
             interpret next eventStore values writes

@@ -19,6 +19,9 @@ module EventStoreStreamInterpreterTests =
     let newId () : string =
         System.Guid.NewGuid().ToString()
 
+    let event = { Name = "Andrew Browne" }
+    let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
+
     [<Fact>]
     [<Trait("requires", "eventstore")>]
     let ``Basic commands and events`` () : unit =
@@ -32,9 +35,6 @@ module EventStoreStreamInterpreterTests =
                 EventStreamInterpreter.interpret client RunningTests.esSerializer program
 
             let stream = "MyStream-" + (newId())
-
-            let event = { Name = "Andrew Browne" }
-            let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
 
             let! writeResult = 
                 eventStream {
@@ -61,4 +61,28 @@ module EventStoreStreamInterpreterTests =
 
             readResult |> should equal (Some "Andrew Browne")
 
+        } |> Async.RunSynchronously
+
+    [<Fact>]
+    [<Trait("requires", "eventstore")>]
+    let ``Wrong Expected Version is Returned`` () : unit =
+        async {
+            let! connection = RunningTests.getConnection()
+            let client = new Client(connection)
+
+            do! client.Connect()
+
+            let run program =
+                EventStreamInterpreter.interpret client RunningTests.esSerializer program
+
+            let stream = "MyStream-" + (newId())
+
+            let wrongExpectedVersion = 10
+            let! writeResult = 
+                eventStream {
+                    let writes = Seq.singleton (event :> obj, metadata)
+                    return! writeToStream stream wrongExpectedVersion writes
+                } |> run
+
+            writeResult |> should equal WrongExpectedVersion
         } |> Async.RunSynchronously

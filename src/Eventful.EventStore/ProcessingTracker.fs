@@ -34,7 +34,7 @@ module ProcessingTracker =
             |> (fun x -> x.ToString())
             |> Encoding.UTF8.GetBytes
         let eventData = new EventData(Guid.NewGuid(), "ProcessPosition", true, jsonBytes, null)
-        do! client.append positionStream ExpectedVersion.Any [|eventData|]
+        do! client.append positionStream ExpectedVersion.Any [|eventData|] |> Async.Ignore
         let streamMetadata = EventStore.ClientAPI.StreamMetadata.Create(Nullable(1))
         do! client.ensureMetadata positionStream  streamMetadata
     }

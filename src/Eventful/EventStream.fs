@@ -7,6 +7,11 @@ type EventMetadata = {
     SourceMessageId : Guid
 }
 
+type WriteResult =
+| WriteSuccess
+| WrongExpectedVersion
+| WriteError of System.Exception
+
 module EventStream =
     type EventToken = {
         Stream : string
@@ -17,7 +22,7 @@ module EventStream =
     type EventStreamLanguage<'N> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
     | ReadValue of EventToken * Type * (obj -> 'N)
-    | WriteToStream of string * int * seq<obj * EventMetadata> * 'N
+    | WriteToStream of string * int * seq<obj * EventMetadata> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
 
     let fmap f streamWorker = 
@@ -27,7 +32,7 @@ module EventStream =
         | ReadValue (eventToken, eventType, readValue) -> 
             ReadValue (eventToken, eventType, readValue >> f)
         | WriteToStream (stream, expectedVersion, events, next) -> 
-            WriteToStream (stream, expectedVersion, events, (f next))
+            WriteToStream (stream, expectedVersion, events, (next >> f))
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
 
@@ -45,7 +50,7 @@ module EventStream =
     let readValue eventToken eventType = 
         ReadValue(eventToken, eventType, id) |> liftF
     let writeToStream stream number events = 
-        WriteToStream(stream, number, events, ()) |> liftF
+        WriteToStream(stream, number, events, id) |> liftF
 
     let rec bind f v =
         match v with

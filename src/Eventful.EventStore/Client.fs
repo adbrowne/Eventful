@@ -4,12 +4,10 @@ open FSharp.Control
 open EventStore.ClientAPI
 open System
 open FSharpx.Collections
+open Eventful
 
 /// simple F# wrapper around EventStore functions
 type Client (connection : IEventStoreConnection) =
-    let toUnit x =
-        ()
-
     let readStream 
         streamId 
         startPosition 
@@ -44,7 +42,21 @@ type Client (connection : IEventStoreConnection) =
     }
 
     member x.append streamId expectedVersion eventData = async {
-            do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith(toUnit) |> Async.AwaitTask
+            let toWriteResult (t:System.Threading.Tasks.Task) =
+                if (t.IsFaulted) then
+                    if(t.Exception <> null) then
+                       if (t.Exception.InnerException <> null) then
+                            match t.Exception.InnerException with
+                            | :? EventStore.ClientAPI.Exceptions.WrongExpectedVersionException -> WrongExpectedVersion
+                            | _ -> WriteError t.Exception 
+                       else
+                            WriteError t.Exception
+                    else
+                        WriteError t.Exception
+                else
+                    WriteSuccess
+                  
+            return! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith(toWriteResult) |> Async.AwaitTask
         }
 
     member x.getNextPosition () = async {
