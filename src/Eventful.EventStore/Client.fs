@@ -53,6 +53,8 @@ type Client (connection : IEventStoreConnection) =
                             WriteError t.Exception
                     else
                         WriteError t.Exception
+                else if t.IsCanceled then
+                    WriteCancelled
                 else
                     WriteSuccess
                   

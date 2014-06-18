@@ -10,6 +10,7 @@ type EventMetadata = {
 type WriteResult =
 | WriteSuccess
 | WrongExpectedVersion
+| WriteCancelled
 | WriteError of System.Exception
 
 module EventStream =
