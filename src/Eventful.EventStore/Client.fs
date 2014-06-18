@@ -7,6 +7,9 @@ open FSharpx.Collections
 
 /// simple F# wrapper around EventStore functions
 type Client (connection : IEventStoreConnection) =
+    let toUnit x =
+        ()
+
     let readStream 
         streamId 
         startPosition 
@@ -23,6 +26,9 @@ type Client (connection : IEventStoreConnection) =
             }
         loop startPosition
 
+    member x.Connect () =
+        connection.ConnectAsync().ContinueWith(fun x -> true) |> Async.AwaitTask |> Async.Ignore
+
     member x.readEvent streamId eventNumber =
         connection.ReadEventAsync(streamId, eventNumber, false) |> Async.AwaitTask
         
@@ -38,7 +44,7 @@ type Client (connection : IEventStoreConnection) =
     }
 
     member x.append streamId expectedVersion eventData = async {
-            do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith((fun _ -> true)) |> Async.AwaitTask |> Async.Ignore
+            do! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith(toUnit) |> Async.AwaitTask
         }
 
     member x.getNextPosition () = async {

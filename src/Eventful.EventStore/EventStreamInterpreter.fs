@@ -7,8 +7,8 @@ open FSharpx.Option
 open EventStore.ClientAPI
 
 module EventStreamInterpreter = 
-    let interpret (eventStore : Client) (serializer : ISerializer) prog  : Async<_> = 
-        let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * EventMetadata>) : Async<unit> =
+    let interpret<'A> (eventStore : Client) (serializer : ISerializer) prog  : Async<'A> = 
+        let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * EventMetadata>) : Async<'A> =
             match prog with
             | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
                 async {
@@ -41,6 +41,7 @@ module EventStreamInterpreter =
                 loop next  values writes
             | FreeEventStream (WriteToStream (stream, expectedValue, data, metadata, next)) ->
                 let writes' = writes |> Vector.conj (stream, expectedValue, data, metadata)
+                printfn "Writing %A" writes'
                 loop next values writes'
             | FreeEventStream (NotYetDone g) ->
                 let next = g ()
@@ -48,6 +49,7 @@ module EventStreamInterpreter =
             | Pure result ->
                 async {
                     for (streamId, eventNumber, dataObj, metadata) in writes do
+                        printfn "Really writing %A" dataObj
                         let serializedData = serializer.Serialize(dataObj)
                         let serializedMetadata = serializer.Serialize(metadata)
                         let typeString = dataObj.GetType().FullName

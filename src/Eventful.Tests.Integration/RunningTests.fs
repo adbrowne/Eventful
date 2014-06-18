@@ -87,6 +87,11 @@ module RunningTests =
     let onChildAdded2 (evt : ChildAddedEvent) (state : int) =
         Seq.singleton ({ ChildAddedEvent2.Id = evt.Id; ChildId = evt.Id; ExistingChildren = state } :> obj)
 
+    let esSerializer = 
+        { new ISerializer with
+            member x.DeserializeObj b t = deserializeObj b t
+            member x.Serialize o = serialize o }
+    
     [<Fact>]
     let ``Basic commands and events`` () : unit =
         let matches id existingChildren expectedParentId = 
@@ -131,11 +136,6 @@ module RunningTests =
                 |> EventProcessingConfiguration.addEvent evtId myStateBuilder onChildAdded
                 |> EventProcessingConfiguration.addEvent evtId2 myStateBuilder onChildAdded2
 
-            let esSerializer = 
-                { new ISerializer with
-                    member x.DeserializeObj b t = deserializeObj b t
-                    member x.Serialize o = serialize o }
-            
             use model = new EventModel(connection, config, esSerializer)
 
             do! model.Start() |> Async.Ignore
