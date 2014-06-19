@@ -40,12 +40,17 @@ module EventStreamInterpreter =
                 let next = g dataObj
                 loop next  values writes
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->
-                let toEventData (dataObj, metadata) =
-                    let serializedData = serializer.Serialize(dataObj)
-                    let serializedMetadata = serializer.Serialize(metadata)
-                    let typeString = dataObj.GetType().FullName
-                    let eventData = new EventData(System.Guid.NewGuid(), typeString, true, serializedData, serializedMetadata) 
-                    eventData
+                let toEventData = function
+                    | Event (dataObj, metadata) -> 
+                        let serializedData = serializer.Serialize(dataObj)
+                        let typeString = dataObj.GetType().FullName
+                        let serializedMetadata = serializer.Serialize(metadata)
+                        new EventData(System.Guid.NewGuid(), typeString, true, serializedData, serializedMetadata) 
+                    | EventLink (destinationStream, destinationEventNumber, metadata) ->
+                        let bodyString = sprintf "%d@%s" destinationEventNumber destinationStream
+                        let body = System.Text.Encoding.UTF8.GetBytes bodyString
+                        let serializedMetadata = serializer.Serialize(metadata)
+                        new EventData(System.Guid.NewGuid(), "$>", true, body, serializedMetadata) 
 
                 let eventDataArray = 
                     events

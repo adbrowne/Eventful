@@ -23,7 +23,7 @@ type Aggregate<'TAggregateType>
 open FSharpx.Collections
 
 type TestEventStore = {
-    Events : Map<string,Vector<(obj * EventMetadata)>>
+    Events : Map<string,Vector<EventStreamEvent>>
 }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -35,7 +35,7 @@ module TestEventStore =
             | Some events -> events
             | None -> Vector.empty
 
-        let streamEvents' = streamEvents |> Vector.conj (event, metadata)
+        let streamEvents' = streamEvents |> Vector.conj (Event (event, metadata))
         { store with Events = store.Events |> Map.add stream streamEvents' }
 
 type Settings<'TAggregateType,'TCommandMetadata> = {
@@ -46,18 +46,23 @@ open Eventful.EventStream
 open FSharpx.Option
 
 module TestInterpreter =
-    let rec interpret prog (eventStore : TestEventStore) (values : Map<EventToken,obj>) (writes : Vector<string * int * obj * EventMetadata>)= 
+    let rec interpret prog (eventStore : TestEventStore) (values : Map<EventToken,obj>) (writes : Vector<string * int * EventStreamEvent>)= 
         match prog with
         | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
             let readEvent = maybe {
                     let! streamEvents = eventStore.Events |> Map.tryFind stream
-                    let! (evt, metadata) = streamEvents |> Vector.tryNth eventNumber
-                    let eventToken = {
-                        Stream = stream
-                        Number = eventNumber
-                        EventType = evt.GetType().Name
-                    }
-                    return (eventToken, evt)
+                    let! eventStreamData = streamEvents |> Vector.tryNth eventNumber
+                    return
+                        match eventStreamData with
+                        | Event (evt, _) -> 
+                            let token = 
+                                {
+                                    Stream = stream
+                                    Number = eventNumber
+                                    EventType = evt.GetType().Name
+                                }
+                            (token, evt)
+                        | EventLink _ -> failwith "todo"
                 }
 
             match readEvent with
@@ -73,21 +78,21 @@ module TestInterpreter =
             let next = g eventObj
             interpret next eventStore values writes
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
-            let addEvent w (data, metadata) = 
-                w |> Vector.conj (stream, expectedValue, data, metadata) 
+            let addEvent w evnetStreamData = 
+                w |> Vector.conj (stream, expectedValue, evnetStreamData) 
             let writes' = Seq.fold addEvent writes events
             interpret (next WriteSuccess) eventStore values writes'
         | FreeEventStream (NotYetDone g) ->
             let next = g ()
             interpret next eventStore values writes
         | Pure result ->
-            let writeEvent store (stream, exepectedValue, data, metadata) =
+            let writeEvent store (stream, exepectedValue, eventStreamData) =
                 // todo check expected value
                 let streamEvents = 
                     store.Events 
                     |> Map.tryFind stream 
                     |> FSharpx.Option.getOrElse Vector.empty
-                    |> Vector.conj (data, metadata)
+                    |> Vector.conj eventStreamData
                 
                 { store with Events = store.Events |> Map.add stream streamEvents }
 
@@ -166,7 +171,16 @@ type TestSystem<'TAggregateType>
             | None -> Vector.empty
 
         streamEvents
-        |> Vector.map fst
+        |> Vector.map (function
+            | Event (obj, _) ->
+                obj
+            | EventLink (streamId, eventNumber, _) ->
+                allEvents.Events
+                |> Map.find streamId
+                |> Vector.nth eventNumber
+                |> (function
+                        | Event (obj, _) -> obj
+                        | _ -> failwith ("found link to a link")))
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 
     static member Empty settings =
