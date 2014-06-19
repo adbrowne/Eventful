@@ -11,8 +11,6 @@ type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<Vali
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
-//    abstract member StateValidation : 'TState option -> seq<ValidationFailure>
-//    abstract member CommandValidation : 'TCmd -> seq<ValidationFailure>
     abstract member Handler : obj -> string -> EventStreamProgram<CommandResult>
 
 type IEventHandler<'TState,'TEvent,'TId> =
@@ -102,42 +100,43 @@ module AggregateActionBuilder =
             sb.GetId cmd
         | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
 
+    let handleCommand (commandHandler:CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) (cmd : obj) stream =
+        let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
+        eventStream {
+            match cmd with
+            | :? 'TCmd as cmd -> 
+                let! state = commandHandler.StateBuilder |> StateBuilder.toStreamProgram stream
+
+                let result = choose {
+                    let! validated = runValidation commandHandler.Validators cmd state
+
+                    let result = commandHandler.Handler validated
+                    return
+                        result 
+                        |> Seq.map unwrapper
+                        |> Seq.map (fun evt -> 
+                                        let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
+                                        (stream, evt, metadata))
+                        |> List.ofSeq
+                }
+
+                match result with
+                | Choice1Of2 events ->
+                    for (stream, event, metadata) in events do
+                        // todo should not be zero
+                        let! ignored = writeToStream stream 0 (Seq.singleton (event, metadata))
+                        ()
+                | _ -> ()
+
+                return result
+            | _ -> return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
+        }
+        
     let ToInterface<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) = {
-            new ICommandHandler<'TState,'TEvent,'TId> with 
-                 member this.GetId cmd = untypedGetId sb cmd
-                 member this.CmdType = typeof<'TCmd>
-                 member this.Handler cmd stream =
-                    let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
-                    eventStream {
-                        match cmd with
-                        | :? 'TCmd as cmd -> 
-                            let! state = sb.StateBuilder |> StateBuilder.toStreamProgram stream
-
-                            let result = choose {
-                                let! validated = runValidation sb.Validators cmd state
-
-                                let result = sb.Handler validated
-                                return
-                                    result 
-                                    |> Seq.map unwrapper
-                                    |> Seq.map (fun evt -> 
-                                                    let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
-                                                    (stream, evt, metadata))
-                                    |> List.ofSeq
-                            }
-
-                            match result with
-                            | Choice1Of2 events ->
-                                for (stream, event, metadata) in events do
-                                    // todo should not be zero
-                                    let! ignored = writeToStream stream 0 (Seq.singleton (event, metadata))
-                                    ()
-                            | _ -> ()
-
-                            return result
-                        | _ -> return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
-                    }
-                    
+        new ICommandHandler<'TState,'TEvent,'TId> with 
+             member this.GetId cmd = untypedGetId sb cmd
+             member this.CmdType = typeof<'TCmd>
+             member this.Handler cmd stream = handleCommand sb cmd stream
         }
 
     let buildCmd<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TState,'TEvent,'TId> = {
