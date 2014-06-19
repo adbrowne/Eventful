@@ -13,6 +13,10 @@ type WriteResult =
 | WriteCancelled
 | WriteError of System.Exception
 
+type EventStreamEvent = 
+| Event of (obj * EventMetadata)
+| EventLink of (string * int * EventMetadata)
+
 module EventStream =
     type EventToken = {
         Stream : string
@@ -23,7 +27,7 @@ module EventStream =
     type EventStreamLanguage<'N> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
     | ReadValue of EventToken * Type * (obj -> 'N)
-    | WriteToStream of string * int * seq<obj * EventMetadata> * (WriteResult -> 'N)
+    | WriteToStream of string * int * seq<EventStreamEvent> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
 
     let fmap f streamWorker = 

@@ -42,24 +42,24 @@ type Client (connection : IEventStoreConnection) =
     }
 
     member x.append streamId expectedVersion eventData = async {
-            let toWriteResult (t:System.Threading.Tasks.Task) =
-                if (t.IsFaulted) then
-                    if(t.Exception <> null) then
-                       if (t.Exception.InnerException <> null) then
-                            match t.Exception.InnerException with
-                            | :? EventStore.ClientAPI.Exceptions.WrongExpectedVersionException -> WrongExpectedVersion
-                            | _ -> WriteError t.Exception 
-                       else
-                            WriteError t.Exception
-                    else
+        let toWriteResult (t:System.Threading.Tasks.Task) =
+            if (t.IsFaulted) then
+                if(t.Exception <> null) then
+                   if (t.Exception.InnerException <> null) then
+                        match t.Exception.InnerException with
+                        | :? EventStore.ClientAPI.Exceptions.WrongExpectedVersionException -> WrongExpectedVersion
+                        | _ -> WriteError t.Exception 
+                   else
                         WriteError t.Exception
-                else if t.IsCanceled then
-                    WriteCancelled
                 else
-                    WriteSuccess
-                  
-            return! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith(toWriteResult) |> Async.AwaitTask
-        }
+                    WriteError t.Exception
+            else if t.IsCanceled then
+                WriteCancelled
+            else
+                WriteSuccess
+              
+        return! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith(toWriteResult) |> Async.AwaitTask
+    }
 
     member x.getNextPosition () = async {
         let position = Position.End
