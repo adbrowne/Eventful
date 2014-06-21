@@ -100,3 +100,10 @@ module EventStream =
     let eventStream = new EventStreamBuilder()
 
     type EventStreamProgram<'A> = FreeEventStream<obj,'A>
+
+
+    // Higher level eventstream operations
+
+    let writeLink stream expectedVersion linkStream linkEventNumber metadata =
+        let writes : seq<EventStreamEvent> = Seq.singleton (EventStreamEvent.EventLink(linkStream, linkEventNumber, metadata))
+        writeToStream stream expectedVersion writes

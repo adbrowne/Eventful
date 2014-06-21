@@ -8,45 +8,41 @@ open Eventful.EventStream
 
 type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
 
+type EventResult = unit
+
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
     abstract member Handler : obj -> string -> EventStreamProgram<CommandResult>
 
 type IEventHandler<'TState,'TEvent,'TId> =
-    abstract member CmdType : Type
-    abstract member Handler : 'TState option -> obj -> Choice<seq<'TEvent>,seq<ValidationFailure>>
-
-type IEventLinker<'TEvent,'TId> =
     abstract member EventType : Type
-    abstract member GetId : obj -> 'TId
+                    // (BuildStreamName) -> Event -> Stream -> EventNumber -> Program
+    abstract member Handler : ('TId -> string) -> obj -> string -> int -> EventStreamProgram<EventResult>
 
 type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity> private 
     (
         aggregateType : 'TAggregateType,
         commandHandlers : list<ICommandHandler<'TState,'TEvent,'TId>>, 
         eventHandlers : list<IEventHandler<'TState,'TEvent,'TId>>,
-        eventLinkers  : list<IEventLinker<'TEvent,'TId>>,
         stateBuilder : StateBuilder<'TState>
     ) =
     member x.CommandHandlers = commandHandlers
     member x.EventHandlers = eventHandlers
-    member x.EventLinkers = eventLinkers
     member x.AggregateType = aggregateType
     member x.StateBuilder = stateBuilder
     member x.AddCommandHandler handler = 
-        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, handler::commandHandlers, eventHandlers, eventLinkers, stateBuilder)
-    member x.AddEventLinker linker = 
-        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, commandHandlers, eventHandlers, linker::eventLinkers, stateBuilder)
+        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, handler::commandHandlers, eventHandlers, stateBuilder)
+    member x.AddEventHandler handler = 
+        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, commandHandlers, handler::eventHandlers, stateBuilder)
     member x.Combine (y:AggregateHandlers<_,_,_,_>) =
         new AggregateHandlers<_,_,_,_>(
             aggregateType,
             List.append commandHandlers y.CommandHandlers, 
             List.append eventHandlers y.EventHandlers, 
-            List.append eventLinkers y.EventLinkers,
             stateBuilder)
 
-    static member Empty aggregateType stateBuilder = new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, List.empty, List.empty, List.empty, stateBuilder)
+    static member Empty aggregateType stateBuilder = new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, List.empty, List.empty, stateBuilder)
     
 type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> = 
     abstract member add : AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType> -> AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>
@@ -156,21 +152,23 @@ module AggregateActionBuilder =
 
     let buildSimpleCmdHandler<'TId,'TState,'TCmd,'TEvent when 'TId :> IIdentity> stateBuilder = 
         (simpleHandler<'TId,'TState,'TCmd,'TEvent> stateBuilder) >> buildCmd
-
-    let getLinkerInterface<'TLinkEvent,'TEvent,'TId> fId : IEventLinker<'TEvent,'TId> = {
-        new IEventLinker<'TEvent,'TId> with
-            member x.EventType = typeof<'TLinkEvent>
-            member x.GetId (event : obj) = 
-                match event with
-                | :? 'TLinkEvent as event -> fId event
-                | _ -> failwith (sprintf "Expecting event of type: %A received %A" typeof<'TLinkEvent> (event.GetType()))
-    }
         
+    let getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TState> fId = {
+        new IEventHandler<'TState,'TEvent,'TId> with 
+             member this.EventType = typeof<'TLinkEvent>
+             member this.Handler getStreamName evt stream eventNumber = eventStream {
+                let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
+                let resultingStream = fId (evt :?> 'TLinkEvent) |> getStreamName
+                let! _ = EventStream.writeLink resultingStream -2 stream eventNumber metadata
+                return ()
+             }
+        }
+
     let linkEvent<'TLinkEvent,'TEvent,'TId,'TState when 'TId :> IIdentity> fId (linkEvent : 'TLinkEvent -> 'TEvent) = {
         new IHandler<'TState,'TEvent,'TId> with
             member x.add handlers =
-                let linkerInterface = (getLinkerInterface<'TLinkEvent,'TEvent,'TId> fId)
-                handlers.AddEventLinker linkerInterface
+                let linkerInterface = (getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TState> fId)
+                handlers.AddEventHandler linkerInterface
     }
 
 module Aggregate = 

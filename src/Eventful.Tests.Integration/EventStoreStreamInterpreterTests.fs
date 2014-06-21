@@ -102,16 +102,11 @@ module EventStoreStreamInterpreterTests =
             let sourceStream = "SourceStream-" + (newId())
             let stream = "MyStream-" + (newId())
 
-            let writeLink stream expectedVersion linkStream linkEventNumber =
-                let body = sprintf "%d@%s" linkEventNumber linkStream
-                let writes : seq<EventStreamEvent> = Seq.singleton (EventStreamEvent.EventLink(linkStream, linkEventNumber, metadata))
-                writeToStream stream expectedVersion writes
-
             let! writeLink = 
                 eventStream {
                     let writes = Seq.singleton (EventStreamEvent.Event(event :> obj, metadata))
                     let! ignore = writeToStream sourceStream EventStore.ClientAPI.ExpectedVersion.EmptyStream writes
-                    let! ignore = writeLink stream EventStore.ClientAPI.ExpectedVersion.EmptyStream sourceStream 0
+                    let! ignore = EventStream.writeLink stream EventStore.ClientAPI.ExpectedVersion.EmptyStream sourceStream 0 metadata
                     return ()
                 } |> run
 
