@@ -7,18 +7,19 @@ open FSharpx.Collections
 open Eventful.EventStream
 
 type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
+type StreamNameBuilder<'TId> = ('TId -> string)
 
 type EventResult = unit
 
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
-    abstract member Handler : obj -> string -> EventStreamProgram<CommandResult>
+    abstract member Handler : StreamNameBuilder<'TId> -> obj -> EventStreamProgram<CommandResult>
 
 type IEventHandler<'TState,'TEvent,'TId> =
     abstract member EventType : Type
                     // (BuildStreamName) -> Event -> Stream -> EventNumber -> Program
-    abstract member Handler : ('TId -> string) -> obj -> string -> int -> EventStreamProgram<EventResult>
+    abstract member Handler : StreamNameBuilder<'TId> -> obj -> string -> int -> EventStreamProgram<EventResult>
 
 type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity> private 
     (
@@ -28,6 +29,7 @@ type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdent
         stateBuilder : StateBuilder<'TState>
     ) =
     member x.CommandHandlers = commandHandlers
+    member x.BuildStreamId (id:'TId) = sprintf "%s-%s" (aggregateType.ToString()) (id.GetId)
     member x.EventHandlers = eventHandlers
     member x.AggregateType = aggregateType
     member x.StateBuilder = stateBuilder
@@ -96,11 +98,13 @@ module AggregateActionBuilder =
             sb.GetId cmd
         | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
 
-    let handleCommand (commandHandler:CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) (cmd : obj) stream =
+    let handleCommand (commandHandler:CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) (streamNameBuilder:StreamNameBuilder<'TId>) (cmd : obj) =
         let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
         eventStream {
             match cmd with
             | :? 'TCmd as cmd -> 
+                let id = commandHandler.GetId cmd
+                let stream = streamNameBuilder id
                 let! state = commandHandler.StateBuilder |> StateBuilder.toStreamProgram stream
 
                 let result = choose {
@@ -133,7 +137,7 @@ module AggregateActionBuilder =
         new ICommandHandler<'TState,'TEvent,'TId> with 
              member this.GetId cmd = untypedGetId sb cmd
              member this.CmdType = typeof<'TCmd>
-             member this.Handler cmd stream = handleCommand sb cmd stream
+             member this.Handler streamNameBuilder cmd = handleCommand sb streamNameBuilder cmd
         }
 
     let buildCmd<'TId,'TCmd,'TEvent,'TState when 'TId :> IIdentity> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TState,'TEvent,'TId> = {

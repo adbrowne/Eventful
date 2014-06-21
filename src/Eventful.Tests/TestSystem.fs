@@ -11,7 +11,7 @@ open Eventful.EventStream
 type Aggregate<'TAggregateType>
     (
         commandTypes : Type list, 
-        runCommand : obj -> string -> EventStreamProgram<CommandResult>, 
+        runCommand : obj -> ('TAggregateType -> string) -> EventStreamProgram<CommandResult>, 
         getId : obj -> IIdentity, aggregateType : 'TAggregateType
     ) =
     member x.CommandTypes = commandTypes
@@ -39,7 +39,7 @@ module TestEventStore =
         { store with Events = store.Events |> Map.add stream streamEvents' }
 
 type Settings<'TAggregateType,'TCommandMetadata> = {
-    GetStreamName : 'TCommandMetadata -> 'TAggregateType -> IIdentity -> string
+    GetStreamName : 'TCommandMetadata -> 'TAggregateType -> string
 }
 
 open Eventful.EventStream
@@ -122,8 +122,7 @@ type TestSystem<'TAggregateType>
             | [] -> failwith <| sprintf "Could not find aggregate to handle %A" cmdType
             | xs -> failwith <| sprintf "Found more than one aggreate %A to handle %A" xs cmdType
 
-        let id = aggregate.GetId cmd
-        let streamName = settings.GetStreamName () aggregate.AggregateType id
+        let streamName = settings.GetStreamName ()
 
         let program = aggregate.Run cmd streamName
         let (allEvents', result) = TestInterpreter.interpret program allEvents Map.empty Vector.empty
@@ -150,9 +149,12 @@ type TestSystem<'TAggregateType>
             let handler = getHandler (cmd.GetType())
             handler.GetId cmd :> IIdentity
             
-        let runCmd (cmd : obj) stream =
+        let runCmd (cmd : obj) getStreamId =
+            let getStreamName id =
+                let prefix = getStreamId handlers.AggregateType
+                sprintf "%s-%A" prefix id
             let handler = getHandler (cmd.GetType())
-            handler.Handler cmd stream
+            handler.Handler getStreamName cmd
 
         let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, handlers.AggregateType)
         new TestSystem<'TAggregateType>(aggregate::aggregates, lastResult, allEvents, settings)
