@@ -119,12 +119,13 @@ open Eventful.Testing
 open Eventful.Testing.TestHelpers
 
 module TeacherTests = 
-    let newTestSystem () =
+    let teacherHandlers =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate Teacher.handlers
         |> EventfulHandlers.addAggregate Report.handlers 
         |> EventfulHandlers.addAggregate TeacherReport.handlers 
-        |> TestSystem.Empty
+
+    let newTestSystem = TestSystem.Empty teacherHandlers
 
     [<Fact>]
     let ``Given empty When Add Teacher Then TeacherAddedEvent is produced`` () : unit =
@@ -137,7 +138,7 @@ module TeacherTests =
         }
 
         let result = 
-            newTestSystem()
+            newTestSystem
             |> TestSystem.runCommand command
 
         let expectedEvent : TeacherAddedEvent -> bool = function
@@ -162,7 +163,7 @@ module TeacherTests =
         }
 
         let result = 
-            newTestSystem()
+            newTestSystem
             |> TestSystem.runCommand command
             |> TestSystem.runCommand command // run a second time - oops
              
@@ -186,7 +187,7 @@ module TeacherTests =
             LastName = ""
         }
 
-        let result = newTestSystem().RunCommand command
+        let result = newTestSystem.RunCommand command
 
         result.LastResult |> should containError "FirstName must not be blank"
         result.LastResult |> should containError "LastName must not be blank"
@@ -197,7 +198,7 @@ module TeacherTests =
         let reportId =  { ReportId.Id = Guid.NewGuid() }
         
         let result = 
-            newTestSystem().Run 
+            newTestSystem.Run 
                 [{
                     AddTeacherCommand.TeacherId = teacherId
                     FirstName = "Andrew"

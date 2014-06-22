@@ -12,7 +12,7 @@
     <Name>Eventful.RavenDb</Name>
     <TargetFSharpCoreVersion>4.3.0.0</TargetFSharpCoreVersion>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
-    <RestorePackages>false</RestorePackages>
+    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -58,8 +58,13 @@
   </Target>
   <ItemGroup>
     <None Include="packages.config" />
+    <Compile Include="EmptyClass.fs" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="FSharpx.Core">
+      <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="metrics">
       <HintPath>..\packages\Metrics.1.0.8\lib\net40\metrics.dll</HintPath>
     </Reference>
@@ -91,7 +96,4 @@
   <Target Name="AfterBuild">
   </Target>
   -->
-  <ItemGroup>
-    <Compile Include="EmptyClass.fs" />
-  </ItemGroup>
 </Project>

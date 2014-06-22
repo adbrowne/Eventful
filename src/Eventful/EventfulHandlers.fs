@@ -34,3 +34,16 @@ module EventfulHandlers =
         aggregateHandlers.CommandHandlers
         |> Seq.map (fun x -> EventfulHandler(x.CmdType, x.Handler aggregateTypeString))
         |> Seq.fold (fun (s:EventfulHandlers) h -> s.AddCommandHandler h) eventfulHandlers
+
+    let getCommandProgram (cmd:obj) (eventfulHandlers:EventfulHandlers) =
+        let cmdType = cmd.GetType()
+        let cmdTypeFullName = cmd.GetType().FullName
+        let sourceMessageId = Guid.NewGuid()
+        let handler = 
+            eventfulHandlers.CommandHandlers
+            |> Map.tryFind cmdTypeFullName
+            |> function
+            | Some (EventfulHandler(_, handler)) -> handler
+            | None -> failwith <| sprintf "Could not find handler for %A" cmdType
+
+        handler cmd
