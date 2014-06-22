@@ -188,6 +188,8 @@ module StateBuilder =
                 
         new StateBuilder<_>(Map.empty, [handler], childStateBuilder.Types)
 
+    let NoState = StateBuilder.Empty ()
+
     let toStreamProgram streamName (stateBuilder:StateBuilder<'TState>) = eventStream {
         let rec loop nextEventNumber state = eventStream {
             let! token = readFromStream streamName nextEventNumber

@@ -84,8 +84,19 @@ type ReportAddedEvent = {
     Name : string
 }
 
+type ChangeReportNameCommand = {
+    ReportId : ReportId
+    Name : string
+}
+
+type ReportNameChangedEvent = {
+    ReportId : ReportId
+    Name : string
+}
+
 type ReportEvents =
     | Added of ReportAddedEvent
+    | NameChanged of ReportNameChangedEvent
 
 module Report =
     let handlers =
@@ -97,7 +108,13 @@ module Report =
                            TeacherId = x.TeacherId
                            Name = x.Name } 
 
-                yield buildSimpleCmdHandler (StateBuilder.Empty ()) addReport
+                yield buildSimpleCmdHandler StateBuilder.NoState addReport
+
+                let changeName (x : ChangeReportNameCommand) =
+                    NameChanged { ReportId = x.ReportId
+                                  Name = x.Name }
+
+                yield buildSimpleCmdHandler StateBuilder.NoState changeName
             }
 
 type TeacherReportEvents =
@@ -216,3 +233,35 @@ module TeacherTests =
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal 1
+
+    [<Fact>]
+    let ``Given Report added When Name changed Then State reflects new name`` () : unit =
+        let teacherId =  { TeacherId.Id = Guid.NewGuid() }
+        let reportId =  { ReportId.Id = Guid.NewGuid() }
+        
+        let result = 
+            newTestSystem.Run 
+                [{
+                    AddReportCommand.ReportId = reportId
+                    TeacherId = teacherId
+                    Name = "Test Report" }]
+
+        let stateBuilder = 
+            StateBuilder.Empty None
+            |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> Some e.Name)
+            |> StateBuilder.addHandler (fun s (e:ReportNameChangedEvent) -> Some e.Name)
+
+        let stream = sprintf "%s-%s" (AggregateType.Report.ToString()) ((reportId :> IIdentity).GetId)
+        let state = result.EvaluateState stream stateBuilder
+
+        state |> should equal (Some "Test Report")
+
+        let result' = 
+            result.Run 
+                [{
+                    ChangeReportNameCommand.ReportId = reportId
+                    Name = "New Name" }]
+
+        let state' = result.EvaluateState stream stateBuilder
+
+        state' |> should equal (Some "New Name")
