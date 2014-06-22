@@ -120,10 +120,11 @@ open Eventful.Testing.TestHelpers
 
 module TeacherTests = 
     let newTestSystem () =
-        TestSystem.Empty 
-        |> (fun x -> x.AddAggregate Teacher.handlers)
-        |> (fun x -> x.AddAggregate Report.handlers)
-        |> (fun x -> x.AddAggregate TeacherReport.handlers)
+        EventfulHandlers.empty
+        |> EventfulHandlers.addAggregate Teacher.handlers
+        |> EventfulHandlers.addAggregate Report.handlers 
+        |> EventfulHandlers.addAggregate TeacherReport.handlers 
+        |> TestSystem.Empty
 
     [<Fact>]
     let ``Given empty When Add Teacher Then TeacherAddedEvent is produced`` () : unit =

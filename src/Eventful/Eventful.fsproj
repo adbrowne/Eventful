@@ -85,6 +85,7 @@
     <Compile Include="Validation.fs" />
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventProcessingConfiguration.fs" />
+    <Compile Include="EventfulHandlers.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>

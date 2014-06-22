@@ -68,6 +68,8 @@
     <None Include="log4net.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Compile Include="TestEventStore.fs" />
+    <Compile Include="TestInterpreter.fs" />
     <Compile Include="TestSystem.fs" />
     <Compile Include="TestHelpers.fs" />
     <Compile Include="CounterAgent.fs" />
