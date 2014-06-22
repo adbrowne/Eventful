@@ -119,12 +119,8 @@ open Eventful.Testing
 open Eventful.Testing.TestHelpers
 
 module TeacherTests = 
-    let settings = { 
-        GetStreamName = fun () aggregate -> sprintf "%A-%A" "test" aggregate
-    }
-
     let newTestSystem () =
-        TestSystem<_>.Empty settings
+        TestSystem.Empty 
         |> (fun x -> x.AddAggregate Teacher.handlers)
         |> (fun x -> x.AddAggregate Report.handlers)
         |> (fun x -> x.AddAggregate TeacherReport.handlers)
@@ -214,7 +210,7 @@ module TeacherTests =
             StateBuilder.Empty 0
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
 
-        let stream = sprintf "%s-%A" (settings.GetStreamName () (AggregateType.Report :> obj)) (reportId :> IIdentity)
+        let stream = sprintf "%s-%s" (AggregateType.Report.ToString()) ((reportId :> IIdentity).GetId)
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal 1

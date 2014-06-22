@@ -38,10 +38,6 @@ module TestEventStore =
         let streamEvents' = streamEvents |> Vector.conj (Event (event, metadata))
         { store with Events = store.Events |> Map.add stream streamEvents' }
 
-type Settings<'TAggregateType,'TCommandMetadata> = {
-    GetStreamName : 'TCommandMetadata -> 'TAggregateType -> string
-}
-
 open Eventful.EventStream
 open FSharpx.Option
 
@@ -100,68 +96,77 @@ module TestInterpreter =
                 writes |> Vector.fold writeEvent eventStore
             (eventStore',result)
     
-type TestSystem<'TAggregateType> 
-    (
-        aggregates : list<Aggregate<'TAggregateType>>, 
-        lastResult : CommandResult, 
-        allEvents : TestEventStore, 
-        settings : Settings<'TAggregateType,unit>
-    ) =
+type EventfulHandler<'T> = EventfulHandler of Type * (obj ->  EventStreamProgram<'T>)
 
-    let testTenancy = Guid.Parse("A1028FC2-67D2-4F52-A69F-714A0F571D8A") :> obj
+type MyEventResult = unit
+
+type EventfulHandlers
+    (
+        commandHandlers : Map<string, EventfulHandler<CommandResult>>, 
+        eventHandlers : Map<string, EventfulHandler<MyEventResult>>
+    ) =
+    member x.CommandHandlers = commandHandlers
+    member x.EventHandlers = eventHandlers
+    member x.AddCommandHandler = function
+        | EventfulHandler(cmdType,_) as handler -> 
+            let cmdTypeFullName = cmdType.FullName
+            let commandHandlers' = commandHandlers |> Map.add cmdTypeFullName handler
+            new EventfulHandlers(commandHandlers', eventHandlers)
+    member x.AddEventHandler (eventType:Type) handler =
+        let evtName = eventType.Name
+        let eventHandlers' = eventHandlers |> Map.add evtName handler
+        new EventfulHandlers(commandHandlers, eventHandlers')
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module EventfulHandlers = 
+    let empty = new EventfulHandlers(Map.empty, Map.empty)
+    
+
+type TestSystem
+    (
+        handlers : EventfulHandlers, 
+        lastResult : CommandResult, 
+        allEvents : TestEventStore 
+    ) =
 
     member x.RunCommand (cmd : obj) =    
         let cmdType = cmd.GetType()
+        let cmdTypeFullName = cmd.GetType().FullName
         let sourceMessageId = Guid.NewGuid()
-        let aggregate = 
-            aggregates
-            |> Seq.filter (fun a -> a.CommandTypes |> Seq.exists (fun c -> c = cmdType))
-            |> Seq.toList
+        let handler = 
+            handlers.CommandHandlers
+            |> Map.tryFind cmdTypeFullName
             |> function
-            | [aggregate] -> aggregate
-            | [] -> failwith <| sprintf "Could not find aggregate to handle %A" cmdType
-            | xs -> failwith <| sprintf "Found more than one aggreate %A to handle %A" xs cmdType
+            | Some (EventfulHandler(_, handler)) -> handler
+            | None -> failwith <| sprintf "Could not find handler for %A" cmdType
 
-        let streamName = settings.GetStreamName ()
-
-        let program = aggregate.Run cmd streamName
+        let program = handler cmd
         let (allEvents', result) = TestInterpreter.interpret program allEvents Map.empty Vector.empty
 
-        new TestSystem<'TAggregateType>(aggregates, result, allEvents',settings)
+        new TestSystem(handlers, result, allEvents')
 
-    member x.Aggregates = aggregates
+    member x.Handlers = handlers
 
     member x.LastResult = lastResult
 
-    member x.AddAggregate (handlers : AggregateHandlers<'TState, 'TEvents, 'TId, 'TAggregateType>) =
-        let commandTypes = 
-            handlers.CommandHandlers
-            |> Seq.map (fun x -> x.CmdType)
-            |> Seq.toList
+    member x.AddAggregate (aggregateHandlers : AggregateHandlers<'TState, 'TEvents, 'TId, 'TAggregateType>) =
+        
+        let aggregateTypeString = aggregateHandlers.AggregateType.ToString()
+        let commandHandlers = 
+            aggregateHandlers.CommandHandlers
+            |> Seq.map (fun x -> 
+                 EventfulHandler(x.CmdType, x.Handler aggregateTypeString)
+               )
+        
+        let handlers' =
+            commandHandlers
+            |> Seq.fold (fun (s:EventfulHandlers) h -> s.AddCommandHandler h) handlers
 
-        let unwrapper = MagicMapper.getUnwrapper<'TEvents>()
-
-        let getHandler cmdType =    
-            handlers.CommandHandlers
-            |> Seq.find (fun x -> x.CmdType = cmdType)
-
-        let getId (cmd : obj) =
-            let handler = getHandler (cmd.GetType())
-            handler.GetId cmd :> IIdentity
-            
-        let runCmd (cmd : obj) getStreamId =
-            let getStreamName id =
-                let prefix = getStreamId handlers.AggregateType
-                sprintf "%s-%A" prefix id
-            let handler = getHandler (cmd.GetType())
-            handler.Handler getStreamName cmd
-
-        let aggregate = new Aggregate<_>(commandTypes, runCmd, getId, handlers.AggregateType)
-        new TestSystem<'TAggregateType>(aggregate::aggregates, lastResult, allEvents, settings)
+        new TestSystem(handlers', lastResult, allEvents)
 
     member x.Run (cmds : obj list) =
         cmds
-        |> List.fold (fun (s:TestSystem<_>) cmd -> s.RunCommand cmd) x
+        |> List.fold (fun (s:TestSystem) cmd -> s.RunCommand cmd) x
 
     member x.EvaluateState<'TState> (stream : string) (stateBuilder : StateBuilder<'TState>) =
         let streamEvents = 
@@ -185,9 +190,9 @@ type TestSystem<'TAggregateType>
                         | _ -> failwith ("found link to a link")))
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 
-    static member Empty settings =
-        new TestSystem<_>(List.empty, Choice1Of2 List.empty, TestEventStore.empty, settings)
+    static member Empty =
+        new TestSystem(EventfulHandlers.empty, Choice1Of2 List.empty, TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
-    let runCommand x (y:TestSystem<_>) = y.RunCommand x
+    let runCommand x (y:TestSystem) = y.RunCommand x
