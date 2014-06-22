@@ -39,24 +39,30 @@ module TestInterpreter =
             let next = g eventObj
             interpret next eventStore values writes
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
-            let addEvent w evnetStreamData = 
-                w |> Vector.conj (stream, expectedValue, evnetStreamData) 
-            let writes' = Seq.fold addEvent writes events
-            interpret (next WriteSuccess) eventStore values writes'
+            let streamEvents = 
+                eventStore.Events 
+                |> Map.tryFind stream 
+                |> FSharpx.Option.getOrElse Vector.empty
+            
+            let expectedValueCorrect =
+                match (expectedValue, streamEvents.Length) with
+                | (-2, _) -> true
+                | (-1, 0) -> true
+                | (x, y) when x = y -> true
+                | _ -> false
+                
+            if expectedValueCorrect then
+                let streamEvents' =  
+                    events 
+                    |> Vector.ofSeq
+                    |> Vector.append streamEvents
+                let eventStore' = 
+                    { eventStore with Events = eventStore.Events |> Map.add stream streamEvents' }
+                interpret (next WriteSuccess) eventStore' values writes
+            else
+                interpret (next WrongExpectedVersion) eventStore values writes
         | FreeEventStream (NotYetDone g) ->
             let next = g ()
             interpret next eventStore values writes
         | Pure result ->
-            let writeEvent store (stream, exepectedValue, eventStreamData) =
-                // todo check expected value
-                let streamEvents = 
-                    store.Events 
-                    |> Map.tryFind stream 
-                    |> FSharpx.Option.getOrElse Vector.empty
-                    |> Vector.conj eventStreamData
-                
-                { store with Events = store.Events |> Map.add stream streamEvents }
-
-            let eventStore' = 
-                writes |> Vector.fold writeEvent eventStore
-            (eventStore',result)
+            (eventStore,result)

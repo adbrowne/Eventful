@@ -18,4 +18,3 @@ module TestEventStore =
 
         let streamEvents' = streamEvents |> Vector.conj (Event (event, metadata))
         { store with Events = store.Events |> Map.add stream streamEvents' }
-

@@ -125,7 +125,7 @@ module AggregateActionBuilder =
                     for (stream, event, metadata) in events do
                         // todo should not be zero
                         let eventData = Event (event, metadata)
-                        let! ignored = writeToStream stream 0 (Seq.singleton eventData)
+                        let! ignored = writeToStream stream -1 (Seq.singleton eventData)
                         ()
                 | _ -> ()
 
