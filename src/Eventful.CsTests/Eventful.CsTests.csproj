@@ -54,6 +54,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DocumentStateTests.cs" />
+    <Compile Include="MyCountingDoc.cs" />
     <Compile Include="WorktrackingQueueTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

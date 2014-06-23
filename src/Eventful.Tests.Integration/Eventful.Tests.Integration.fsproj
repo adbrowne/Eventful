@@ -68,6 +68,7 @@
     <Compile Include="EventStoreStreamInterpreterTests.fs" />
     <Compile Include="AggregateIntegrationTests.fs" />
     <Compile Include="PositionTests.fs" />
+    <Compile Include="RavenProjectorTests.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>
@@ -124,6 +125,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Eventful.CsTests\Eventful.CsTests.csproj">
+      <Name>Eventful.CsTests</Name>
+      <Project>{8dcb39a0-a882-486a-b147-fc4b44a42f0a}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
       <Name>Eventful.EventStore</Name>
       <Project>AE510F33-D499-41AD-8EA6-6961AD7E2DFE</Project>
