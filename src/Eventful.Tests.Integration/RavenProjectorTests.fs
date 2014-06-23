@@ -8,7 +8,7 @@ open Eventful
 
 type MyCountingDoc = Eventful.CsTests.MyCountingDoc
 
-type RavenProjector (documentStore:Raven.Client.IDocumentStore) =
+module Util = 
     let taskToAsync (task:System.Threading.Tasks.Task) =
         let wrappedTask = 
             task.ContinueWith(fun _ -> 
@@ -24,6 +24,8 @@ type RavenProjector (documentStore:Raven.Client.IDocumentStore) =
             | None -> return ()
         }
 
+type RavenProjector (documentStore:Raven.Client.IDocumentStore) =
+
     let grouping = fst >> Set.singleton
 
     let processEvent (key:Guid) values =
@@ -35,7 +37,7 @@ type RavenProjector (documentStore:Raven.Client.IDocumentStore) =
             let! doc = async { 
                 if doc = null then
                     let newDoc = new MyCountingDoc()
-                    do! session.StoreAsync(newDoc, docKey) |> taskToAsync
+                    do! session.StoreAsync(newDoc, docKey) |> Util.taskToAsync
                     return newDoc
                 else
                     return doc
@@ -48,7 +50,7 @@ type RavenProjector (documentStore:Raven.Client.IDocumentStore) =
                     doc.Value <- doc.Value + value
                 else
                     doc.Value <- doc.Value - value
-            do! session.SaveChangesAsync() |> taskToAsync
+            do! session.SaveChangesAsync() |> Util.taskToAsync
         }
 
     let queue = new WorktrackingQueue<Guid, Guid * int>(fst >> Set.singleton, processEvent, 10000, 10);
