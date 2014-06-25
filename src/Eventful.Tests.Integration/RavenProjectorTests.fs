@@ -88,8 +88,6 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
 
     let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 
 
-    let grouping = fst >> Set.singleton
-
     let getDocument key (session : IAsyncDocumentSession) (cache : MemoryCache) =
         let cacheEntry = cache.Get(key)
         match cacheEntry with
@@ -265,13 +263,6 @@ module RavenProjectorTests =
 
         let myEvents = (streams, streamValues) |> Seq.unfold generateStream
 
-        let rec runUntilSuccess task = async {
-            try
-                return! task()
-            with 
-            | e -> return! runUntilSuccess task
-        }
-            
         seq {
             yield async {
                 for (key,value) in myEvents do
@@ -296,8 +287,12 @@ module RavenProjectorTests =
                                 }
                             else async { return doc }
                         doc.Foo <- "Bar"
-                        do! session.SaveChangesAsync() |> Util.taskToAsync
-                    }) |> runUntilSuccess
+                        try
+                            do! session.SaveChangesAsync() |> Util.taskToAsync
+                        with 
+                            | e -> printfn "Failed: %A" docKey
+                                   raise e
+                    }) |> runAsyncUntilSuccess
             }
         }
         |> Async.Parallel

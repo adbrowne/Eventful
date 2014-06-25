@@ -19,3 +19,10 @@ module Prelude =
     let tupleFst7 (a,b,c,d,e,f,g) = (a,(b,c,d,e,f,g))
     let tupleFst8 (a,b,c,d,e,f,g,i) = (a,(b,c,d,e,f,g,i))
     let tupleFst9 (a,b,c,d,e,f,g,i,j) = (a,(b,c,d,e,f,g,i,j))
+
+    let rec runAsyncUntilSuccess task = async {
+        try
+            return! task()
+        with 
+        | e -> return! runAsyncUntilSuccess task
+    }
