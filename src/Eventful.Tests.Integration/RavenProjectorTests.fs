@@ -116,7 +116,7 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
 
             let buildNewDoc () =
                 let newDoc = new MyCountingDoc()
-                let etag = null
+                let etag = Raven.Abstractions.Data.Etag.Empty
                 (newDoc, etag)
 
             let! (doc, etag) = 
