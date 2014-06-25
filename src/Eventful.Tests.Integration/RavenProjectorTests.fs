@@ -4,6 +4,7 @@ open Xunit
 open System
 open FSharpx.Collections
 open FSharpx
+open FsUnit.Xunit
 open Raven.Client
 open Eventful
 open System.Runtime.Caching
@@ -41,7 +42,7 @@ module BatchOperations =
         cmd.Etag <- etag
 
         let metadata = new Raven.Json.Linq.RavenJObject()
-        metadata.Add("Raven-Entity-Name", new RavenJValue("MyCountingDoc"))
+        metadata.Add("Raven-Entity-Name", new RavenJValue("MyCountingDocs"))
         cmd.Metadata <- metadata
         cmd
         
@@ -85,7 +86,7 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
         match cacheEntry with
         | :? ProjectedDocument as doc ->
             async { return Some doc }
-        | _ when cacheEntry = null -> 
+        | _ -> 
             async {
                 let! doc = session.LoadAsync<MyCountingDoc>(key) |> Async.AwaitTask
                 if (doc = null) then
@@ -94,13 +95,10 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                     let etag = session.Advanced.GetEtagFor(doc)
                     return Some (doc,etag)
             }
-        | _ -> 
-            // todo this exception does not bubble anywhere just silently crashes
-            failwith <| sprintf "Unexpected type found for key %s found: %A expected: %A" key (cacheEntry.GetType()) typeof<ProjectedDocument>
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
-        let complete x = tcs.SetResult(x)
+        let complete  = fun _ -> async { tcs.SetResult(true) }
         (complete, Async.AwaitTask tcs.Task)
         
     let processEvent (key:Guid) values =
@@ -109,15 +107,14 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
 
             let docKey = "MyCountingDocs/" + key.ToString()
 
-            let! existing = getDocument docKey session cache
-
             let buildNewDoc () =
                 let newDoc = new MyCountingDoc()
                 let etag = null
                 (newDoc, etag)
-                
 
-            let (doc, etag) = existing |> Option.getOrElseF buildNewDoc
+            let! (doc, etag) = 
+                getDocument docKey session cache
+                |> Async.map (Option.getOrElseF buildNewDoc)
 
             let (complete, wait) = getPromise()
                 
@@ -129,7 +126,8 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                     doc.Value <- doc.Value + value
                 else
                     doc.Value <- doc.Value - value
-            do! writeQueue.AddWithCallback ((docKey, doc,etag), (fun _ -> async { complete true }))
+
+            do! writeQueue.AddWithCallback ((docKey, doc,etag), complete)
 
             do! wait |> Async.Ignore
         }
@@ -191,7 +189,7 @@ module RavenProjectorTests =
         let documentStore = buildDocumentStore()
         let projector = new BulkRavenProjector(documentStore :> Raven.Client.IDocumentStore)
 
-        let docKey = "MyCountingDocs/" + Guid.NewGuid().ToString()
+        let docKey = "MyCountingDoc/" + Guid.NewGuid().ToString()
 
         seq {
             yield (docKey, new MyCountingDoc(), null)
@@ -243,10 +241,46 @@ module RavenProjectorTests =
 
         let myEvents = (streams, streamValues) |> Seq.unfold generateStream
 
-        async {
-            for (key,value) in myEvents do
-                do! projector.Enqueue key value
-            do! projector.WaitAll()
-        } |> Async.RunSynchronously 
+        seq {
+            yield async {
+                for (key,value) in myEvents do
+                    do! projector.Enqueue key value
+                do! projector.WaitAll()
+            }
 
+            yield! seq {
+                for key in streams do
+                    yield async {
+                        use session = documentStore.OpenAsyncSession()
+                        let docKey = "MyCountingDocs/" + (key.ToString())
+                        let! doc = session.LoadAsync<MyCountingDoc>(docKey) |> Async.AwaitTask
+
+                        let! doc = 
+                            if (doc = null) then 
+                                let newDoc = new MyCountingDoc()
+                                newDoc.Id <- key
+                                async {
+                                    do! session.StoreAsync(newDoc :> obj, docKey) |> Util.taskToAsync
+                                    return newDoc
+                                }
+                            else async { return doc }
+                        doc.Foo <- "Bar"
+                        do! session.SaveChangesAsync() |> Util.taskToAsync
+                    }
+            }
+        }
+        |> Async.Parallel
+        |> Async.Ignore
+        |> Async.RunSynchronously
+
+        async {
+            use session = documentStore.OpenAsyncSession()
+
+            let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask
+            for doc in docs do
+                doc.Count |> should equal 100
+                doc.Foo |> should equal "Bar"
+                doc.Value |> should equal -50
+            ()
+        } |> Async.RunSynchronously
         ()
