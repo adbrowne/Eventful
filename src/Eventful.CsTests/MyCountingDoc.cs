@@ -7,5 +7,6 @@ namespace Eventful.CsTests
         public Guid Id { get; set; }
         public int Count { get; set; }
         public int Value { get; set; }
+        public int Writes { get; set; }
     }
 }
