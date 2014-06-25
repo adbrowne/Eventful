@@ -26,7 +26,7 @@ module Util =
             | None -> return ()
         }
 
-type BatchWrite = (string * MyCountingDoc * Raven.Abstractions.Data.Etag)
+type BatchWrite = (string * MyCountingDoc * Raven.Abstractions.Data.Etag * (bool -> Async<unit>))
 
 open Raven.Abstractions.Commands
 
@@ -35,7 +35,7 @@ type ProjectedDocument = (MyCountingDoc * Raven.Abstractions.Data.Etag)
 open Raven.Json.Linq
 
 module BatchOperations =
-    let buildPutCommand (key, doc, etag) =
+    let buildPutCommand (key, doc, etag, _) =
         let cmd = new PutCommandData()
         cmd.Document <- RavenJObject.FromObject(doc)
         cmd.Key <- key
@@ -47,15 +47,17 @@ module BatchOperations =
         cmd
         
     let writeBatch (documentStore : Raven.Client.IDocumentStore) (docs:seq<BatchWrite>) = async {
-        let! batchResult = 
-            docs
-            |> Seq.map buildPutCommand
-            |> Seq.cast<ICommandData>
-            |> Array.ofSeq
-            |> documentStore.AsyncDatabaseCommands.BatchAsync
-            |> Async.AwaitTask
+        try 
+            let! batchResult = 
+                docs
+                |> Seq.map buildPutCommand
+                |> Seq.cast<ICommandData>
+                |> Array.ofSeq
+                |> documentStore.AsyncDatabaseCommands.BatchAsync
+                |> Async.AwaitTask
 
-        return (batchResult, docs)
+            return Some (batchResult, docs)
+        with | e -> return None
     }
 
     
@@ -65,16 +67,23 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
 
     let cache = new MemoryCache("RavenBatchWrite")
 
-    let writeBatch _ doc = async {
-        let! (batchResult, docs) = BatchOperations.writeBatch documentStore doc
+    let writeBatch _ docs = async {
         let originalDocMap = 
             docs
-            |> Seq.map (fun (key, doc, _) -> (key, doc))
+            |> Seq.map (fun (key, doc, _, callback) -> (key, (doc, callback)))
             |> Map.ofSeq
 
-        for docResult in batchResult do
-            let doc = originalDocMap.[docResult.Key]
-            cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
+        let! result = BatchOperations.writeBatch documentStore docs
+        match result with
+        | Some (batchResult, docs) ->
+            for docResult in batchResult do
+                let (doc, callback) = originalDocMap.[docResult.Key]
+                cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
+                do! callback true
+        | None ->
+            for (docKey, _, _, callback) in docs do
+                cache.Remove(docKey) |> ignore
+                do! callback false
     }
 
     let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 
@@ -98,10 +107,10 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
-        let complete  = fun _ -> async { tcs.SetResult(true) }
+        let complete  = fun success -> async { tcs.SetResult(success) }
         (complete, Async.AwaitTask tcs.Task)
         
-    let processEvent (key:Guid) values =
+    let tryEvent (key:Guid) values =
         async { 
             use session = documentStore.OpenAsyncSession()
 
@@ -127,10 +136,21 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                 else
                     doc.Value <- doc.Value - value
 
-            do! writeQueue.AddWithCallback ((docKey, doc,etag), complete)
+            do! writeQueue.Add((docKey, doc,etag, complete))
 
-            do! wait |> Async.Ignore
+            return! wait 
         }
+        
+    let processEvent (key:Guid) values = async {
+        let rec loop () = async {
+            let! attempt = tryEvent key values
+            if not attempt then
+                return! loop ()
+            else 
+                ()
+        }
+        do! loop ()
+    }
 
     let queue = new WorktrackingQueue<Guid, Guid * int>(fst >> Set.singleton, processEvent, 10000, 10);
 
@@ -191,12 +211,16 @@ module RavenProjectorTests =
 
         let docKey = "MyCountingDoc/" + Guid.NewGuid().ToString()
 
-        seq {
-            yield (docKey, new MyCountingDoc(), null)
-        }
-        |> BatchOperations.writeBatch documentStore 
-        |> Async.Ignore
-        |> Async.RunSynchronously
+        let result = 
+            seq {
+                yield (docKey, new MyCountingDoc(), null, (fun _ -> async { () }))
+            }
+            |> BatchOperations.writeBatch documentStore 
+            |> Async.RunSynchronously
+
+        match result with
+        | Some _ -> (true |> should equal true)
+        | None -> (false |> should equal true)
 
     [<Fact>]
     let ``Pump many events at Raven`` () : unit =
@@ -241,6 +265,13 @@ module RavenProjectorTests =
 
         let myEvents = (streams, streamValues) |> Seq.unfold generateStream
 
+        let rec runUntilSuccess task = async {
+            try
+                return! task()
+            with 
+            | e -> return! runUntilSuccess task
+        }
+            
         seq {
             yield async {
                 for (key,value) in myEvents do
@@ -250,7 +281,7 @@ module RavenProjectorTests =
 
             yield! seq {
                 for key in streams do
-                    yield async {
+                    yield (fun () -> async {
                         use session = documentStore.OpenAsyncSession()
                         let docKey = "MyCountingDocs/" + (key.ToString())
                         let! doc = session.LoadAsync<MyCountingDoc>(docKey) |> Async.AwaitTask
@@ -266,7 +297,7 @@ module RavenProjectorTests =
                             else async { return doc }
                         doc.Foo <- "Bar"
                         do! session.SaveChangesAsync() |> Util.taskToAsync
-                    }
+                    }) |> runUntilSuccess
             }
         }
         |> Async.Parallel
