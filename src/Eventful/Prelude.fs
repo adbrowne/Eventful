@@ -26,3 +26,5 @@ module Prelude =
         with 
         | e -> return! runAsyncUntilSuccess task
     }
+
+    let consoleLog (value:string) = System.Console.WriteLine(value)
