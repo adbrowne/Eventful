@@ -176,42 +176,6 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
    
     member x.WaitAll = queue.AsyncComplete
 
-type RavenProjector (documentStore:Raven.Client.IDocumentStore) =
-
-    let grouping = fst >> Set.singleton
-
-    let processEvent (key:Guid) values =
-        async { 
-            use session = documentStore.OpenAsyncSession()
-
-            let docKey = "MyCountingDocs/" + key.ToString()
-            let! doc = session.LoadAsync<MyCountingDoc>(docKey) |> Async.AwaitTask
-            let! doc = async { 
-                if doc = null then
-                    let newDoc = new MyCountingDoc()
-                    do! session.StoreAsync(newDoc, docKey) |> Util.taskToAsync
-                    return newDoc
-                else
-                    return doc
-            }
-
-            for (_, value) in values do
-                let isEven = doc.Count % 2 = 0
-                doc.Count <- doc.Count + 1
-                if isEven then
-                    doc.Value <- doc.Value + value
-                else
-                    doc.Value <- doc.Value - value
-            do! session.SaveChangesAsync() |> Util.taskToAsync
-        }
-
-    let queue = new WorktrackingQueue<Guid, Guid * int>(fst >> Set.singleton, processEvent, 10000, 10);
-
-    member x.Enqueue key value =
-       queue.Add (key,value)
-   
-    member x.WaitAll = queue.AsyncComplete
-
 module RavenProjectorTests = 
 
     let buildDocumentStore () =
