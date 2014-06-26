@@ -99,13 +99,14 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
 
     let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 
 
-    let getDocument key (session : IAsyncDocumentSession) (cache : MemoryCache) =
+    let getDocument key (documentStore : Raven.Client.IDocumentStore) (cache : MemoryCache) =
         let cacheEntry = cache.Get(key)
         match cacheEntry with
         | :? ProjectedDocument as doc ->
             async { return Some doc }
         | _ -> 
             async {
+                use session = documentStore.OpenAsyncSession()
                 let! doc = session.LoadAsync<MyCountingDoc>(key) |> Async.AwaitTask
                 if (doc = null) then
                     return None
@@ -121,8 +122,6 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
         
     let tryEvent (key:Guid) values =
         async { 
-            use session = documentStore.OpenAsyncSession()
-
             let docKey = "MyCountingDocs/" + key.ToString()
 
             let buildNewDoc () =
@@ -131,7 +130,7 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                 (newDoc, etag)
 
             let! (doc, etag) = 
-                getDocument docKey session cache
+                getDocument docKey documentStore cache
                 |> Async.map (Option.getOrElseF buildNewDoc)
 
             let (complete, wait) = getPromise()
