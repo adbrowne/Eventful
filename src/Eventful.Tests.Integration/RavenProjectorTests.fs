@@ -26,7 +26,14 @@ module Util =
             | None -> return ()
         }
 
-type BatchWrite = (string * MyCountingDoc * Raven.Abstractions.Data.Etag * (bool -> Async<unit>))
+type DocumentWriteRequest = {
+    DocumentKey : string
+    Document : Lazy<Raven.Json.Linq.RavenJObject>
+    Metadata : Lazy<Raven.Json.Linq.RavenJObject>
+    Etag : Raven.Abstractions.Data.Etag
+}
+
+type BatchWrite = (seq<DocumentWriteRequest> * (bool -> Async<unit>))
 
 open Raven.Abstractions.Commands
 
@@ -35,22 +42,20 @@ type ProjectedDocument = (MyCountingDoc * Raven.Abstractions.Data.Etag)
 open Raven.Json.Linq
 
 module BatchOperations =
-    let buildPutCommand (key, doc, etag, _) =
+    let buildPutCommand (writeRequest:DocumentWriteRequest) =
         let cmd = new PutCommandData()
-        cmd.Document <- RavenJObject.FromObject(doc)
-        cmd.Key <- key
-        cmd.Etag <- etag
+        cmd.Document <- writeRequest.Document.Force()
+        cmd.Key <- writeRequest.DocumentKey
+        cmd.Etag <- writeRequest.Etag
 
-        let metadata = new Raven.Json.Linq.RavenJObject()
-        metadata.Add("Raven-Entity-Name", new RavenJValue("MyCountingDocs"))
-        cmd.Metadata <- metadata
+        cmd.Metadata <- writeRequest.Metadata.Force()
         cmd
         
     let writeBatch (documentStore : Raven.Client.IDocumentStore) (docs:seq<BatchWrite>) = async {
         try 
             let! batchResult = 
                 docs
-                |> Seq.map buildPutCommand
+                |> Seq.collect (fst >> Seq.map buildPutCommand)
                 |> Seq.cast<ICommandData>
                 |> Array.ofSeq
                 |> documentStore.AsyncDatabaseCommands.BatchAsync
@@ -70,7 +75,13 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
     let writeBatch _ docs = async {
         let originalDocMap = 
             docs
-            |> Seq.map (fun (key, doc, _, callback) -> (key, (doc, callback)))
+            |> Seq.collect (fun (writeRequests, callback) -> 
+                writeRequests
+                |> Seq.map(fun { DocumentKey = key; Document = document } ->
+                    let document = document.Force()
+                    (key, (document, callback))
+                )
+            )
             |> Map.ofSeq
 
         let! result = BatchOperations.writeBatch documentStore docs
@@ -81,7 +92,7 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                 cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
                 do! callback true
         | None ->
-            for (docKey, _, _, callback) in docs do
+            for (docKey, (_, callback)) in originalDocMap |> Map.toSeq do
                 cache.Remove(docKey) |> ignore
                 do! callback false
     }
@@ -134,7 +145,19 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                 else
                     doc.Value <- doc.Value - value
 
-            do! writeQueue.Add((docKey, doc,etag, complete))
+            let metadata = new Raven.Json.Linq.RavenJObject()
+            metadata.Add("Raven-Entity-Name", new RavenJValue("MyCountingDocs"))
+
+            let writeRequests =
+                {
+                    DocumentKey = docKey
+                    Document = lazy(RavenJObject.FromObject(doc))
+                    Metadata = lazy(metadata)
+                    Etag = etag
+                }
+                |> Seq.singleton
+
+            do! writeQueue.Add(writeRequests, complete)
 
             return! wait 
         }
@@ -211,7 +234,15 @@ module RavenProjectorTests =
 
         let result = 
             seq {
-                yield (docKey, new MyCountingDoc(), null, (fun _ -> async { () }))
+                let doc = new MyCountingDoc()
+                let metadata = new Raven.Json.Linq.RavenJObject()
+                metadata.Add("Raven-Entity-Name", new RavenJValue("MyCountingDocs"))
+                let writeRequests = Seq.singleton {
+                    DocumentKey = docKey
+                    Document = lazy(RavenJObject.FromObject(doc))
+                    Metadata = lazy(metadata)
+                    Etag = Raven.Abstractions.Data.Etag.Empty }
+                yield (writeRequests, (fun _ -> async { () }))
             }
             |> BatchOperations.writeBatch documentStore 
             |> Async.RunSynchronously
