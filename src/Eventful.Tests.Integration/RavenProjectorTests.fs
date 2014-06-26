@@ -37,7 +37,7 @@ type BatchWrite = (seq<DocumentWriteRequest> * (bool -> Async<unit>))
 
 open Raven.Abstractions.Commands
 
-type ProjectedDocument = (MyCountingDoc * Raven.Abstractions.Data.Etag)
+type ProjectedDocument = (MyCountingDoc * Raven.Json.Linq.RavenJObject * Raven.Abstractions.Data.Etag)
 
 open Raven.Json.Linq
 
@@ -112,7 +112,8 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                     return None
                 else
                     let etag = session.Advanced.GetEtagFor(doc)
-                    return Some (doc,etag)
+                    let metadata = session.Advanced.GetMetadataFor(doc)
+                    return Some (doc, metadata, etag)
             }
 
     let getPromise () =
@@ -127,9 +128,13 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
             let buildNewDoc () =
                 let newDoc = new MyCountingDoc()
                 let etag = Raven.Abstractions.Data.Etag.Empty
-                (newDoc, etag)
 
-            let! (doc, etag) = 
+                let metadata = new Raven.Json.Linq.RavenJObject()
+                metadata.Add("Raven-Entity-Name", new RavenJValue("MyCountingDocs"))
+
+                (newDoc, metadata, etag)
+
+            let! (doc, metadata, etag) = 
                 getDocument docKey documentStore cache
                 |> Async.map (Option.getOrElseF buildNewDoc)
 
@@ -143,9 +148,6 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                     doc.Value <- doc.Value + value
                 else
                     doc.Value <- doc.Value - value
-
-            let metadata = new Raven.Json.Linq.RavenJObject()
-            metadata.Add("Raven-Entity-Name", new RavenJValue("MyCountingDocs"))
 
             let writeRequests =
                 {
