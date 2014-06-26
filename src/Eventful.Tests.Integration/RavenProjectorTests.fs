@@ -138,17 +138,12 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
                 getDocument docKey documentStore cache
                 |> Async.map (Option.getOrElseF buildNewDoc)
 
+            doc.Writes <- doc.Writes + 1
+            for (_, processEvent) in values do
+                processEvent (doc :> obj)
+
             let (complete, wait) = getPromise()
                 
-            doc.Writes <- doc.Writes + 1
-            for (_, value) in values do
-                let isEven = doc.Count % 2 = 0
-                doc.Count <- doc.Count + 1
-                if isEven then
-                    doc.Value <- doc.Value + value
-                else
-                    doc.Value <- doc.Value - value
-
             let writeRequests =
                 {
                     DocumentKey = docKey
@@ -174,7 +169,7 @@ type BulkRavenProjector (documentStore:Raven.Client.IDocumentStore) =
         do! loop ()
     }
 
-    let queue = new WorktrackingQueue<Guid, Guid * int>(fst >> Set.singleton, processEvent, 10000, 10);
+    let queue = new WorktrackingQueue<Guid, Guid * (obj -> unit)>(fst >> Set.singleton, processEvent, 10000, 10);
 
     member x.Enqueue key value =
        queue.Add (key,value)
@@ -295,10 +290,19 @@ module RavenProjectorTests =
 
         let myEvents = (streams, streamValues) |> Seq.unfold generateStream
 
+        let processValue (value:int) (docObj:obj) =
+            let doc = docObj :?> MyCountingDoc
+            let isEven = doc.Count % 2 = 0
+            doc.Count <- doc.Count + 1
+            if isEven then
+                doc.Value <- doc.Value + value
+            else
+                doc.Value <- doc.Value - value
+
         seq {
             yield async {
                 for (key,value) in myEvents do
-                    do! projector.Enqueue key value
+                    do! projector.Enqueue key (processValue value)
                 do! projector.WaitAll()
             }
 
