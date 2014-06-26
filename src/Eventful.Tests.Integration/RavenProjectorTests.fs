@@ -57,20 +57,28 @@ type DocumentHandler<'TDocument> = ('TDocument -> 'TDocument)
 
 type DocumentHandlerSet<'TKey, 'TDocument> = seq<('TKey * seq<DocumentHandler<'TDocument>>)>
 
+type SubscriberEvent<'TContext> = {
+    Event : obj
+    Context : 'TContext
+    StreamId : string
+    EventNumber: int
+}
+
 [<CustomComparison>]
 [<CustomEquality>]
-type DocumentProcessor<'TKey, 'TDocument> = {
+type DocumentProcessor<'TKey, 'TDocument, 'TContext> = {
     ProcessorKey : string
     GetDocumentKey : 'TKey -> string
     EventTypes : seq<Type>
-    Match: (obj -> DocumentHandlerSet<'TKey,'TDocument>)
+    MatchingKeys: SubscriberEvent<'TContext> -> seq<'TKey>
+    Process: 'TKey -> 'TDocument -> SubscriberEvent<'TContext> -> 'TDocument
     NewDocument : 'TKey -> 'TDocument
 }
 with
-    override x.Equals(y) = (match y with :? DocumentProcessor<'TKey, 'TDocument> as y -> x.ProcessorKey = y.ProcessorKey | _ -> false)
+    override x.Equals(y) = (match y with :? DocumentProcessor<'TKey, 'TDocument, 'TContext> as y -> x.ProcessorKey = y.ProcessorKey | _ -> false)
     override x.GetHashCode() = x.ProcessorKey.GetHashCode()
     interface System.IComparable with 
-        member x.CompareTo y = x.ProcessorKey.CompareTo (y :?> DocumentProcessor<'TKey, 'TDocument>).ProcessorKey
+        member x.CompareTo y = x.ProcessorKey.CompareTo (y :?> DocumentProcessor<'TKey, 'TDocument, 'TContext>).ProcessorKey
 
 //with 
 //    static member ToUntypedDocumentProcessor (x:DocumentProcessor<'TKey, 'TDocument>) =
@@ -111,10 +119,14 @@ module BatchOperations =
 
 type CurrentDoc = (MyCountingDoc * RavenJObject * Etag)
 
-type BulkRavenProjector 
+type EventContext = {
+    Tenancy : string
+}
+
+type BulkRavenProjector<'TEventContext> 
     (
         documentStore:Raven.Client.IDocumentStore, 
-        processors:seq<DocumentProcessor<Guid, CurrentDoc>>
+        processors:seq<DocumentProcessor<Guid, CurrentDoc, 'TEventContext>>
     ) =
 
     let serializer = Raven.Imports.Newtonsoft.Json.JsonSerializer.Create(new Raven.Imports.Newtonsoft.Json.JsonSerializerSettings())
@@ -170,7 +182,7 @@ type BulkRavenProjector
         let complete  = fun success -> async { tcs.SetResult(success) }
         (complete, Async.AwaitTask tcs.Task)
         
-    let tryEvent (key : Guid, documentProcessor : DocumentProcessor<Guid,CurrentDoc>) events =
+    let tryEvent (key : Guid, documentProcessor : DocumentProcessor<Guid,CurrentDoc, 'TEventContext>) events =
         async { 
             let docKey = documentProcessor.GetDocumentKey(key)
             
@@ -183,16 +195,9 @@ type BulkRavenProjector
 
             doc.Writes <- doc.Writes + 1
 
-            let runEvent doc event =
-                documentProcessor.Match(event)
-                |> Seq.filter (fun (k, handlers) -> k = key)
-                |> Seq.map snd
-                |> Seq.collect id
-                |> Seq.fold (fun d h -> h d) doc
-                
             let (doc, metadata, etag) = 
                 events
-                |> Seq.fold runEvent (doc, metadata, etag)
+                |> Seq.fold (documentProcessor.Process key) (doc, metadata, etag)
 
             let (complete, wait) = getPromise()
                 
@@ -221,20 +226,17 @@ type BulkRavenProjector
         do! loop ()
     }
 
-    let grouper (key, value) =
+    let grouper event =
         processors
         |> Seq.collect (fun x -> 
-            let matches = x.Match((key,value) :> obj) |> Seq.isEmpty |> not
-            if matches then
-                (key, x) |> Seq.singleton
-            else
-                Seq.empty)
+            x.MatchingKeys event
+            |> Seq.map (fun k9 -> (k9, x)))
         |> Set.ofSeq
 
-    let queue = new WorktrackingQueue<(Guid * DocumentProcessor<Guid,CurrentDoc>), Guid * int>(grouper, processEvent, 10000, 10);
+    let queue = new WorktrackingQueue<(Guid * DocumentProcessor<Guid,CurrentDoc,_>), SubscriberEvent<'TEventContext>>(grouper, processEvent, 10000, 10);
 
-    member x.Enqueue key value =
-       queue.Add (key,value)
+    member x.Enqueue subscriberEvent =
+       queue.Add subscriberEvent
    
     member x.WaitAll = queue.AsyncComplete
 
@@ -312,7 +314,17 @@ module RavenProjectorTests =
                     let remaining = (remainingStreams, remainingValues')
                     Some (nextValue, remaining)
 
-        let myEvents = (streams, streamValues) |> Seq.unfold generateStream
+        let myEvents = 
+            (streams, streamValues) 
+            |> Seq.unfold generateStream
+            |> Seq.map (fun (key, value) ->
+                {
+                    Event = (key, value)
+                    Context = { Tenancy = "tenancy-blue" }
+                    StreamId = key.ToString()
+                    EventNumber = 0
+                }
+            )
 
         let processValue (value:int) (docObj:CurrentDoc) =
             let (doc, metadata, etag) = docObj
@@ -335,33 +347,36 @@ module RavenProjectorTests =
 
             (newDoc, metadata, etag)
 
-        let matcher (objEvent : obj) : DocumentHandlerSet<Guid,CurrentDoc> =
-            match objEvent with
+        let matcher (subscriberEvent : SubscriberEvent<EventContext>) =
+            match subscriberEvent.Event with
             | :? (Guid * int) as event ->
-                let (key, value) = event
-                
-                let handler : DocumentHandler<CurrentDoc> =  processValue value
-                let handlers = handler |> Seq.singleton
-
-                (key, handlers) |> Seq.singleton
+                event |> fst |> Seq.singleton
             | _ -> Seq.empty
 
-        let processors = seq {
+        let processEvent key doc subscriberEvent = 
+            match subscriberEvent.Event with
+            | :? (Guid * int) as event ->
+                let (key, value) = event
+                processValue value doc
+            | _ -> doc
+
+        let processors : seq<DocumentProcessor<Guid,CurrentDoc, EventContext>> = seq {
             yield {
                 ProcessorKey = "Mine"
                 GetDocumentKey = (fun (key:Guid) -> "MyCountingDocs/" + key.ToString())
                 EventTypes = Seq.singleton typeof<int>
-                Match = matcher
+                MatchingKeys = matcher
+                Process = processEvent
                 NewDocument = buildNewDoc
             }
         }
 
-        let projector = new BulkRavenProjector(documentStore, processors)
+        let projector = new BulkRavenProjector<EventContext>(documentStore, processors)
 
         seq {
             yield async {
-                for (key,value) in myEvents do
-                    do! projector.Enqueue key value
+                for event in myEvents do
+                    do! projector.Enqueue event
                 do! projector.WaitAll()
             }
 
