@@ -3,7 +3,7 @@
   <metadata minClientVersion="2.5">
     <id>Eventful</id>
     <version>1.0.0.0</version>
-    <authors>Andrew Browne</authors>
+    <authors>Andrew Browne, Picnic Software</authors>
     <owners>Andrew Browne</owners>
     <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
     <projectUrl>https://github.com/adbrowne/eventful</projectUrl>
