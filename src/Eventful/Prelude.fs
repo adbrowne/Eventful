@@ -28,3 +28,16 @@ module Prelude =
     }
 
     let consoleLog (value:string) = System.Console.WriteLine(value)
+
+    // from: http://blogs.msdn.com/b/dsyme/archive/2009/11/08/equality-and-comparison-constraints-in-f-1-9-7.aspx
+    let equalsOn f x (yobj:obj) =
+        match yobj with
+        | :? 'T as y -> (f x = f y)
+        | _ -> false
+ 
+    let hashOn f x =  hash (f x)
+ 
+    let compareOn f x (yobj: obj) =
+        match yobj with
+        | :? 'T as y -> compare (f x) (f y)
+        | _ -> invalidArg "yobj" "cannot compare values of different types"

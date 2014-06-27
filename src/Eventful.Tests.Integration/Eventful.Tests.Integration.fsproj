@@ -135,6 +135,11 @@
       <Name>Eventful.EventStore</Name>
       <Project>AE510F33-D499-41AD-8EA6-6961AD7E2DFE</Project>
     </ProjectReference>
+    <ProjectReference Include="..\Eventful.RavenDb\Eventful.RavenDb.fsproj">
+      <Name>Eventful.RavenDb</Name>
+      <Project>{639b7247-67ae-4a1f-8b09-28bcf23bce20}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful.Tests\Eventful.Tests.fsproj">
       <Name>Eventful.Tests</Name>
       <Project>08132179-EEA4-43FA-82E6-5E58B9F17473</Project>

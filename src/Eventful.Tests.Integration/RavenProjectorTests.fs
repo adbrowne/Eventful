@@ -7,7 +7,7 @@ open FSharpx
 open FsUnit.Xunit
 open Raven.Client
 open Eventful
-open System.Runtime.Caching
+open Eventful.Raven
 type MyCountingDoc = Eventful.CsTests.MyCountingDoc
 
 module Util = 
@@ -28,18 +28,7 @@ module Util =
 
 open Raven.Abstractions.Data
 
-type DocumentWriteRequest = {
-    DocumentKey : string
-    Document : Lazy<Raven.Json.Linq.RavenJObject>
-    Metadata : Lazy<Raven.Json.Linq.RavenJObject>
-    Etag : Raven.Abstractions.Data.Etag
-}
-
-type BatchWrite = (seq<DocumentWriteRequest> * (bool -> Async<unit>))
-
 open Raven.Abstractions.Commands
-
-type ProjectedDocument = (MyCountingDoc * Raven.Json.Linq.RavenJObject * Raven.Abstractions.Data.Etag)
 
 open Raven.Json.Linq
 
@@ -57,29 +46,6 @@ type DocumentHandler<'TDocument> = ('TDocument -> 'TDocument)
 
 type DocumentHandlerSet<'TKey, 'TDocument> = seq<('TKey * seq<DocumentHandler<'TDocument>>)>
 
-type SubscriberEvent<'TContext> = {
-    Event : obj
-    Context : 'TContext
-    StreamId : string
-    EventNumber: int
-}
-
-[<CustomComparison>]
-[<CustomEquality>]
-type DocumentProcessor<'TKey, 'TDocument, 'TContext> = {
-    ProcessorKey : string
-    GetDocumentKey : 'TKey -> string
-    EventTypes : seq<Type>
-    MatchingKeys: SubscriberEvent<'TContext> -> seq<'TKey>
-    Process: 'TKey -> 'TDocument -> SubscriberEvent<'TContext> -> 'TDocument
-    NewDocument : 'TKey -> 'TDocument
-}
-with
-    override x.Equals(y) = (match y with :? DocumentProcessor<'TKey, 'TDocument, 'TContext> as y -> x.ProcessorKey = y.ProcessorKey | _ -> false)
-    override x.GetHashCode() = x.ProcessorKey.GetHashCode()
-    interface System.IComparable with 
-        member x.CompareTo y = x.ProcessorKey.CompareTo (y :?> DocumentProcessor<'TKey, 'TDocument, 'TContext>).ProcessorKey
-
 //with 
 //    static member ToUntypedDocumentProcessor (x:DocumentProcessor<'TKey, 'TDocument>) =
 //        let matchWithConversion (eventObj : obj) =
@@ -93,152 +59,11 @@ with
 //            NewDocument = newDocumentWithConversion
 //        }
 
-module BatchOperations =
-    let buildPutCommand (writeRequest:DocumentWriteRequest) =
-        let cmd = new PutCommandData()
-        cmd.Document <- writeRequest.Document.Force()
-        cmd.Key <- writeRequest.DocumentKey
-        cmd.Etag <- writeRequest.Etag
-
-        cmd.Metadata <- writeRequest.Metadata.Force()
-        cmd
-        
-    let writeBatch (documentStore : Raven.Client.IDocumentStore) (docs:seq<BatchWrite>) = async {
-        try 
-            let! batchResult = 
-                docs
-                |> Seq.collect (fst >> Seq.map buildPutCommand)
-                |> Seq.cast<ICommandData>
-                |> Array.ofSeq
-                |> documentStore.AsyncDatabaseCommands.BatchAsync
-                |> Async.AwaitTask
-
-            return Some (batchResult, docs)
-        with | e -> return None
-    }
-
 type CurrentDoc = (MyCountingDoc * RavenJObject * Etag)
 
 type EventContext = {
     Tenancy : string
 }
-
-type BulkRavenProjector<'TEventContext> 
-    (
-        documentStore:Raven.Client.IDocumentStore, 
-        processors:seq<DocumentProcessor<Guid, CurrentDoc, 'TEventContext>>
-    ) =
-
-    let serializer = Raven.Imports.Newtonsoft.Json.JsonSerializer.Create(new Raven.Imports.Newtonsoft.Json.JsonSerializerSettings())
-
-    let cache = new MemoryCache("RavenBatchWrite")
-
-    let writeBatch _ docs = async {
-        let originalDocMap = 
-            docs
-            |> Seq.collect (fun (writeRequests, callback) -> 
-                writeRequests
-                |> Seq.map(fun { DocumentKey = key; Document = document } ->
-                    let document = document.Force()
-                    (key, (document, callback))
-                )
-            )
-            |> Map.ofSeq
-
-        let! result = BatchOperations.writeBatch documentStore docs
-        match result with
-        | Some (batchResult, docs) ->
-            for docResult in batchResult do
-                let (doc, callback) = originalDocMap.[docResult.Key]
-                cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
-                do! callback true
-        | None ->
-            for (docKey, (_, callback)) in originalDocMap |> Map.toSeq do
-                cache.Remove(docKey) |> ignore
-                do! callback false
-    }
-
-    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 
-
-    let getDocument key (documentStore : Raven.Client.IDocumentStore) (cache : MemoryCache) =
-        let cacheEntry = cache.Get(key)
-        match cacheEntry with
-        | :? ProjectedDocument as doc ->
-            async { return Some doc }
-        | _ -> 
-            async {
-                use session = documentStore.OpenAsyncSession()
-                let! doc = session.LoadAsync<MyCountingDoc>(key) |> Async.AwaitTask
-                if (doc = null) then
-                    return None
-                else
-                    let etag = session.Advanced.GetEtagFor(doc)
-                    let metadata = session.Advanced.GetMetadataFor(doc)
-                    return Some (doc, metadata, etag)
-            }
-
-    let getPromise () =
-        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
-        let complete  = fun success -> async { tcs.SetResult(success) }
-        (complete, Async.AwaitTask tcs.Task)
-        
-    let tryEvent (key : Guid, documentProcessor : DocumentProcessor<Guid,CurrentDoc, 'TEventContext>) events =
-        async { 
-            let docKey = documentProcessor.GetDocumentKey(key)
-            
-            let buildNewDoc () =
-                documentProcessor.NewDocument key
-
-            let! (doc, metadata, etag) = 
-                getDocument docKey documentStore cache
-                |> Async.map (Option.getOrElseF buildNewDoc)
-
-            doc.Writes <- doc.Writes + 1
-
-            let (doc, metadata, etag) = 
-                events
-                |> Seq.fold (documentProcessor.Process key) (doc, metadata, etag)
-
-            let (complete, wait) = getPromise()
-                
-            let writeRequests =
-                {
-                    DocumentKey = docKey
-                    Document = lazy(RavenJObject.FromObject(doc))
-                    Metadata = lazy(metadata)
-                    Etag = etag
-                }
-                |> Seq.singleton
-
-            do! writeQueue.Add(writeRequests, complete)
-
-            return! wait 
-        }
-        
-    let processEvent key values = async {
-        let rec loop () = async {
-            let! attempt = tryEvent key values
-            if not attempt then
-                return! loop ()
-            else 
-                ()
-        }
-        do! loop ()
-    }
-
-    let grouper event =
-        processors
-        |> Seq.collect (fun x -> 
-            x.MatchingKeys event
-            |> Seq.map (fun k9 -> (k9, x)))
-        |> Set.ofSeq
-
-    let queue = new WorktrackingQueue<(Guid * DocumentProcessor<Guid,CurrentDoc,_>), SubscriberEvent<'TEventContext>>(grouper, processEvent, 10000, 10);
-
-    member x.Enqueue subscriberEvent =
-       queue.Add subscriberEvent
-   
-    member x.WaitAll = queue.AsyncComplete
 
 module RavenProjectorTests = 
 
@@ -360,18 +185,20 @@ module RavenProjectorTests =
                 processValue value doc
             | _ -> doc
 
-        let processors : seq<DocumentProcessor<Guid,CurrentDoc, EventContext>> = seq {
-            yield {
-                ProcessorKey = "Mine"
-                GetDocumentKey = (fun (key:Guid) -> "MyCountingDocs/" + key.ToString())
-                EventTypes = Seq.singleton typeof<int>
-                MatchingKeys = matcher
-                Process = processEvent
-                NewDocument = buildNewDoc
-            }
+        let myProcessor : DocumentProcessor<Guid, MyCountingDoc, EventContext> = {
+            GetDocumentKey = (fun (key:Guid) -> "MyCountingDocs/" + key.ToString())
+            EventTypes = Seq.singleton typeof<int>
+            MatchingKeys = matcher
+            Process = processEvent
+            BeforeWrite = (fun (doc, metadata, etag) ->
+                doc.Writes <- doc.Writes + 1
+                (doc, metadata, etag)
+            )
+            NewDocument = buildNewDoc
         }
 
-        let projector = new BulkRavenProjector<EventContext>(documentStore, processors)
+        let processorSet = ProcessorSet.Empty.Add myProcessor
+        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet)
 
         seq {
             yield async {
