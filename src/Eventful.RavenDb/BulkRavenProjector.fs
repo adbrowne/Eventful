@@ -66,8 +66,6 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
         
         let processUntyped (fetcher:IDocumentFetcher) (untypedKey : obj) events =
             let key = untypedKey :?> 'TKey
-            let docKey = processor.GetDocumentKey key
-            let permDocKey = processor.GetPermDocumentKey key
             processor.Process key fetcher events
 
         let matchingKeysUntyped event =

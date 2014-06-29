@@ -226,13 +226,9 @@ module RavenProjectorTests =
         }
 
         let myProcessor : DocumentProcessor<Guid, MyCountingDoc, EventContext> = {
-            GetDocumentKey = (fun (key:Guid) -> "MyCountingDocs/" + key.ToString())
-            GetPermDocumentKey = (fun (key:Guid) -> "PermissionDocs/" + key.ToString())
             EventTypes = Seq.singleton typeof<int>
             MatchingKeys = matcher
             Process = processBatch
-            BeforeWrite = beforeWrite 
-            NewDocument = buildNewDoc
         }
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
