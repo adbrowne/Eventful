@@ -198,6 +198,8 @@ module RavenProjectorTests =
             yield async {
                 for event in myEvents do
                     do! projector.Enqueue event
+
+                projector.StartWork()
                 do! projector.WaitAll()
             }
 

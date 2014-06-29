@@ -163,7 +163,10 @@ type BulkRavenProjector<'TEventContext>
             tracker.Complete(position)
         }
 
-    let queue = new WorktrackingQueue<(IComparable * UntypedDocumentProcessor<_>), SubscriberEvent<'TEventContext>>(grouper, processEvent, 10000, 10, eventComplete);
+    let queue = 
+        let x = new WorktrackingQueue<_,_>(grouper, processEvent, 200000, 10, eventComplete);
+        x.StopWork()
+        x
 
     member x.LastComplete = tracker.LastComplete
 
@@ -174,3 +177,5 @@ type BulkRavenProjector<'TEventContext>
         }
    
     member x.WaitAll = queue.AsyncComplete
+
+    member x.StartWork () = queue.StartWork()

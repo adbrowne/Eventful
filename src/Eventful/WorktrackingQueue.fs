@@ -27,16 +27,27 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
          do! workAction group items
     }
 
+    let mutable working = true
+
     let workers = 
         for i in [1.._workerCount] do
             async {
                 while true do
-                    do! queue.Consume doWork
+                    if working then
+                        do! queue.Consume doWork
+                    else
+                        do! Async.Sleep(100)
             } |> Async.Start
 
     let grouping item =
         let groups = grouping item
         (item, groups)
+
+    member this.StopWork () =
+        working <- false
+
+    member this.StartWork () =
+        working <- true
 
     member this.Add (item:'TItem) =
         queue.Add (item, grouping, _complete item)
