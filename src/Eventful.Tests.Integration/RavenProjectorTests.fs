@@ -185,16 +185,53 @@ module RavenProjectorTests =
                 processValue value doc
             | _ -> doc
 
+        let beforeWrite = (fun (doc : MyCountingDoc, metadata, etag) ->
+                doc.Writes <- doc.Writes + 1
+                (doc, metadata, etag)
+            )
+
+        let processBatch key (fetcher : IDocumentFetcher) events = async {
+            let docKey = "MyCountingDocs/" + key.ToString() 
+            let permDocKey = "PermissionDocs/" + key.ToString() 
+            let! (doc, metadata, etag) =  
+                fetcher.GetDocument docKey
+                |> Async.map (Option.getOrElseF (fun () -> buildNewDoc key))
+               
+            let! (permDoc, permMetadata, permEtag) =
+                fetcher.GetDocument permDocKey
+                |> Async.map (Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, RavenOperations.emptyMetadata "PermissionDoc", Etag.Empty)))
+
+            let (doc, metadata, etag) = 
+                events
+                |> Seq.fold (processEvent key) (doc, metadata, etag)
+
+            let (doc, metadata, etag) = beforeWrite (doc, metadata, etag)
+
+            permDoc.Writes <- permDoc.Writes + 1
+
+            return seq {
+                yield {
+                    DocumentKey = docKey
+                    Document = lazy(RavenJObject.FromObject(doc))
+                    Metadata = lazy(metadata)
+                    Etag = etag
+                }
+                yield {
+                    DocumentKey = permDocKey
+                    Document = lazy(RavenJObject.FromObject(permDoc))
+                    Metadata = lazy(permMetadata)
+                    Etag = permEtag
+                }
+            }
+        }
+
         let myProcessor : DocumentProcessor<Guid, MyCountingDoc, EventContext> = {
             GetDocumentKey = (fun (key:Guid) -> "MyCountingDocs/" + key.ToString())
             GetPermDocumentKey = (fun (key:Guid) -> "PermissionDocs/" + key.ToString())
             EventTypes = Seq.singleton typeof<int>
             MatchingKeys = matcher
-            Process = processEvent
-            BeforeWrite = (fun (doc, metadata, etag) ->
-                doc.Writes <- doc.Writes + 1
-                (doc, metadata, etag)
-            )
+            Process = processBatch
+            BeforeWrite = beforeWrite 
             NewDocument = buildNewDoc
         }
 

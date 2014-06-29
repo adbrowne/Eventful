@@ -4,13 +4,6 @@ open Eventful
 
 open Raven.Abstractions.Commands
 
-type DocumentWriteRequest = {
-    DocumentKey : string
-    Document : Lazy<Raven.Json.Linq.RavenJObject>
-    Metadata : Lazy<Raven.Json.Linq.RavenJObject>
-    Etag : Raven.Abstractions.Data.Etag
-}
-
 type BatchWrite = (seq<DocumentWriteRequest> * (bool -> Async<unit>))
 
 module BatchOperations =

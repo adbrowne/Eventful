@@ -10,7 +10,7 @@ type DocumentProcessor<'TKey, 'TDocument, 'TContext> = {
     GetPermDocumentKey : 'TKey -> string
     EventTypes : seq<Type>
     MatchingKeys: SubscriberEvent<'TContext> -> seq<'TKey>
-    Process: 'TKey -> ('TDocument * RavenJObject * Etag) -> SubscriberEvent<'TContext> -> ('TDocument * RavenJObject * Etag)
+    Process: 'TKey -> IDocumentFetcher -> seq<SubscriberEvent<'TContext>> -> Async<seq<DocumentWriteRequest>>
     NewDocument : 'TKey -> ('TDocument * RavenJObject * Etag)
     BeforeWrite : ('TDocument * RavenJObject * Etag) -> ('TDocument * RavenJObject * Etag)
 }

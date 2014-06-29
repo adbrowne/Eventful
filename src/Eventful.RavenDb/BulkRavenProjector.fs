@@ -11,11 +11,6 @@ open Raven.Client
 open Raven.Abstractions.Data
 open Raven.Json.Linq
 
-type ProjectedDocument<'TDocument> = ('TDocument * Raven.Json.Linq.RavenJObject * Raven.Abstractions.Data.Etag)
-
-type IDocumentFetcher =
-    abstract member GetDocument<'TDocument> : string -> Async<ProjectedDocument<'TDocument> option> 
-
 [<CustomEquality; CustomComparison>]
 type UntypedDocumentProcessor<'TContext> = {
     ProcessorKey : string
@@ -73,38 +68,7 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
             let key = untypedKey :?> 'TKey
             let docKey = processor.GetDocumentKey key
             let permDocKey = processor.GetPermDocumentKey key
-            async {
-                let! (doc, metadata, etag) =  
-                    fetcher.GetDocument docKey
-                    |> Async.map (Option.getOrElseF (fun () -> processor.NewDocument key))
-                   
-                let! (permDoc, permMetadata, permEtag) =
-                    fetcher.GetDocument permDocKey
-                    |> Async.map (Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, RavenOperations.emptyMetadata "PermissionDoc", Etag.Empty)))
-
-                let (doc, metadata, etag) = 
-                    events
-                    |> Seq.fold (processor.Process key) (doc, metadata, etag)
-
-                let (doc, metadata, etag) = processor.BeforeWrite (doc, metadata, etag)
-
-                permDoc.Writes <- permDoc.Writes + 1
-
-                return seq {
-                    yield {
-                        DocumentKey = docKey
-                        Document = lazy(RavenJObject.FromObject(doc))
-                        Metadata = lazy(metadata)
-                        Etag = etag
-                    }
-                    yield {
-                        DocumentKey = permDocKey
-                        Document = lazy(RavenJObject.FromObject(permDoc))
-                        Metadata = lazy(permMetadata)
-                        Etag = permEtag
-                    }
-                }
-            }
+            processor.Process key fetcher events
 
         let matchingKeysUntyped event =
             processor.MatchingKeys event
