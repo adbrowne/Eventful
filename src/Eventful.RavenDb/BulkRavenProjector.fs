@@ -80,8 +80,6 @@ type BulkRavenProjector<'TEventContext>
         databaseName: string
     ) =
 
-    let serializer = Raven.Imports.Newtonsoft.Json.JsonSerializer.Create(new Raven.Imports.Newtonsoft.Json.JsonSerializerSettings())
-
     let cache = new MemoryCache("RavenBatchWrite")
 
     let writeBatch _ docs = async {
