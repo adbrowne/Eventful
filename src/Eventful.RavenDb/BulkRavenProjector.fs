@@ -103,7 +103,6 @@ type BulkRavenProjector<'TEventContext>
                 for docResult in batchResult do
                     let (doc, callback) = originalDocMap.[docResult.Key]
                     cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
-                // only one callback per write request
                 true
             | None ->
                 for (docKey, (_, callback)) in originalDocMap |> Map.toSeq do
