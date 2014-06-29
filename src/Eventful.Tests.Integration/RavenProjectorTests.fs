@@ -42,22 +42,11 @@ type UntypedDocumentProcessor = {
     NewDocument: obj -> obj
 }
 
-type DocumentHandler<'TDocument> = ('TDocument -> 'TDocument)
-
-type DocumentHandlerSet<'TKey, 'TDocument> = seq<('TKey * seq<DocumentHandler<'TDocument>>)>
-
-//with 
-//    static member ToUntypedDocumentProcessor (x:DocumentProcessor<'TKey, 'TDocument>) =
-//        let matchWithConversion (eventObj : obj) =
-//            x.Match (eventObj)
-//
-//        let newDocumentWithConversion (key : obj) = (x.NewDocument (key :?> 'TKey)) :> obj
-//
-//        {
-//            UntypedDocumentProcessor.EventTypes = x.EventTypes
-//            Match = matchWithConversion
-//            NewDocument = newDocumentWithConversion
-//        }
+[<CLIMutable>]
+type MyPermissionDoc = {
+    mutable Id : string
+    mutable Writes: int
+}
 
 type CurrentDoc = (MyCountingDoc * RavenJObject * Etag)
 

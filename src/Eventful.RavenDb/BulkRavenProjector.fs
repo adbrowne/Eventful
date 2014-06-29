@@ -46,19 +46,10 @@ module RavenOperations =
                     return Some (doc, metadata, etag)
             }
 
-    let toUntypedProjectedDocument (document, metadata, etag) =
-        (document :> obj, metadata, etag)
-
     let emptyMetadata (entityName : string) = 
         let metadata = new Raven.Json.Linq.RavenJObject()
         metadata.Add("Raven-Entity-Name", new RavenJValue(entityName))
         metadata
-
-[<CLIMutable>]
-type MyPermissionDoc = {
-    mutable Id : string
-    mutable Writes: int
-}
 
 type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TEventContext>>) =
     member x.Items = processors
