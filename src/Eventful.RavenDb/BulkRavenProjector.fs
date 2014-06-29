@@ -29,14 +29,14 @@ with
         member x.CompareTo y = compareOn UntypedDocumentProcessor<'TContext>.Key x y
 
 module RavenOperations =
-    let getDocument (documentStore : Raven.Client.IDocumentStore) (cache : MemoryCache) docKey =
-        let cacheEntry = cache.Get(docKey)
+    let getDocument (documentStore : Raven.Client.IDocumentStore) (cache : MemoryCache) database docKey =
+        let cacheEntry = cache.Get(database + "::" + docKey)
         match cacheEntry with
         | :? ProjectedDocument<_> as doc ->
             async { return Some doc }
         | _ -> 
             async {
-                use session = documentStore.OpenAsyncSession()
+                use session = documentStore.OpenAsyncSession(database)
                 let! doc = session.LoadAsync<_>(docKey) |> Async.AwaitTask
                 if Object.Equals(doc, null) then
                     return None
@@ -76,18 +76,13 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
 type BulkRavenProjector<'TEventContext> 
     (
         documentStore:Raven.Client.IDocumentStore, 
-        processors:ProcessorSet<'TEventContext>
+        processors:ProcessorSet<'TEventContext>,
+        databaseName: string
     ) =
 
     let serializer = Raven.Imports.Newtonsoft.Json.JsonSerializer.Create(new Raven.Imports.Newtonsoft.Json.JsonSerializerSettings())
 
     let cache = new MemoryCache("RavenBatchWrite")
-
-    let fetcher = {
-        new IDocumentFetcher with
-            member x.GetDocument key =
-                RavenOperations.getDocument documentStore cache key
-    }
 
     let writeBatch _ docs = async {
         let originalDocMap = 
@@ -101,7 +96,7 @@ type BulkRavenProjector<'TEventContext>
             )
             |> Map.ofSeq
 
-        let! result = BatchOperations.writeBatch documentStore docs
+        let! result = BatchOperations.writeBatch documentStore databaseName docs
         let writeSuccessful = 
             match result with
             | Some (batchResult, docs) ->
@@ -129,6 +124,12 @@ type BulkRavenProjector<'TEventContext>
     let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TEventContext>) events =
         async { 
             let untypedKey = key :> obj
+
+            let fetcher = {
+                new IDocumentFetcher with
+                    member x.GetDocument key =
+                        RavenOperations.getDocument documentStore cache databaseName key
+            }
 
             let! writeRequests = documentProcessor.Process fetcher untypedKey events
             let (complete, wait) = getPromise()

@@ -59,7 +59,6 @@ module RavenProjectorTests =
     let buildDocumentStore () =
         let documentStore = new Raven.Client.Document.DocumentStore()
         documentStore.Url <- "http://localhost:8080"
-        documentStore.DefaultDatabase <- "tenancy-blue"
         documentStore.Initialize() |> ignore
         documentStore
 
@@ -221,7 +220,7 @@ module RavenProjectorTests =
         }
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
-        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet)
+        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue")
 
         seq {
             yield async {
@@ -233,7 +232,7 @@ module RavenProjectorTests =
             yield! seq {
                 for key in streams do
                     yield (fun () -> async {
-                        use session = documentStore.OpenAsyncSession()
+                        use session = documentStore.OpenAsyncSession("tenancy-blue")
                         let docKey = "MyCountingDocs/" + (key.ToString())
                         let! doc = session.LoadAsync<MyCountingDoc>(docKey) |> Async.AwaitTask
 
@@ -260,7 +259,7 @@ module RavenProjectorTests =
         |> Async.RunSynchronously
 
         async {
-            use session = documentStore.OpenAsyncSession()
+            use session = documentStore.OpenAsyncSession("tenancy-blue")
 
             let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask
             let! permDocs = session.Advanced.LoadStartingWithAsync<MyPermissionDoc>("PermissionDocs/",0, 1024) |> Async.AwaitTask

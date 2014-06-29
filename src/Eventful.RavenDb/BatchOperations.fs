@@ -15,14 +15,14 @@ module BatchOperations =
         cmd.Metadata <- writeRequest.Metadata.Force()
         cmd
         
-    let writeBatch (documentStore : Raven.Client.IDocumentStore) (docs:seq<BatchWrite>) = async {
+    let writeBatch (documentStore : Raven.Client.IDocumentStore) database (docs:seq<BatchWrite>) = async {
         try 
             let! batchResult = 
                 docs
                 |> Seq.collect (fst >> Seq.map buildPutCommand)
                 |> Seq.cast<ICommandData>
                 |> Array.ofSeq
-                |> documentStore.AsyncDatabaseCommands.BatchAsync
+                |> documentStore.AsyncDatabaseCommands.ForDatabase(database).BatchAsync
                 |> Async.AwaitTask
 
             return Some (batchResult, docs)
