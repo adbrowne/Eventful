@@ -187,6 +187,7 @@ module RavenProjectorTests =
 
         let myProcessor : DocumentProcessor<Guid, MyCountingDoc, EventContext> = {
             GetDocumentKey = (fun (key:Guid) -> "MyCountingDocs/" + key.ToString())
+            GetPermDocumentKey = (fun (key:Guid) -> "PermissionDocs/" + key.ToString())
             EventTypes = Seq.singleton typeof<int>
             MatchingKeys = matcher
             Process = processEvent
@@ -240,10 +241,17 @@ module RavenProjectorTests =
             use session = documentStore.OpenAsyncSession()
 
             let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask
+            let! permDocs = session.Advanced.LoadStartingWithAsync<MyPermissionDoc>("PermissionDocs/",0, 1024) |> Async.AwaitTask
+            let permDocs = 
+                permDocs
+                |> Seq.map (fun doc -> (doc.Id, doc.Writes))
+                |> Map.ofSeq
+
             for doc in docs do
                 doc.Count |> should equal 100
                 doc.Foo |> should equal "Bar"
                 doc.Value |> should equal -50
+                doc.Writes |> should equal (permDocs.Item("PermissionDocs/" + doc.Id.ToString()))
             ()
         } |> Async.RunSynchronously
         ()

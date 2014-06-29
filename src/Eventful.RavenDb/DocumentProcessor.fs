@@ -7,6 +7,7 @@ open Raven.Json.Linq
 
 type DocumentProcessor<'TKey, 'TDocument, 'TContext> = {
     GetDocumentKey : 'TKey -> string
+    GetPermDocumentKey : 'TKey -> string
     EventTypes : seq<Type>
     MatchingKeys: SubscriberEvent<'TContext> -> seq<'TKey>
     Process: 'TKey -> ('TDocument * RavenJObject * Etag) -> SubscriberEvent<'TContext> -> ('TDocument * RavenJObject * Etag)

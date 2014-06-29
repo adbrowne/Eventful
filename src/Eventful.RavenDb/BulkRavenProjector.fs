@@ -31,15 +31,15 @@ with
         member x.CompareTo y = compareOn UntypedDocumentProcessor<'TContext>.Key x y
 
 module RavenOperations =
-    let getDocument<'TDocument> (documentStore : Raven.Client.IDocumentStore) (cache : MemoryCache) docKey =
+    let getDocument (documentStore : Raven.Client.IDocumentStore) (cache : MemoryCache) docKey =
         let cacheEntry = cache.Get(docKey)
         match cacheEntry with
-        | :? ProjectedDocument<'TDocument> as doc ->
+        | :? ProjectedDocument<_> as doc ->
             async { return Some doc }
         | _ -> 
             async {
                 use session = documentStore.OpenAsyncSession()
-                let! doc = session.LoadAsync<'TDocument>(docKey) |> Async.AwaitTask
+                let! doc = session.LoadAsync<_>(docKey) |> Async.AwaitTask
                 if Object.Equals(doc, null) then
                     return None
                 else
@@ -51,6 +51,17 @@ module RavenOperations =
     let toUntypedProjectedDocument (document, metadata, etag) =
         (document :> obj, metadata, etag)
 
+    let emptyMetadata (entityName : string) = 
+        let metadata = new Raven.Json.Linq.RavenJObject()
+        metadata.Add("Raven-Entity-Name", new RavenJValue(entityName))
+        metadata
+
+[<CLIMutable>]
+type MyPermissionDoc = {
+    mutable Id : string
+    mutable Writes: int
+}
+
 type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TEventContext>>) =
     member x.Items = processors
     member x.Add<'TKey,'TDocument>(processor:DocumentProcessor<'TKey, 'TDocument, 'TEventContext>) =
@@ -58,11 +69,18 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
         let processUntyped store cache (untypedKey : obj) events =
             let key = untypedKey :?> 'TKey
             let docKey = processor.GetDocumentKey key
+            let permDocKey = processor.GetPermDocumentKey key
             async {
-                let! fetch = RavenOperations.getDocument<'TDocument> store cache docKey
+                let! fetch = RavenOperations.getDocument store cache docKey
+                let! (permDoc : ProjectedDocument<MyPermissionDoc> option) = RavenOperations.getDocument store cache permDocKey
+
                 let (doc, metadata, etag) =  
                     fetch 
                     |> Option.getOrElseF (fun () -> processor.NewDocument key)
+                   
+                let (permDoc, permMetadata, permEtag) =
+                    permDoc
+                    |> Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, RavenOperations.emptyMetadata "PermissionDoc", Etag.Empty))
 
                 let (doc, metadata, etag) = 
                     events
@@ -70,14 +88,22 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
 
                 let (doc, metadata, etag) = processor.BeforeWrite (doc, metadata, etag)
 
-                return 
-                    {
+                permDoc.Writes <- permDoc.Writes + 1
+
+                return seq {
+                    yield {
                         DocumentKey = docKey
                         Document = lazy(RavenJObject.FromObject(doc))
                         Metadata = lazy(metadata)
                         Etag = etag
                     }
-                    |> Seq.singleton
+                    yield {
+                        DocumentKey = permDocKey
+                        Document = lazy(RavenJObject.FromObject(permDoc))
+                        Metadata = lazy(permMetadata)
+                        Etag = permEtag
+                    }
+                }
             }
 
         let matchingKeysUntyped event =
@@ -117,16 +143,21 @@ type BulkRavenProjector<'TEventContext>
             |> Map.ofSeq
 
         let! result = BatchOperations.writeBatch documentStore docs
-        match result with
-        | Some (batchResult, docs) ->
-            for docResult in batchResult do
-                let (doc, callback) = originalDocMap.[docResult.Key]
-                cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
-                do! callback true
-        | None ->
-            for (docKey, (_, callback)) in originalDocMap |> Map.toSeq do
-                cache.Remove(docKey) |> ignore
-                do! callback false
+        let writeSuccessful = 
+            match result with
+            | Some (batchResult, docs) ->
+                for docResult in batchResult do
+                    let (doc, callback) = originalDocMap.[docResult.Key]
+                    cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
+                // only one callback per write request
+                true
+            | None ->
+                for (docKey, (_, callback)) in originalDocMap |> Map.toSeq do
+                    cache.Remove(docKey) |> ignore
+                false
+        
+        for (_, callback) in docs do
+            do! callback writeSuccessful
     }
 
     let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 

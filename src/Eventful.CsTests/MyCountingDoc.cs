@@ -10,4 +10,10 @@ namespace Eventful.CsTests
         public int Writes { get; set; }
         public string Foo { get; set; }
     }
+
+    public class MyPermissionDoc
+    {
+        public Guid Id { get; set; }
+        public int Writes { get; set; }
+    }
 }
