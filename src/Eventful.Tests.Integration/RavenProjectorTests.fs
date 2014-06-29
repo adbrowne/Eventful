@@ -9,6 +9,7 @@ open Raven.Client
 open Eventful
 open Eventful.Raven
 type MyCountingDoc = Eventful.CsTests.MyCountingDoc
+open Eventful.Tests
 
 module Util = 
     let taskToAsync (task:System.Threading.Tasks.Task) =
@@ -50,11 +51,6 @@ type MyPermissionDoc = {
 
 type CurrentDoc = (MyCountingDoc * RavenJObject * Etag)
 
-type EventContext = {
-    Tenancy : string
-    Position : EventPosition
-}
-
 module RavenProjectorTests = 
 
     let buildDocumentStore () =
@@ -90,58 +86,30 @@ module RavenProjectorTests =
 //        | None -> (false |> should equal true)
 
     [<Fact>]
+    let ``Just complete tracking`` () : unit =
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
+        let tracker = new LastCompleteItemAgent2<EventPosition>()
+
+        async {
+            for event in myEvents do
+                do! tracker.Start event.Context.Position
+
+            for event in myEvents do
+                tracker.Complete event.Context.Position
+
+            let! result = tracker.LastComplete ()
+
+            result |> should equal (Some { Commit = 99999L; Prepare = 99999L })
+        } |> Async.RunSynchronously
+        ()
+
+    [<Fact>]
     let ``Pump many events at Raven`` () : unit =
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 
-        let values = [1..100]
-        let streams = [for i in 1 .. 1000 -> Guid.NewGuid()]
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
 
-        let streamValues = 
-            streams
-            |> Seq.map (fun x -> (x,values))
-            |> Map.ofSeq
-
-        let rnd = new Random(1024)
-
-        let rec generateStream (eventPosition, remainingStreams, remainingValues:Map<Guid, int list>) = 
-            match remainingStreams with
-            | [] -> None
-            | _ ->
-                let index = rnd.Next(0, remainingStreams.Length - 1)
-                let blah = List.nth
-                let key =  List.nth remainingStreams index
-                let values = remainingValues |> Map.find key
-
-                match values with
-                | [] -> failwith ("Empty sequence should not happen")
-                | [x] -> 
-                    let beforeIndex = remainingStreams |> List.take index
-                    let afterIndex = remainingStreams |> List.skip (index + 1) 
-                    let remainingStreams' = (beforeIndex @ afterIndex)
-                    let remainingValues' = (remainingValues |> Map.remove key)
-                    let nextValue = (eventPosition, key,x)
-                    let remaining = (eventPosition + 1, remainingStreams', remainingValues')
-                    Some (nextValue, remaining)
-                | x::xs ->
-                    let remainingValues' = (remainingValues |> Map.add key xs)
-                    let nextValue = (eventPosition, key,x)
-                    let remaining = (eventPosition + 1, remainingStreams, remainingValues')
-                    Some (nextValue, remaining)
-
-        let myEvents = 
-            (0, streams, streamValues) 
-            |> Seq.unfold generateStream
-            |> Seq.map (fun (eventPosition, key, value) ->
-                {
-                    Event = (key, value)
-                    Context = { 
-                                Tenancy = "tenancy-blue";
-                                Position = { Commit = int64 eventPosition; Prepare = int64 eventPosition } 
-                              }
-                    StreamId = key.ToString()
-                    EventNumber = 0
-                }
-            )
+        let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
         let processValue (value:int) (docObj:CurrentDoc) =
             let (doc, metadata, etag) = docObj
@@ -263,7 +231,8 @@ module RavenProjectorTests =
         |> Async.RunSynchronously
 
         async {
-            consoleLog <| sprintf "Final Position: %A" (projector.LastComplete())
+            let! lastComplete = projector.LastComplete()
+            consoleLog <| sprintf "Final Position: %A" lastComplete
             use session = documentStore.OpenAsyncSession("tenancy-blue")
 
             let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask

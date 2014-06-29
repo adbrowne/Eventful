@@ -22,6 +22,7 @@ module LastCompleteItemTrackerTests =
     let ``Given started 'a' When competed 'a' Then lastComplete is 'a'`` () : unit =  
         let tracker = LastCompleteItemTracker.Empty
         let result = ((tracker.Start 'a').Complete 'a')
+        let result = result.UpdateLastCompleted()
         result.LastComplete |> should equal (Some 'a')
 
     [<Fact>]
@@ -33,6 +34,7 @@ module LastCompleteItemTrackerTests =
             |> LastCompleteItemTracker.complete 'b'
             |> LastCompleteItemTracker.complete 'a'
 
+        let result = result.UpdateLastCompleted()
         result.LastComplete |> should equal (Some 'b')
 
     let rec insertAt list item index =
@@ -79,6 +81,7 @@ module LastCompleteItemTrackerTests =
                     |> List.max
                     |> int64
                     |> Some
+                let result = result.UpdateLastCompleted()
                 result.LastComplete |> should equal expected
         )
 
@@ -94,6 +97,8 @@ module LastCompleteItemTrackerTests =
                     let (Complete missingValue) = allOperations |> Seq.last
 
                     let result = operations |> List.fold accumulator LastCompleteItemTracker<_>.Empty
+
+                    let result = result.UpdateLastCompleted()
 
                     if missingValue = 1L then
                         result.LastComplete |> should be Null // none shows up as Null in FsUnit

@@ -31,14 +31,17 @@ type LastCompleteItemTracker<'TItem when 'TItem : equality> private
     member x.Complete (item:'TItem) =
         let itemIndex = items |> Map.findKey (fun k v -> v = item)
         let completed' = completed |> Set.add itemIndex
-        let lastCompletedIndex' = getMinimumCompleted completed' lastCompletedIndex
+        new LastCompleteItemTracker<'TItem>(items, completed', lastCompleteItem, lastStartedIndex, lastCompletedIndex)
+
+    member x.UpdateLastCompleted () =
+        let lastCompletedIndex' = getMinimumCompleted completed lastCompletedIndex
         let lastComplete' =
             if lastCompletedIndex' > -1L then
                items |> Map.find lastCompletedIndex' |> Some
             else
                 None
         let items' = items |> Map.filter (fun k v -> k >= lastCompletedIndex')
-        let completed' = completed' |> Set.filter (fun v -> v > lastCompletedIndex')
+        let completed' = completed |> Set.filter (fun v -> v > lastCompletedIndex')
         new LastCompleteItemTracker<'TItem>(items', completed', lastComplete', lastStartedIndex, lastCompletedIndex')
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]

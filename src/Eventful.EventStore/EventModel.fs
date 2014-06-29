@@ -119,13 +119,13 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
         completeTracker.Complete position
     }
 
-    let updatePosition _ =
-        let lastComplete = completeTracker.LastComplete()
+    let updatePosition _ = async {
+        let! lastComplete = completeTracker.LastComplete()
         log <| sprintf "Updating position %A" lastComplete
         match lastComplete with
         | Some position ->
             ProcessingTracker.setPosition client position |> Async.RunSynchronously
-        | None -> ()
+        | None -> () }
 
     let queue = new WorktrackingQueue<_,_>(groupMessageIntoStream, processMessages, 1000, 10, eventComplete)
 
@@ -146,7 +146,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
                                         return Nullable(nextPosition) }
 
         let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
-        timer <- new System.Threading.Timer(updatePosition, null, TimeSpan.Zero, timeBetweenPositionSaves)
+        timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
         subscription <- client.subscribe position x.EventAppeared }
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
@@ -193,4 +193,4 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
             else
                 ()
             
-            updatePosition ()
+            updatePosition () |> Async.RunSynchronously

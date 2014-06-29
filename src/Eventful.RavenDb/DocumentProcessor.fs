@@ -1,7 +1,7 @@
 ﻿namespace Eventful.Raven
 
 open System
-
+open Eventful
 open Raven.Abstractions.Data
 open Raven.Json.Linq
 

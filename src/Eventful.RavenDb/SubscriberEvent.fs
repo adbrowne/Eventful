@@ -12,9 +12,3 @@ type DocumentWriteRequest = {
     Etag : Raven.Abstractions.Data.Etag
 }
 
-type SubscriberEvent<'TContext> = {
-    Event : obj
-    Context : 'TContext
-    StreamId : string
-    EventNumber: int
-}
