@@ -13,10 +13,13 @@ open Raven.Json.Linq
 
 type ProjectedDocument<'TDocument> = ('TDocument * Raven.Json.Linq.RavenJObject * Raven.Abstractions.Data.Etag)
 
+type IDocumentFetcher =
+    abstract member GetDocument<'TDocument> : string -> Async<ProjectedDocument<'TDocument> option> 
+
 [<CustomEquality; CustomComparison>]
 type UntypedDocumentProcessor<'TContext> = {
     ProcessorKey : string
-    Process : Raven.Client.IDocumentStore -> MemoryCache -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<DocumentWriteRequest>>
+    Process : IDocumentFetcher -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<DocumentWriteRequest>>
     MatchingKeys: SubscriberEvent<'TContext> -> seq<IComparable>
 }
 with
@@ -66,21 +69,18 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
     member x.Items = processors
     member x.Add<'TKey,'TDocument>(processor:DocumentProcessor<'TKey, 'TDocument, 'TEventContext>) =
         
-        let processUntyped store cache (untypedKey : obj) events =
+        let processUntyped (fetcher:IDocumentFetcher) (untypedKey : obj) events =
             let key = untypedKey :?> 'TKey
             let docKey = processor.GetDocumentKey key
             let permDocKey = processor.GetPermDocumentKey key
             async {
-                let! fetch = RavenOperations.getDocument store cache docKey
-                let! (permDoc : ProjectedDocument<MyPermissionDoc> option) = RavenOperations.getDocument store cache permDocKey
-
-                let (doc, metadata, etag) =  
-                    fetch 
-                    |> Option.getOrElseF (fun () -> processor.NewDocument key)
+                let! (doc, metadata, etag) =  
+                    fetcher.GetDocument docKey
+                    |> Async.map (Option.getOrElseF (fun () -> processor.NewDocument key))
                    
-                let (permDoc, permMetadata, permEtag) =
-                    permDoc
-                    |> Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, RavenOperations.emptyMetadata "PermissionDoc", Etag.Empty))
+                let! (permDoc, permMetadata, permEtag) =
+                    fetcher.GetDocument permDocKey
+                    |> Async.map (Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, RavenOperations.emptyMetadata "PermissionDoc", Etag.Empty)))
 
                 let (doc, metadata, etag) = 
                     events
@@ -130,6 +130,12 @@ type BulkRavenProjector<'TEventContext>
 
     let cache = new MemoryCache("RavenBatchWrite")
 
+    let fetcher = {
+        new IDocumentFetcher with
+            member x.GetDocument key =
+                RavenOperations.getDocument documentStore cache key
+    }
+
     let writeBatch _ docs = async {
         let originalDocMap = 
             docs
@@ -171,9 +177,7 @@ type BulkRavenProjector<'TEventContext>
         async { 
             let untypedKey = key :> obj
 
-            // doc.Writes <- doc.Writes + 1
-
-            let! writeRequests = documentProcessor.Process documentStore cache untypedKey events
+            let! writeRequests = documentProcessor.Process fetcher untypedKey events
             let (complete, wait) = getPromise()
                 
             do! writeQueue.Add(writeRequests, complete)
