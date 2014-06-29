@@ -77,7 +77,8 @@ type BulkRavenProjector<'TEventContext>
     (
         documentStore:Raven.Client.IDocumentStore, 
         processors:ProcessorSet<'TEventContext>,
-        databaseName: string
+        databaseName: string,
+        getPosition:'TEventContext -> EventPosition
     ) =
 
     let cache = new MemoryCache("RavenBatchWrite")
@@ -153,10 +154,23 @@ type BulkRavenProjector<'TEventContext>
             x.MatchingKeys event
             |> Seq.map (fun k9 -> (k9, x)))
         |> Set.ofSeq
+    
+    let tracker = new LastCompleteItemAgent<EventPosition>()
 
-    let queue = new WorktrackingQueue<(IComparable * UntypedDocumentProcessor<_>), SubscriberEvent<'TEventContext>>(grouper, processEvent, 10000, 10);
+    let eventComplete (event:SubscriberEvent<'TEventContext>) =
+        let position = getPosition event.Context
+        async {
+            tracker.Complete(position)
+        }
+
+    let queue = new WorktrackingQueue<(IComparable * UntypedDocumentProcessor<_>), SubscriberEvent<'TEventContext>>(grouper, processEvent, 10000, 10, eventComplete);
+
+    member x.LastComplete = tracker.LastComplete
 
     member x.Enqueue subscriberEvent =
-       queue.Add subscriberEvent
+        async {
+            do! subscriberEvent.Context |> getPosition |> tracker.Start 
+            do! queue.Add subscriberEvent
+        }
    
     member x.WaitAll = queue.AsyncComplete

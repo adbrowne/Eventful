@@ -52,6 +52,7 @@ type CurrentDoc = (MyCountingDoc * RavenJObject * Etag)
 
 type EventContext = {
     Tenancy : string
+    Position : EventPosition
 }
 
 module RavenProjectorTests = 
@@ -102,7 +103,7 @@ module RavenProjectorTests =
 
         let rnd = new Random(1024)
 
-        let rec generateStream (remainingStreams, remainingValues:Map<Guid, int list>) = 
+        let rec generateStream (eventPosition, remainingStreams, remainingValues:Map<Guid, int list>) = 
             match remainingStreams with
             | [] -> None
             | _ ->
@@ -118,22 +119,25 @@ module RavenProjectorTests =
                     let afterIndex = remainingStreams |> List.skip (index + 1) 
                     let remainingStreams' = (beforeIndex @ afterIndex)
                     let remainingValues' = (remainingValues |> Map.remove key)
-                    let nextValue = (key,x)
-                    let remaining = (remainingStreams', remainingValues')
+                    let nextValue = (eventPosition, key,x)
+                    let remaining = (eventPosition + 1, remainingStreams', remainingValues')
                     Some (nextValue, remaining)
                 | x::xs ->
                     let remainingValues' = (remainingValues |> Map.add key xs)
-                    let nextValue = (key,x)
-                    let remaining = (remainingStreams, remainingValues')
+                    let nextValue = (eventPosition, key,x)
+                    let remaining = (eventPosition + 1, remainingStreams, remainingValues')
                     Some (nextValue, remaining)
 
         let myEvents = 
-            (streams, streamValues) 
+            (0, streams, streamValues) 
             |> Seq.unfold generateStream
-            |> Seq.map (fun (key, value) ->
+            |> Seq.map (fun (eventPosition, key, value) ->
                 {
                     Event = (key, value)
-                    Context = { Tenancy = "tenancy-blue" }
+                    Context = { 
+                                Tenancy = "tenancy-blue";
+                                Position = { Commit = int64 eventPosition; Prepare = int64 eventPosition } 
+                              }
                     StreamId = key.ToString()
                     EventNumber = 0
                 }
@@ -220,7 +224,7 @@ module RavenProjectorTests =
         }
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
-        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue")
+        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position))
 
         seq {
             yield async {
@@ -259,6 +263,7 @@ module RavenProjectorTests =
         |> Async.RunSynchronously
 
         async {
+            consoleLog <| sprintf "Final Position: %A" (projector.LastComplete())
             use session = documentStore.OpenAsyncSession("tenancy-blue")
 
             let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask
