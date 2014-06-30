@@ -186,7 +186,7 @@ module RavenProjectorTests =
         }
 
         let myProcessor : DocumentProcessor<Guid, MyCountingDoc, EventContext> = {
-            EventTypes = Seq.singleton typeof<int>
+            EventTypes = Seq.singleton typeof<(Guid * int)>
             MatchingKeys = matcher
             Process = processBatch
         }
