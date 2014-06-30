@@ -88,7 +88,7 @@ module RavenProjectorTests =
     [<Fact>]
     let ``Just complete tracking`` () : unit =
         let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
-        let tracker = new LastCompleteItemAgent2<EventPosition>()
+        let tracker = new LastCompleteItemAgent<EventPosition>()
 
         async {
             for event in myEvents do
