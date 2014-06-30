@@ -192,7 +192,7 @@ module RavenProjectorTests =
         }
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
-        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 10000, 10)
+        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10)
 
         seq {
             yield async {
