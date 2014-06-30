@@ -119,7 +119,7 @@ type BulkRavenProjector<'TEventContext>
             do! callback writeSuccessful
     }
 
-    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, maxQueueSize, workers) 
+    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
@@ -174,7 +174,7 @@ type BulkRavenProjector<'TEventContext>
         }
 
     let queue = 
-        let x = new WorktrackingQueue<_,_>(grouper, processEvent, 200000, 10, eventComplete);
+        let x = new WorktrackingQueue<_,_>(grouper, processEvent, maxQueueSize, workers, eventComplete);
         x.StopWork()
         x
 
