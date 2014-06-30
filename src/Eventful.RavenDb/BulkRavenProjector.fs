@@ -155,10 +155,10 @@ type BulkRavenProjector<'TEventContext>
         do! loop ()
     }
 
-    let grouper event =
+    let grouper (event : SubscriberEvent<'TEventContext>) =
         processors.Items
         |> Seq.collect (fun x -> 
-            if x.EventTypes.Contains(event.GetType()) then
+            if x.EventTypes.Contains(event.Event.GetType()) then
                 x.MatchingKeys event
                 |> Seq.map (fun k9 -> (k9, x))
             else 
