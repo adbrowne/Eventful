@@ -11,11 +11,14 @@ open Raven.Client
 open Raven.Abstractions.Data
 open Raven.Json.Linq
 
+type HashSet<'T> = System.Collections.Generic.HashSet<'T>
+
 [<CustomEquality; CustomComparison>]
 type UntypedDocumentProcessor<'TContext> = {
     ProcessorKey : string
     Process : IDocumentFetcher -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<DocumentWriteRequest>>
     MatchingKeys: SubscriberEvent<'TContext> -> seq<IComparable>
+    EventTypes : HashSet<Type>
 }
 with
     static member Key p = 
@@ -67,9 +70,11 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
             ProcessorKey = "ProcessorFor: " + typeof<'TDocument>.FullName
             Process = processUntyped
             MatchingKeys = matchingKeysUntyped
+            EventTypes = new HashSet<Type>(processor.EventTypes)
         }
 
-        new ProcessorSet<'TEventContext>(untypedProcessor::processors)
+        let processors' = untypedProcessor::processors
+        new ProcessorSet<'TEventContext>(processors')
 
     static member Empty = new ProcessorSet<'TEventContext>(List.empty)
 
@@ -78,7 +83,9 @@ type BulkRavenProjector<'TEventContext>
         documentStore:Raven.Client.IDocumentStore, 
         processors:ProcessorSet<'TEventContext>,
         databaseName: string,
-        getPosition:'TEventContext -> EventPosition
+        getPosition:'TEventContext -> EventPosition,
+        maxQueueSize : int,
+        workers: int
     ) =
 
     let cache = new MemoryCache("RavenBatchWrite")
@@ -112,7 +119,7 @@ type BulkRavenProjector<'TEventContext>
             do! callback writeSuccessful
     }
 
-    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 
+    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, maxQueueSize, workers) 
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
@@ -151,8 +158,11 @@ type BulkRavenProjector<'TEventContext>
     let grouper event =
         processors.Items
         |> Seq.collect (fun x -> 
-            x.MatchingKeys event
-            |> Seq.map (fun k9 -> (k9, x)))
+            if x.EventTypes.Contains(event.GetType()) then
+                x.MatchingKeys event
+                |> Seq.map (fun k9 -> (k9, x))
+            else 
+                Seq.empty)
         |> Set.ofSeq
     
     let tracker = new LastCompleteItemAgent2<EventPosition>()
