@@ -98,7 +98,7 @@ type BulkRavenProjector<'TEventContext>
                 Seq.empty)
         |> Set.ofSeq
     
-    let tracker = new LastCompleteItemAgent<EventPosition>()
+    let tracker = new LastCompleteItemAgent2<EventPosition>()
 
     let eventComplete (event:SubscriberEvent<'TEventContext>) =
         let position = getPosition event.Context
