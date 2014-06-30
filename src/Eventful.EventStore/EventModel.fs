@@ -6,16 +6,20 @@ open EventStore.ClientAPI
 open Eventful
 open FSharp.Control
 open FSharp.Data
+open FSharpx
 
 type Message = 
-|    Event of (obj * Map<string,seq<(string *  IStateBuilder<obj,obj> * (obj -> seq<obj>))>> * Position)
+|    Event of (obj * Map<string,seq<(string *  IStateBuilder<obj,obj> * (obj -> seq<obj>))>> * EventPosition)
 
 type EventModel (connection : IEventStoreConnection, config : EventProcessingConfiguration, serializer : ISerializer) =
+    let toGesPosition position = new EventStore.ClientAPI.Position(position.Commit, position.Prepare)
+    let toEventfulPosition (position : Position) = { Commit = position.CommitPosition; Prepare = position.PreparePosition }
+
     let log (msg : string) = Console.WriteLine(msg)
 
     let client = new Client(connection)
 
-    let completeTracker = new LastCompleteItemAgent<Position>()
+    let completeTracker = new LastCompleteItemAgent<EventPosition>()
 
     let groupMessageIntoStream message =
         match message with
@@ -115,7 +119,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
     }
 
     let eventComplete (event : Message) = async { 
-        let (Event (_,_,position : Position)) = event
+        let (Event (_,_,position : EventPosition)) = event
         completeTracker.Complete position
     }
 
@@ -136,7 +140,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
         completeTracker.LastComplete
 
     member x.Start () =  async {
-        let! position = ProcessingTracker.readPosition client
+        let! position = ProcessingTracker.readPosition client |> Async.map (Option.map toGesPosition)
         let! nullablePosition = match position with
                                 | Some position -> async { return  Nullable(position) }
                                 | None -> 
@@ -155,7 +159,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
         async {
             match config.EventHandlers |> Map.tryFind event.Event.EventType with
             | Some (t,handlers) ->
-                let position = event.OriginalPosition.Value
+                let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
                 do! completeTracker.Start position
                 let evt = serializer.DeserializeObj (event.Event.Data) t
                 let processList = 
@@ -167,7 +171,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
 
                 do! queue.Add <| Event (evt, processList, position)
             | None ->
-                let position = event.OriginalPosition.Value
+                let position = event.OriginalPosition.Value |> toEventfulPosition
                 do! completeTracker.Start position
                 completeTracker.Complete position
         }

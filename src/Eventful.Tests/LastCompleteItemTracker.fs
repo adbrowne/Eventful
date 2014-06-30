@@ -14,28 +14,29 @@ open Eventful.Tests
 module LastCompleteItemTrackerTests = 
     [<Fact>]
     let ``Given empty When started Then lastComplete is None`` () : unit =  
-        let tracker = LastCompleteItemTracker.Empty
-        let result = tracker.Start 'a'
-        result.LastComplete |> should be Null // none shows up as Null in FsUnit
+        let tracker = LastCompleteZipper.empty<Char>
+        let result = tracker |> LastCompleteZipper.start 'a'
+        result.lastCompleteItem |> should be Null // none shows up as Null in FsUnit
 
     [<Fact>]
     let ``Given started 'a' When competed 'a' Then lastComplete is 'a'`` () : unit =  
-        let tracker = LastCompleteItemTracker.Empty
-        let result = ((tracker.Start 'a').Complete 'a')
-        let result = result.UpdateLastCompleted()
-        result.LastComplete |> should equal (Some 'a')
+        let tracker = LastCompleteZipper.empty<Char>
+        let result = 
+            tracker
+            |> LastCompleteZipper.start 'a'
+            |> LastCompleteZipper.complete 'a'
+        result.lastCompleteItem |> should equal (Some 'a')
 
     [<Fact>]
     let ``Given [start 'a'; start 'b'; complete 'b'] When complete 'b' Then lastComplete is 'b'`` () : unit =  
         let result = 
-            LastCompleteItemTracker.Empty
-            |> LastCompleteItemTracker.start 'a'
-            |> LastCompleteItemTracker.start 'b'
-            |> LastCompleteItemTracker.complete 'b'
-            |> LastCompleteItemTracker.complete 'a'
+            LastCompleteZipper.empty<Char>
+            |> LastCompleteZipper.start 'a'
+            |> LastCompleteZipper.start 'b'
+            |> LastCompleteZipper.complete 'b'
+            |> LastCompleteZipper.complete 'a'
 
-        let result = result.UpdateLastCompleted()
-        result.LastComplete |> should equal (Some 'b')
+        result.lastCompleteItem |> should equal (Some 'b')
 
     let rec insertAt list item index =
         match (index, list) with
@@ -59,19 +60,19 @@ module LastCompleteItemTrackerTests =
         override x.Generator = allCompleteOperationsGen
         override x.Shrinker t = Seq.empty }
 
-    let accumulator (acc : LastCompleteItemTracker<_>) op =
+    let accumulator (acc : LastCompleteZipper<_>) op =
         match op with
-        | Start value -> acc |> LastCompleteItemTracker.start value
-        | Complete value -> acc |> LastCompleteItemTracker.complete value 
+        | Start value -> acc |> LastCompleteZipper.start value
+        | Complete value -> acc |> LastCompleteZipper.complete value 
 
     [<Property>]
     let ``When all items complete last complete is equal to the maximum item`` () =
         forAll allCompleteOperations (fun (operations : Item list) -> 
 
-            let result = operations |> List.fold accumulator LastCompleteItemTracker<_>.Empty
+            let result = operations |> List.fold accumulator LastCompleteZipper.empty<_>
 
             if (operations.IsEmpty) then 
-                result.LastComplete |> should be Null // none shows up as Null in FsUnit
+                result.lastCompleteItem |> should be Null // none shows up as Null in FsUnit
             else
                 let expected = 
                     operations
@@ -81,8 +82,7 @@ module LastCompleteItemTrackerTests =
                     |> List.max
                     |> int64
                     |> Some
-                let result = result.UpdateLastCompleted()
-                result.LastComplete |> should equal expected
+                result.lastCompleteItem |> should equal expected
         )
 
 
@@ -96,12 +96,10 @@ module LastCompleteItemTrackerTests =
                     // last item must be a complete in a valid sequence
                     let (Complete missingValue) = allOperations |> Seq.last
 
-                    let result = operations |> List.fold accumulator LastCompleteItemTracker<_>.Empty
-
-                    let result = result.UpdateLastCompleted()
+                    let result = operations |> List.fold accumulator LastCompleteZipper.empty<_>
 
                     if missingValue = 1L then
-                        result.LastComplete |> should be Null // none shows up as Null in FsUnit
+                        result.lastCompleteItem |> should be Null // none shows up as Null in FsUnit
                     else
-                        result.LastComplete |> should equal (Some (missingValue - 1L))
+                        result.lastCompleteItem |> should equal (Some (missingValue - 1L))
         )

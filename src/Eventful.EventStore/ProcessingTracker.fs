@@ -4,6 +4,7 @@ open System
 open System.Text
 open FSharp.Data
 open EventStore.ClientAPI
+open Eventful
 
 module ProcessingTracker = 
     let positionStream = "EventStoreProcessPosition"
@@ -19,16 +20,16 @@ module ProcessingTracker =
             | JsonValue.Record [| 
                                  "commitPosition", JsonValue.Number commitPosition 
                                  "preparePosition", JsonValue.Number preparePosition |] -> 
-                return Some (new Position(int64 commitPosition, int64 preparePosition))
+                return Some { Commit = int64 commitPosition; Prepare = int64 preparePosition}
             | _ -> return raise (new Exception(sprintf "malformed position metadata %s" positionStream))
         | None -> return None
     }
 
-    let setPosition (client : Client) (position : Position) = async {
+    let setPosition (client : Client) (position : EventPosition) = async {
         let jsonBytes =
             [|  
-                ("commitPosition", JsonValue.Number (decimal position.CommitPosition))
-                ("preparePosition", JsonValue.Number (decimal position.PreparePosition))
+                ("commitPosition", JsonValue.Number (decimal position.Commit))
+                ("preparePosition", JsonValue.Number (decimal position.Prepare))
             |]
             |> FSharp.Data.JsonValue.Record
             |> (fun x -> x.ToString())

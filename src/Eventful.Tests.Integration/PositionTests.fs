@@ -18,11 +18,11 @@ module PositionTests =
             let! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
-            do! ProcessingTracker.setPosition client (new Position(commitPosition, preparePosition))
+            do! ProcessingTracker.setPosition client { Commit = commitPosition; Prepare = preparePosition}
 
             let! position = ProcessingTracker.readPosition client
 
             match position with
-            | Some p when p.CommitPosition = commitPosition && p.PreparePosition = preparePosition -> Assert.True(true)
+            | Some { Commit = commit; Prepare = prepare } when commit = commitPosition && prepare = preparePosition -> Assert.True(true)
             | p -> Assert.True(false, (sprintf "Unexpected position %A" p))
         } |> Async.RunSynchronously
