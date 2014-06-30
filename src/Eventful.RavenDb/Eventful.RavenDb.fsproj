@@ -61,6 +61,8 @@
     <Compile Include="SubscriberEvent.fs" />
     <Compile Include="DocumentProcessor.fs" />
     <Compile Include="BatchOperations.fs" />
+    <Compile Include="ProcessorSet.fs" />
+    <Compile Include="RavenOperations.fs" />
     <Compile Include="BulkRavenProjector.fs" />
   </ItemGroup>
   <ItemGroup>

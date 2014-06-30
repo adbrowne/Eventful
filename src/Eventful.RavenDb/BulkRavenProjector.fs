@@ -11,73 +11,6 @@ open Raven.Client
 open Raven.Abstractions.Data
 open Raven.Json.Linq
 
-type HashSet<'T> = System.Collections.Generic.HashSet<'T>
-
-[<CustomEquality; CustomComparison>]
-type UntypedDocumentProcessor<'TContext> = {
-    ProcessorKey : string
-    Process : IDocumentFetcher -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<DocumentWriteRequest>>
-    MatchingKeys: SubscriberEvent<'TContext> -> seq<IComparable>
-    EventTypes : HashSet<Type>
-}
-with
-    static member Key p = 
-        let {ProcessorKey = key } = p
-        key
-    override x.Equals(y) = 
-        equalsOn UntypedDocumentProcessor<'TContext>.Key x y
-    override x.GetHashCode() = 
-        hashOn UntypedDocumentProcessor<'TContext>.Key x
-    interface System.IComparable with 
-        member x.CompareTo y = compareOn UntypedDocumentProcessor<'TContext>.Key x y
-
-module RavenOperations =
-    let getDocument (documentStore : Raven.Client.IDocumentStore) (cache : MemoryCache) database docKey =
-        let cacheEntry = cache.Get(database + "::" + docKey)
-        match cacheEntry with
-        | :? ProjectedDocument<_> as doc ->
-            async { return Some doc }
-        | _ -> 
-            async {
-                use session = documentStore.OpenAsyncSession(database)
-                let! doc = session.LoadAsync<_>(docKey) |> Async.AwaitTask
-                if Object.Equals(doc, null) then
-                    return None
-                else
-                    let etag = session.Advanced.GetEtagFor(doc)
-                    let metadata = session.Advanced.GetMetadataFor(doc)
-                    return Some (doc, metadata, etag)
-            }
-
-    let emptyMetadata (entityName : string) = 
-        let metadata = new Raven.Json.Linq.RavenJObject()
-        metadata.Add("Raven-Entity-Name", new RavenJValue(entityName))
-        metadata
-
-type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TEventContext>>) =
-    member x.Items = processors
-    member x.Add<'TKey,'TDocument>(processor:DocumentProcessor<'TKey, 'TDocument, 'TEventContext>) =
-        
-        let processUntyped (fetcher:IDocumentFetcher) (untypedKey : obj) events =
-            let key = untypedKey :?> 'TKey
-            processor.Process key fetcher events
-
-        let matchingKeysUntyped event =
-            processor.MatchingKeys event
-            |> Seq.cast<IComparable>
-
-        let untypedProcessor = {
-            ProcessorKey = "ProcessorFor: " + typeof<'TDocument>.FullName
-            Process = processUntyped
-            MatchingKeys = matchingKeysUntyped
-            EventTypes = new HashSet<Type>(processor.EventTypes)
-        }
-
-        let processors' = untypedProcessor::processors
-        new ProcessorSet<'TEventContext>(processors')
-
-    static member Empty = new ProcessorSet<'TEventContext>(List.empty)
-
 type BulkRavenProjector<'TEventContext> 
     (
         documentStore:Raven.Client.IDocumentStore, 
@@ -179,6 +112,8 @@ type BulkRavenProjector<'TEventContext>
         x
 
     member x.LastComplete = tracker.LastComplete
+
+    member x.DatabaseName = databaseName
 
     member x.Enqueue subscriberEvent =
         async {
