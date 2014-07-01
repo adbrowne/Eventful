@@ -17,8 +17,10 @@ type BulkRavenProjector<'TEventContext>
         processors:ProcessorSet<'TEventContext>,
         databaseName: string,
         getPosition:'TEventContext -> EventPosition,
-        maxQueueSize : int,
-        workers: int
+        maxEventQueueSize : int,
+        eventWorkers: int,
+        maxWriterQueueSize: int,
+        writerWorkers: int
     ) =
 
     let cache = new MemoryCache("RavenBatchWrite")
@@ -52,7 +54,7 @@ type BulkRavenProjector<'TEventContext>
             do! callback writeSuccessful
     }
 
-    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, 10000, 10) 
+    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, maxWriterQueueSize, writerWorkers) 
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
@@ -107,7 +109,7 @@ type BulkRavenProjector<'TEventContext>
         }
 
     let queue = 
-        let x = new WorktrackingQueue<_,_>(grouper, processEvent, maxQueueSize, workers, eventComplete);
+        let x = new WorktrackingQueue<_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
         x.StopWork()
         x
 
