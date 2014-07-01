@@ -59,17 +59,15 @@ type BulkRavenProjector<'TEventContext>
         let complete  = fun success -> async { tcs.SetResult(success) }
         (complete, Async.AwaitTask tcs.Task)
         
-    let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TEventContext>) events =
+    let tryEvent (key : KeyProcessor<IComparable,'TEventContext>, documentProcessor : UntypedDocumentProcessor<'TEventContext>) events =
         async { 
-            let untypedKey = key :> obj
-
             let fetcher = {
                 new IDocumentFetcher with
                     member x.GetDocument key =
                         RavenOperations.getDocument documentStore cache databaseName key
             }
 
-            let! writeRequests = documentProcessor.Process fetcher untypedKey events
+            let! writeRequests = key.Process fetcher events
             let (complete, wait) = getPromise()
                 
             do! writeQueue.Add(writeRequests, complete)
@@ -92,13 +90,15 @@ type BulkRavenProjector<'TEventContext>
         processors.Items
         |> Seq.collect (fun x -> 
             if x.EventTypes.Contains(event.Event.GetType()) then
-                x.MatchingKeys event
-                |> Seq.map (fun k9 -> (k9, x))
+                let result = 
+                    x.MatchingKeys event
+                    |> Seq.map (fun k9 -> (k9, x))
+                result
             else 
                 Seq.empty)
         |> Set.ofSeq
     
-    let tracker = new LastCompleteItemAgent<EventPosition>()
+    let tracker = new LastCompleteItemAgent2<EventPosition>()
 
     let eventComplete (event:SubscriberEvent<'TEventContext>) =
         let position = getPosition event.Context
