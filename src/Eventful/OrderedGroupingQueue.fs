@@ -1,7 +1,6 @@
 ﻿namespace Eventful
 
 open FSharpx.Collections
-open metrics
 
 type GroupAgentMessages<'TGroup, 'TItem> = 
 | Enqueue of (int64 * 'TItem)
@@ -73,7 +72,6 @@ type GroupsCompleteTracker<'TGroup, 'TItem when 'TGroup : comparison> private (t
 type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>(?maxItems) =
 
     let log = Common.Logging.LogManager.GetLogger(typeof<OrderedGroupingQueue<_,_>>)
-    let queuedCounter = metrics.Metrics.Meter(typeof<OrderedGroupingQueue<_,_>>, "QueuedEvent", "QueuedEvents", TimeUnit.Seconds)
     let maxItems =
         match maxItems with
         | Some v -> v
@@ -207,7 +205,6 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>(?maxItems)
 
         let rec run(groupAgents) = async {
             let! (itemIndex, item, groups, onCompleteCallback) = agent.Receive()
-            queuedCounter.Mark()
             let newGroupAgents = groups |> Set.fold ensureGroupAgent groupAgents
             completionAgent.Post (ItemStart (itemIndex, onCompleteCallback, groups))
             workQueueAgent.Post(ItemGroups(itemIndex, groups))

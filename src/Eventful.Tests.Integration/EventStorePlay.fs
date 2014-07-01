@@ -4,13 +4,10 @@
         open Eventful
         open Xunit
         open EventStore.ClientAPI
-        open metrics
 
         type TestType = TestType
         [<Fact>]
         let ``Play eventstore events without queue`` () : unit = 
-            let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
-            Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
             async {
                 printfn "Started"
                 let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
@@ -27,7 +24,6 @@
                 let count = ref 0
                 let eventAppeared (event:ResolvedEvent) = 
                     System.Threading.Interlocked.Increment(count) |> ignore
-                    eventsMeter.Mark()
 
                 connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event), (fun subscription -> tcs.SetResult ())) |> ignore
 
@@ -40,8 +36,6 @@
 
         [<Fact>]
         let ``Read every stream as we run the events`` () : unit = 
-            let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
-            Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
             async {
                 printfn "Started"
                 let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
@@ -66,7 +60,6 @@
                     async {
                         do! connection.ReadStreamEventsForwardAsync(event.OriginalStreamId, 0, 1000, false) |> Async.AwaitTask |> Async.Ignore
                     } |> Async.Start
-                    eventsMeter.Mark()
 
                 connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event), (fun subscription -> tcs.SetResult ())) |> ignore
 
@@ -81,8 +74,6 @@
 
         [<Fact>]
         let ``Play eventstore events to null agent`` () : unit = 
-            let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
-            Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
             async {
                 printfn "Started"
                 let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
@@ -107,7 +98,6 @@
                 let sw = System.Diagnostics.Stopwatch.StartNew()
                 let eventAppeared (event:ResolvedEvent) = 
                     agent.PostAndAsyncReply((fun ch -> ch)) |> Async.RunSynchronously
-                    eventsMeter.Mark()
 
                 connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event), (fun subscription -> tcs.SetResult ())) |> ignore
 
@@ -120,9 +110,6 @@
 
         [<Fact>]
         let ``Play eventstore events through work tracking queue`` () : unit = 
-            let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
-            Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
-
             let getStreamId (recordedEvent : ResolvedEvent) =
                 recordedEvent.OriginalStreamId
 
@@ -160,7 +147,6 @@
                         async {
                             do! queue.Add event 
                         } |> Async.RunSynchronously
-                        eventsMeter.Mark()
 
                 connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event), (fun subscription -> tcs.SetResult ())) |> ignore
 
@@ -176,9 +162,6 @@
 
         [<Fact>]
         let ``Play eventstore events through grouping queue`` () : unit = 
-            let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
-            Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
-
             let queue = new GroupingBoundedQueue<string, RecordedEvent, unit>(100000)
 
             let worker () = 
@@ -209,7 +192,6 @@
                 connection.Connect()
                 let eventAppeared (event:ResolvedEvent) = 
                     queue.AsyncAdd (event.OriginalStreamId, event.Event) |> Async.RunSynchronously
-                    eventsMeter.Mark()
 
                 connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event)) |> ignore        
 

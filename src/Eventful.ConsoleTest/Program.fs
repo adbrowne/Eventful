@@ -3,14 +3,11 @@
 
 open Eventful
 open EventStore.ClientAPI
-open metrics
 
 type TestType = TestType
 
 [<EntryPoint>]
 let main argv = 
-    let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)
-    Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
 
     let getStreamId (recordedEvent : ResolvedEvent) =
         recordedEvent.OriginalStreamId
@@ -49,7 +46,6 @@ let main argv =
                 async {
                     do! queue.Add event 
                 } |> Async.RunSynchronously
-                eventsMeter.Mark()
 
         connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event), (fun subscription -> tcs.SetResult ())) |> ignore
 

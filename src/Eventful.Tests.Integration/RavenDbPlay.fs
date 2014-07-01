@@ -5,7 +5,6 @@ module RavenDbPlay =
     open Raven.Client.Document
     open Raven.Abstractions.Commands
     open Raven.Json.Linq
-    open metrics
 
     type TestType = TestType
 
@@ -19,9 +18,6 @@ module RavenDbPlay =
 
     [<Fact>]
     let ``Insert bulk documents`` () : unit = 
-        let eventsMeter = Metrics.Meter(typeof<TestType>, "insert", "inserts", TimeUnit.Seconds)
-        Metrics.EnableConsoleReporting(10L, TimeUnit.Seconds)
-
         use store = new DocumentStore(Url = "http://localhost:8080")
         store.Initialize() |> ignore
 
@@ -41,7 +37,6 @@ module RavenDbPlay =
                 use dbStuff = store.AsyncDatabaseCommands.ForDatabase("BulkTestDb")
                 let! result = dbStuff.BatchAsync([1..500] |> List.map createPutCmd |> List.toArray) |> Async.AwaitTask
                 let! result = dbStuff.BatchAsync([1..500] |> List.map createPutCmd |> List.toArray) |> Async.AwaitTask
-                eventsMeter.Mark 1000L
                 ()
             } 
 
