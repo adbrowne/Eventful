@@ -10,6 +10,8 @@ type EventContext = {
     Position : EventPosition
 }
 
+type Dictionary<'Key,'Value> = System.Collections.Generic.Dictionary<'Key,'Value>
+
 module TestEventStream =
     let sequentialNumbers streamCount valuesPerStreamCount = 
 
@@ -19,37 +21,33 @@ module TestEventStream =
         let streamValues = 
             streams
             |> Seq.map (fun x -> (x,values))
-            |> Map.ofSeq
+
+        let dictionary = new Dictionary<Guid, int list>()
+        for (key, value) in streamValues do
+            dictionary.Add(key, value)
 
         let rnd = new Random(1024)
 
-        let rec generateStream (eventPosition, remainingStreams, remainingValues:Map<Guid, int list>) = 
-            match remainingStreams with
-            | [] -> None
-            | _ ->
-                let index = rnd.Next(0, remainingStreams.Length - 1)
-                let blah = List.nth
-                let key =  List.nth remainingStreams index
-                let values = remainingValues |> Map.find key
+        let streamValueOrdering =
+            streams
+            |> Seq.map(fun s -> Seq.repeat s |> Seq.take 100)
+            |> Seq.collect id
+            |> Seq.sortBy(fun x -> rnd.Next(100000))
+            |> LazyList.ofSeq
 
-                match values with
-                | [] -> failwith ("Empty sequence should not happen")
-                | [x] -> 
-                    let beforeIndex = remainingStreams |> List.take index
-                    let afterIndex = remainingStreams |> List.skip (index + 1) 
-                    let remainingStreams' = (beforeIndex @ afterIndex)
-                    let remainingValues' = (remainingValues |> Map.remove key)
-                    let nextValue = (eventPosition, key,x)
-                    let remaining = (eventPosition + 1, remainingStreams', remainingValues')
-                    Some (nextValue, remaining)
-                | x::xs ->
-                    let remainingValues' = (remainingValues |> Map.add key xs)
-                    let nextValue = (eventPosition, key,x)
-                    let remaining = (eventPosition + 1, remainingStreams, remainingValues')
-                    Some (nextValue, remaining)
+        let rec generateStream (eventPosition, streamValueOrdering, remainingValues:Dictionary<Guid, int list>) = 
+            match streamValueOrdering with
+            | LazyList.Nil -> None
+            | LazyList.Cons(key,t) ->
+                let values = remainingValues.Item(key)
+                let x = values |> Seq.head
+                let nextValue = (eventPosition, key,x)
+                remainingValues.[key] <- (values |> List.tail)
+                let remaining = (eventPosition + 1, t, remainingValues)
+                Some (nextValue, remaining)
 
         let myEvents = 
-            (0, streams, streamValues) 
+            (0, streamValueOrdering, dictionary) 
             |> Seq.unfold generateStream
             |> Seq.map (fun (eventPosition, key, value) ->
                 {
@@ -62,4 +60,5 @@ module TestEventStream =
                     EventNumber = 0
                 }
             )
+
         myEvents

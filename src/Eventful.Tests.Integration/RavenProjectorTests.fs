@@ -10,6 +10,7 @@ open Eventful
 open Eventful.Raven
 type MyCountingDoc = Eventful.CsTests.MyCountingDoc
 open Eventful.Tests
+open metrics
 
 module Util = 
     let taskToAsync (task:System.Threading.Tasks.Task) =
@@ -85,6 +86,14 @@ module RavenProjectorTests =
 //        | Some _ -> (true |> should equal true)
 //        | None -> (false |> should equal true)
 
+    type Dictionary<'Key,'Value> = System.Collections.Generic.Dictionary<'Key,'Value>
+
+    [<Fact>]
+    let ``Generate event stream`` () : unit =
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
+        consoleLog <| sprintf "Length %d" (myEvents |> Seq.length)
+        ()
+
     [<Fact>]
     let ``Just complete tracking`` () : unit =
         let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
@@ -105,6 +114,8 @@ module RavenProjectorTests =
 
     [<Fact>]
     let ``Pump many events at Raven`` () : unit =
+        Metrics.EnableConsoleReporting(2L, TimeUnit.Seconds)
+
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 
         let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
@@ -192,7 +203,8 @@ module RavenProjectorTests =
         }
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
-        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10, 10000, 1)
+
+        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10, 10000, 10)
         projector.StartWork()
 
         seq {
@@ -252,4 +264,7 @@ module RavenProjectorTests =
                 doc.Writes |> should equal (permDocs.Item("PermissionDocs/" + doc.Id.ToString()))
             ()
         } |> Async.RunSynchronously
+
+        for v in Metrics.AllSorted do
+            consoleLog <| sprintf "%s %A" v.Key.Name v.Value
         ()
