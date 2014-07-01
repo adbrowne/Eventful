@@ -11,6 +11,37 @@ open System
 module WorktrackingQueueTests = 
 
     [<Fact>]
+    let ``Grouper throwing exception does not prevent future events`` () : unit = 
+        let monitor = new System.Object()
+        let itemsReceived = ref Set.empty
+
+        let groupingFunction x = 
+            if x = 0 then
+                failwith "0 is bad"
+            else 
+                Set.singleton x
+
+        let work = (fun x _ -> async {
+            lock(monitor) (fun () -> 
+                itemsReceived := (!itemsReceived |> Set.add x)
+            )
+        })
+
+        let worktrackingQueue = new WorktrackingQueue<int,int>(groupingFunction, work, 100000, 50)
+
+        let mutable ex =  null
+
+        for item in [0..1] do
+            try
+                worktrackingQueue.Add item |> Async.RunSynchronously
+            with | e -> ex <- e
+
+        worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
+        
+        !itemsReceived |> should equal (Set.singleton 1)
+        ex |> should not' (be Null)
+
+    [<Fact>]
     let ``Test speed of simple items`` () : unit =
         let groupingFunction = Set.singleton << fst
 

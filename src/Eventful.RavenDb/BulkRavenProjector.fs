@@ -84,7 +84,7 @@ type BulkRavenProjector<'TEventContext>
             let! attempt = tryEvent key values
             if not attempt then
                 return! loop ()
-            else 
+            else
                 ()
         }
         do! loop ()

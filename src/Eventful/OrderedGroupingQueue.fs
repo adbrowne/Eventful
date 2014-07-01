@@ -219,16 +219,17 @@ type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>(?maxItems)
 
     member this.Add (input:'TInput, group: ('TInput -> ('TItem * Set<'TGroup>)), ?onComplete : Async<unit>) =
         async {
+            let (item, groups) = 
+                group input
             let! itemIndex = boundedCounter.Start 1
-            async {
-                let (item, groups) = group input
+            return! async {
                 let onCompleteCallback = async {
                     match onComplete with
                     | Some callback -> return! callback
                     | None -> return ()
                 }
                 dispatcherAgent.Post(itemIndex, item, groups, onCompleteCallback)
-            } |> Async.Start
+            }
         }
 
     member this.Consume (work:(('TGroup * seq<'TItem>) -> Async<unit>)) =
