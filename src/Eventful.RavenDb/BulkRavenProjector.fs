@@ -80,14 +80,19 @@ type BulkRavenProjector<'TEventContext>
         }
         
     let processEvent key values = async {
-        let rec loop () = async {
-            let! attempt = tryEvent key values
-            if not attempt then
-                return! loop ()
+        let maxAttempts = 10
+        let rec loop count = async {
+            if count < maxAttempts then
+                let! attempt = tryEvent key values
+                if not attempt then
+                    return! loop (count + 1)
+                else
+                    ()
             else
+                consoleLog <| sprintf "Processing failed permanently: %A %A" key values
                 ()
         }
-        do! loop ()
+        do! loop 0
     }
 
     let grouper (event : SubscriberEvent<'TEventContext>) =
