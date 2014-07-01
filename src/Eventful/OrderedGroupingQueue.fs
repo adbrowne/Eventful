@@ -71,7 +71,7 @@ type GroupsCompleteTracker<'TGroup, 'TItem when 'TGroup : comparison> private (t
 
 type OrderedGroupingQueue<'TGroup, 'TItem  when 'TGroup : comparison>(?maxItems) =
 
-    let log = Common.Logging.LogManager.GetCurrentClassLogger()
+    let log = Common.Logging.LogManager.GetLogger(typeof<OrderedGroupingQueue<_,_>>)
     let maxItems =
         match maxItems with
         | Some v -> v

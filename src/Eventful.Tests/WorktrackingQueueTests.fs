@@ -19,7 +19,7 @@ module WorktrackingQueueTests =
             if x = 0 then
                 failwith "0 is bad"
             else 
-                Set.singleton x
+                (x, Set.singleton x)
 
         let work = (fun x _ -> async {
             lock(monitor) (fun () -> 
@@ -27,7 +27,7 @@ module WorktrackingQueueTests =
             )
         })
 
-        let worktrackingQueue = new WorktrackingQueue<int,int>(groupingFunction, work, 100000, 50)
+        let worktrackingQueue = new WorktrackingQueue<int,int,int>(groupingFunction, work, 100000, 50)
 
         let mutable ex =  null
 
@@ -43,10 +43,10 @@ module WorktrackingQueueTests =
 
     [<Fact>]
     let ``Test speed of simple items`` () : unit =
-        let groupingFunction = Set.singleton << fst
+        let groupingFunction i = (i, (fst >> Set.singleton) i)
 
         let work = (fun _ _ -> Async.Sleep(10))
-        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(groupingFunction, work, 100000, 50)
+        let worktrackingQueue = new WorktrackingQueue<int,(int * int),(int * int)>(groupingFunction, work, 100000, 50)
 
         let items = 
             [0..10000] |> List.collect (fun group -> [0..10] |> List.map (fun item -> (group, item)))
@@ -58,7 +58,7 @@ module WorktrackingQueueTests =
 
     [<Fact>]
     let ``Items are received in order`` () : unit =
-        let groupingFunction = Set.singleton << fst
+        let groupingFunction i = (i, (fst >> Set.singleton) i)
 
         let monitor = new System.Object()
         let groupItems = ref Map.empty
@@ -83,7 +83,7 @@ module WorktrackingQueueTests =
                 groupItems := (groupItemsMap |> Map.add group lastItem)
             ) } 
 
-        let worktrackingQueue = new WorktrackingQueue<int,(int * int)>(groupingFunction, work, 100000, 50)
+        let worktrackingQueue = new WorktrackingQueue<int,(int * int),(int * int)>(groupingFunction, work, 100000, 50)
 
         let items = 
             [0..100] |> List.collect (fun group -> [0..10] |> List.map (fun item -> (group, item)))
@@ -98,7 +98,7 @@ module WorktrackingQueueTests =
         
     [<Fact>]
     let ``Completion function is called when item complete`` () : unit =
-        let groupingFunction = Set.singleton << fst
+        let groupingFunction i = (i, (fst >> Set.singleton) i)
 
         let tcs = new TaskCompletionSource<bool>()
 
@@ -109,7 +109,7 @@ module WorktrackingQueueTests =
             tcs.SetResult true
         }
 
-        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10,  complete)
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string),(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10,  complete)
         worktrackingQueue.Add ("group", "item") |> Async.Start
 
         tcs.Task.Wait()
@@ -120,7 +120,7 @@ module WorktrackingQueueTests =
     [<Fact>]
     let ``Completion function is called immediately when an items resuls in 0 groups`` () : unit =
         log4net.Config.XmlConfigurator.Configure()
-        let groupingFunction _ = Set.empty
+        let groupingFunction i = (i, Set.empty)
 
         let tcs = new TaskCompletionSource<bool>()
 
@@ -131,7 +131,7 @@ module WorktrackingQueueTests =
             tcs.SetResult true
         }
 
-        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10,  complete)
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string),(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10,  complete)
         worktrackingQueue.Add ("group", "item") |> Async.Start
 
         tcs.Task.Wait()
@@ -139,16 +139,16 @@ module WorktrackingQueueTests =
         !completedItem |> fst |> should equal "group"
         !completedItem |> snd |> should equal "item"
 
-    [<Fact(Skip = "The new design doesn't allow this behaviour")>]
+    [<Fact>]
     let ``Add item throws if grouping function throws`` () : unit =
         let groupingFunction _ = failwith "Grouping function exception"
 
-        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10)
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string),(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10)
         (fun () -> worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously  |> ignore) |> should throw typeof<System.Exception>
 
     [<Fact>]
     let ``Can run multiple items`` () : unit =
-        let groupingFunction = Set.singleton << fst
+        let groupingFunction i = (i, (fst >> Set.singleton) i)
 
         let completedItem = ref ("blank", "blank")
         let complete item = async {
@@ -160,7 +160,7 @@ module WorktrackingQueueTests =
                 System.Console.WriteLine("Work item {0}", group)
             }
 
-        let worktrackingQueue = new WorktrackingQueue<string,(string * string)>(groupingFunction, work, 100000, 10, complete)
+        let worktrackingQueue = new WorktrackingQueue<string,(string * string),(string * string)>(groupingFunction, work, 100000, 10, complete)
         worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
         worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
         worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously
@@ -175,7 +175,7 @@ module WorktrackingQueueTests =
 
     [<Fact>]
     let ``Given item split into 2 groups When complete Then Completion function is only called once`` () : unit =
-        let groupingFunction _ = [1;2] |> Set.ofList
+        let groupingFunction i = (i, [1;2] |> Set.ofList)
 
         let completeCount = new CounterAgent()
 
@@ -185,7 +185,7 @@ module WorktrackingQueueTests =
         }
 
         async {
-            let worktrackingQueue = new WorktrackingQueue<int,(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000, 10, complete)
+            let worktrackingQueue = new WorktrackingQueue<int,(string * string),(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000, 10, complete)
             do! worktrackingQueue.Add ("group", "item")
             do! worktrackingQueue.AsyncComplete()
             do! Async.Sleep 100
@@ -195,7 +195,7 @@ module WorktrackingQueueTests =
 
     [<Fact>]
     let ``Given empty queue When complete Then returns immediately`` () : unit =
-        let worktrackingQueue = new WorktrackingQueue<unit,string>( (fun _ -> Set.singleton ()),(fun _ _ -> Async.Sleep(1)), 100000, 10,(fun _ -> Async.Sleep(1)))
+        let worktrackingQueue = new WorktrackingQueue<unit,string,string>( (fun i -> (i, Set.singleton ())),(fun _ _ -> Async.Sleep(1)), 100000, 10,(fun _ -> Async.Sleep(1)))
         worktrackingQueue.AsyncComplete() |> Async.RunSynchronously
 
     [<Property>]

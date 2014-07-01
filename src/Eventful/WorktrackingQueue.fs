@@ -8,20 +8,20 @@ type internal CompleteQueueMessage<'TGroup, 'TItem when 'TGroup : comparison> =
     | Complete of 'TGroup * Guid
     | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
-type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
+type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     (
-        grouping : 'TItem -> Set<'TGroup>, 
-        workAction : 'TGroup -> 'TItem seq -> Async<unit>,
+        grouping : 'TInput -> ('TWorkItem * Set<'TGroup>),
+        workAction : 'TGroup -> 'TWorkItem seq -> Async<unit>,
         ?maxItems : int, 
         ?workerCount,
-        ?complete : 'TItem -> Async<unit>
+        ?complete : 'TInput -> Async<unit>
     ) =
 
     let _maxItems = maxItems |> getOrElse 1000
     let _workerCount = workerCount |> getOrElse 1
     let _complete = complete |> getOrElse (fun _ -> async { return () })
 
-    let queue = new OrderedGroupingQueue<'TGroup, 'TItem>(_maxItems)
+    let queue = new OrderedGroupingQueue<'TGroup, 'TWorkItem>(_maxItems)
 
     let doWork (group, items) = async {
          do! workAction group items
@@ -39,20 +39,16 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
                         do! Async.Sleep(100)
             } |> Async.Start
 
-    let grouping item =
-        let groups = grouping item
-        (item, groups)
-
     member this.StopWork () =
         working <- false
 
     member this.StartWork () =
         working <- true
 
-    member this.Add (item:'TItem) =
+    member this.Add (item:'TInput) =
         queue.Add (item, grouping, _complete item)
 
-    member this.AddWithCallback (item:'TItem, onComplete : ('TItem -> Async<unit>)) =
+    member this.AddWithCallback (item:'TInput, onComplete : ('TInput -> Async<unit>)) =
         queue.Add (item, grouping, onComplete item)
 
     member this.AsyncComplete () =

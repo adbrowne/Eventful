@@ -24,10 +24,12 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
     let groupMessageIntoStream message =
         match message with
         | Event (event, handlerMap, _) ->
-            handlerMap
-            |> Map.toSeq
-            |> Seq.map fst
-            |> Set.ofSeq
+            let keys = 
+                handlerMap
+                |> Map.toSeq
+                |> Seq.map fst
+                |> Set.ofSeq
+            (message, keys)
 
     let getSnapshotStream stream (stateBuilder : IStateBuilder<_,_>) =
         sprintf "%s-%s-%s" stream stateBuilder.Name stateBuilder.Version
@@ -131,7 +133,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
             ProcessingTracker.setPosition client position |> Async.RunSynchronously
         | None -> () }
 
-    let queue = new WorktrackingQueue<_,_>(groupMessageIntoStream, processMessages, 1000, 10, eventComplete)
+    let queue = new WorktrackingQueue<_,_,_>(groupMessageIntoStream, processMessages, 1000, 10, eventComplete)
 
     let mutable timer : System.Threading.Timer = null
     let mutable subscription : EventStoreAllCatchUpSubscription = null

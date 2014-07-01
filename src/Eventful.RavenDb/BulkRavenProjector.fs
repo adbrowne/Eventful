@@ -23,7 +23,7 @@ type BulkRavenProjector<'TEventContext>
         writerWorkers: int
     ) =
 
-    let cache = new MemoryCache("RavenBatchWrite")
+    let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
 
     let writeBatch _ docs = async {
         let originalDocMap = 
@@ -54,7 +54,7 @@ type BulkRavenProjector<'TEventContext>
             do! callback writeSuccessful
     }
 
-    let writeQueue = new WorktrackingQueue<unit, BatchWrite>((fun _ -> Set.singleton ()), writeBatch, maxWriterQueueSize, writerWorkers) 
+    let writeQueue = new WorktrackingQueue<unit, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton ())), writeBatch, maxWriterQueueSize, writerWorkers) 
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
@@ -91,14 +91,16 @@ type BulkRavenProjector<'TEventContext>
     }
 
     let grouper (event : SubscriberEvent<'TEventContext>) =
-        processors.Items
-        |> Seq.collect (fun x -> 
-            if x.EventTypes.Contains(event.Event.GetType()) then
-                x.MatchingKeys event
-                |> Seq.map (fun k9 -> (k9, x))
-            else 
-                Seq.empty)
-        |> Set.ofSeq
+        let groups = 
+            processors.Items
+            |> Seq.collect (fun x -> 
+                if x.EventTypes.Contains(event.Event.GetType()) then
+                    x.MatchingKeys event
+                    |> Seq.map (fun k9 -> (k9, x))
+                else 
+                    Seq.empty)
+            |> Set.ofSeq
+        (event, groups)
     
     let tracker = new LastCompleteItemAgent2<EventPosition>()
 
@@ -109,7 +111,7 @@ type BulkRavenProjector<'TEventContext>
         }
 
     let queue = 
-        let x = new WorktrackingQueue<_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
+        let x = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
         x.StopWork()
         x
 
