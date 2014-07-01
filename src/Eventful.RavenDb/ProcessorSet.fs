@@ -7,7 +7,8 @@ type HashSet<'T> = System.Collections.Generic.HashSet<'T>
 [<CustomEquality; CustomComparison>]
 type UntypedDocumentProcessor<'TContext> = {
     ProcessorKey : string
-    MatchingKeys: SubscriberEvent<'TContext> -> seq<KeyProcessor<IComparable, 'TContext>>
+    Process : IDocumentFetcher -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<DocumentWriteRequest>>
+    MatchingKeys: SubscriberEvent<'TContext> -> seq<IComparable>
     EventTypes : HashSet<Type>
 }
 with
@@ -23,14 +24,19 @@ with
 
 type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TEventContext>>) =
     member x.Items = processors
-    member x.Add<'TKey,'TDocument when 'TKey :> IComparable and 'TKey : comparison>(processor:DocumentProcessor<'TKey, 'TDocument, 'TEventContext>) =
+    member x.Add<'TKey,'TDocument>(processor:DocumentProcessor<'TKey, 'TDocument, 'TEventContext>) =
+        
+        let processUntyped (fetcher:IDocumentFetcher) (untypedKey : obj) events =
+            let key = untypedKey :?> 'TKey
+            processor.Process key fetcher events
 
         let matchingKeysUntyped event =
             processor.MatchingKeys event
-            |> Seq.map (fun { Key = k; Process = p} -> { Key = k :> IComparable; Process = p})
+            |> Seq.cast<IComparable>
 
         let untypedProcessor = {
             ProcessorKey = "ProcessorFor: " + typeof<'TDocument>.FullName
+            Process = processUntyped
             MatchingKeys = matchingKeysUntyped
             EventTypes = new HashSet<Type>(processor.EventTypes)
         }

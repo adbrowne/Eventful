@@ -132,6 +132,12 @@ module RavenProjectorTests =
 
             (newDoc, metadata, etag)
 
+        let matcher (subscriberEvent : SubscriberEvent<EventContext>) =
+            match subscriberEvent.Event with
+            | :? (Guid * int) as event ->
+                event |> fst |> Seq.singleton
+            | _ -> Seq.empty
+
         let processEvent key doc subscriberEvent = 
             match subscriberEvent.Event with
             | :? (Guid * int) as event ->
@@ -179,20 +185,10 @@ module RavenProjectorTests =
             }
         }
 
-        let matcher (subscriberEvent : SubscriberEvent<EventContext>) =
-            match subscriberEvent.Event with
-            | :? (Guid * int) as event ->
-                let key = fst event
-                {
-                    Key = key
-                    Process = processBatch key
-                }
-                |> Seq.singleton
-            | _ -> Seq.empty
-
         let myProcessor : DocumentProcessor<Guid, MyCountingDoc, EventContext> = {
             EventTypes = Seq.singleton typeof<(Guid * int)>
             MatchingKeys = matcher
+            Process = processBatch
         }
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
