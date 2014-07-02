@@ -6,6 +6,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () =
     let log (msg : string) = Console.WriteLine(msg)
     let started = new System.Collections.Generic.SortedSet<'TItem>()
     let completed = new System.Collections.Generic.SortedSet<'TItem>()
+    let mutable currentLastComplete = None
     let agent = Agent.Start(fun agent ->
 
         let rec loop state = async {
@@ -22,7 +23,9 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () =
                 let lastComplete = 
                     Seq.zip started completed
                     |> Seq.takeWhile (fun (x,y) -> x = y)
-                    |> Seq.fold (fun _ (x,y) -> Some x) None
+                    |> Seq.fold (fun _ (x,y) -> Some x) currentLastComplete
+
+                currentLastComplete <- lastComplete
                 
                 reply.Reply(lastComplete)
                 match lastComplete with

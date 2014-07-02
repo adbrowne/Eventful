@@ -58,7 +58,7 @@
   </Target>
   <ItemGroup>
     <None Include="packages.config" />
-    <Compile Include="SubscriberEvent.fs" />
+    <Compile Include="DocumentWriteRequest.fs" />
     <Compile Include="DocumentProcessor.fs" />
     <Compile Include="BatchOperations.fs" />
     <Compile Include="ProcessorSet.fs" />

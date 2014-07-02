@@ -28,6 +28,7 @@ type BulkRavenProjector<'TEventContext>
 
     let batchWriteTracker = Metric.Histogram("BatchWriteSize", Unit.Items)
     let completeItemsTracker = Metric.Meter("EventsComplete", Unit.Items)
+    let processingExceptions = Metric.Meter("ProcessingExceptions", Unit.Items)
     let batchWriteTime = Metric.Timer("WriteTime", Unit.None)
     let writeBatch _ docs = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
@@ -70,15 +71,15 @@ type BulkRavenProjector<'TEventContext>
         let complete  = fun success -> async { tcs.SetResult(success) }
         (complete, Async.AwaitTask tcs.Task)
         
+    let fetcher = {
+        new IDocumentFetcher with
+            member x.GetDocument key =
+                RavenOperations.getDocument documentStore cache databaseName key
+    }
+
     let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TEventContext>) events =
         async { 
             let untypedKey = key :> obj
-
-            let fetcher = {
-                new IDocumentFetcher with
-                    member x.GetDocument key =
-                        RavenOperations.getDocument documentStore cache databaseName key
-            }
 
             let! writeRequests = documentProcessor.Process fetcher untypedKey events
             let (complete, wait) = getPromise()
@@ -99,6 +100,7 @@ type BulkRavenProjector<'TEventContext>
                 else
                     ()
             else
+                processingExceptions.Mark()
                 consoleLog <| sprintf "Processing failed permanently: %A %A" key values
                 ()
         }
@@ -131,7 +133,52 @@ type BulkRavenProjector<'TEventContext>
         x.StopWork()
         x
 
-    member x.LastComplete = tracker.LastComplete
+    let positionDocumentKey = "EventProcessingPosition"
+
+    member x.LastComplete () = async {
+        let getPersistedPosition = async {
+            let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument positionDocumentKey
+            return persistedLastComplete |> Option.map((fun (doc,_,_) -> doc))
+        }
+
+        let! thisSessionLastComplete = tracker.LastComplete()
+
+        match thisSessionLastComplete with
+        | Some position -> return Some position
+        | None -> return! getPersistedPosition
+    }
+
+    member x.StartPersistingPosition () = 
+        let rec loop () =  async {
+            do! Async.Sleep(1000)
+
+            let (complete, wait) = getPromise()
+
+            let! position = x.LastComplete()
+
+            do! 
+                match position with
+                | Some position -> async {
+                        let writeRequests =
+                            {
+                                DocumentKey = positionDocumentKey
+                                Document = lazy(RavenOperations.serializeDocument documentStore position)
+                                Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)
+                                Etag = null // just write this blindly
+                            }   
+                            |> Seq.singleton
+
+                        do! writeQueue.Add(writeRequests, complete)
+
+                        do! wait |> Async.Ignore
+                    }
+                | None -> async { () }
+
+            return! loop()
+        }
+            
+        loop () |> Async.StartAsTask |> ignore
+        ()
 
     member x.DatabaseName = databaseName
 

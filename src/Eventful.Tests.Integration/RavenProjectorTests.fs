@@ -170,7 +170,7 @@ module RavenProjectorTests =
                
             let! (permDoc, permMetadata, permEtag) =
                 fetcher.GetDocument permDocKey
-                |> Async.map (Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, RavenOperations.emptyMetadata "PermissionDoc", Etag.Empty)))
+                |> Async.map (Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, (RavenOperations.emptyMetadata<MyPermissionDoc> documentStore), Etag.Empty)))
 
             let (doc, metadata, etag) = 
                 events
@@ -206,6 +206,7 @@ module RavenProjectorTests =
 
         let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10, 10000, 10)
         // projector.StartWork()
+        projector.StartPersistingPosition()
 
         seq {
             yield async {

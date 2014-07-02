@@ -23,7 +23,16 @@ module RavenOperations =
                     return Some (doc, metadata, etag)
             }
 
-    let emptyMetadata (entityName : string) = 
-        let metadata = new Raven.Json.Linq.RavenJObject()
+    let emptyMetadataForType (documentStore : IDocumentStore) (documentType : Type) = 
+        let entityName = documentStore.Conventions.GetTypeTagName(documentType)
+        let metadata = new RavenJObject()
         metadata.Add("Raven-Entity-Name", new RavenJValue(entityName))
+        metadata.Add("Raven-Clr-Type", new RavenJValue(documentType.FullName))
         metadata
+
+    let emptyMetadata<'T> (documentStore : IDocumentStore) = 
+        emptyMetadataForType documentStore typeof<'T>
+
+    let serializeDocument<'T> (documentStore : IDocumentStore) (doc : 'T) =
+        let serializer = documentStore.Conventions.CreateSerializer()
+        RavenJObject.FromObject(doc, serializer)

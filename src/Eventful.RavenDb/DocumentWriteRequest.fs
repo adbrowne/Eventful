@@ -11,4 +11,3 @@ type DocumentWriteRequest = {
     Metadata : Lazy<Raven.Json.Linq.RavenJObject>
     Etag : Raven.Abstractions.Data.Etag
 }
-
