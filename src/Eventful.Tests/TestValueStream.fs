@@ -15,16 +15,10 @@ type Dictionary<'Key,'Value> = System.Collections.Generic.Dictionary<'Key,'Value
 module TestEventStream =
     let sequentialNumbers streamCount valuesPerStreamCount = 
 
-        let values = [1..valuesPerStreamCount]
+        let streamValues = [1..valuesPerStreamCount]
         let streams = [for i in 1 .. streamCount -> Guid.NewGuid()]
 
-        let streamValues = 
-            streams
-            |> Seq.map (fun x -> (x,values))
-
         let dictionary = new Dictionary<Guid, int list>()
-        for (key, value) in streamValues do
-            dictionary.Add(key, value)
 
         let rnd = new Random(1024)
 
@@ -39,7 +33,11 @@ module TestEventStream =
             match streamValueOrdering with
             | LazyList.Nil -> None
             | LazyList.Cons(key,t) ->
-                let values = remainingValues.Item(key)
+                let values = 
+                    if(remainingValues.ContainsKey(key)) then
+                        remainingValues.Item(key)
+                    else
+                        streamValues
                 let x = values |> Seq.head
                 let nextValue = (eventPosition, key,x)
                 remainingValues.[key] <- (values |> List.tail)

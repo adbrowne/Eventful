@@ -14,12 +14,14 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         workAction : 'TGroup -> 'TWorkItem seq -> Async<unit>,
         ?maxItems : int, 
         ?workerCount,
-        ?complete : 'TInput -> Async<unit>
+        ?complete : 'TInput -> Async<unit>,
+        ?name : string
     ) =
 
     let _maxItems = maxItems |> getOrElse 1000
     let _workerCount = workerCount |> getOrElse 1
     let _complete = complete |> getOrElse (fun _ -> async { return () })
+    let _name = name |> getOrElse "unnamed"
 
     let queue = new OrderedGroupingQueue<'TGroup, 'TWorkItem>(_maxItems)
 
@@ -33,10 +35,9 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         for i in [1.._workerCount] do
             async {
                 while true do
-                    if working then
-                        do! queue.Consume doWork
-                    else
-                        do! Async.Sleep(100)
+                    do! queue.Consume doWork
+                    if not working then
+                        do! Async.Sleep(2000)
             } |> Async.Start
 
     member this.StopWork () =

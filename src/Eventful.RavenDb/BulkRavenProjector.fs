@@ -30,6 +30,7 @@ type BulkRavenProjector<'TEventContext>
     let completeItemsTracker = Metric.Meter("EventsComplete", Unit.Items)
     let processingExceptions = Metric.Meter("ProcessingExceptions", Unit.Items)
     let batchWriteTime = Metric.Timer("WriteTime", Unit.None)
+    let batchWritesMeter = Metric.Meter("BatchWrites", Unit.Items)
     let writeBatch _ docs = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
         let originalDocMap = 
@@ -48,6 +49,7 @@ type BulkRavenProjector<'TEventContext>
             match result with
             | Some (batchResult, docs) ->
                 batchWriteTracker.Update(batchResult.LongLength)
+                batchWritesMeter.Mark()
                 for docResult in batchResult do
                     let (doc, callback) = originalDocMap.[docResult.Key]
                     cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
@@ -64,7 +66,7 @@ type BulkRavenProjector<'TEventContext>
         batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
     }
 
-    let writeQueue = new WorktrackingQueue<unit, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton ())), writeBatch, maxWriterQueueSize, writerWorkers) 
+    let writeQueue = new WorktrackingQueue<unit, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton ())), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write") 
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
