@@ -1,14 +1,31 @@
 ﻿namespace Eventful
 
 open System
+open FSharpx.Collections
+open FSharpx
 
+type SortedSet<'a> = System.Collections.Generic.SortedSet<'a>
 type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () = 
     let log (msg : string) = Console.WriteLine(msg)
     let started = new System.Collections.Generic.SortedSet<'TItem>()
     let completed = new System.Collections.Generic.SortedSet<'TItem>()
     let mutable currentLastComplete = None
-    let agent = Agent.Start(fun agent ->
 
+    // remove matching head sequences from xs and ys
+    // returns sequences and highest matching value
+    let removeMatchingHeads (xs : SortedSet<'TItem>) (ys : SortedSet<'TItem>) =
+        let rec loop h = 
+            match (xs |> Seq.tryHead, ys |> Seq.tryHead) with
+            | Some x, Some y
+                when x = y ->
+                    xs.Remove(x) |> ignore
+                    ys.Remove(y) |> ignore
+                    loop (Some x)
+            | _ -> h
+
+        loop None
+
+    let agent = Agent.Start(fun agent ->
         let rec loop state = async {
             let! msg = agent.Receive()
             match msg with
@@ -20,20 +37,14 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () =
                 completed.Add(item) |> ignore
                 return! loop state
             | LastComplete reply ->
-                let lastComplete = 
-                    Seq.zip started completed
-                    |> Seq.takeWhile (fun (x,y) -> x = y)
-                    |> Seq.fold (fun _ (x,y) -> Some x) currentLastComplete
+                let lastComplete' = removeMatchingHeads started completed
 
-                currentLastComplete <- lastComplete
-                
-                reply.Reply(lastComplete)
-                match lastComplete with
-                | None ->
-                    ()
-                | Some lastComplete ->
-                    started.RemoveWhere((fun x -> x <= lastComplete)) |> ignore
-                    completed.RemoveWhere((fun x -> x <= lastComplete)) |> ignore
+                currentLastComplete <-
+                    match lastComplete' with
+                    | Some x -> Some x
+                    | None -> currentLastComplete
+
+                reply.Reply(currentLastComplete)
                 return! loop ()
         }
 

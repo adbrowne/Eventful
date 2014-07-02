@@ -12,6 +12,7 @@ let main argv =
     let sw = System.Diagnostics.Stopwatch.StartNew()
 
     Eventful.Tests.Integration.RavenProjectorTests.``Pump many events at Raven``()
+    //Eventful.Tests.Integration.RavenProjectorTests.``Just complete tracking``()
 
     sw.Stop()
 

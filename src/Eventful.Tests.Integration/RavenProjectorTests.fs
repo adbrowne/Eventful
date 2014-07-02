@@ -118,7 +118,7 @@ module RavenProjectorTests =
         
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 10000 1000 |> Seq.cache
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
