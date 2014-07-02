@@ -16,6 +16,7 @@
       <dependency id="Common.Logging" version="2.0" />
       <dependency id="EventStore.Client" version="2.0.2" />
       <dependency id="RavenDB.Client" version="2.5" />
+      <dependency id="Metrics.NET" version="0.1.8" />
     </dependencies>
   </metadata>
 </package>
