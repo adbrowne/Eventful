@@ -94,11 +94,14 @@ type BulkRavenProjector<'TEventContext>
         let maxAttempts = 10
         let rec loop count = async {
             if count < maxAttempts then
-                let! attempt = tryEvent key cachedValues
-                if not attempt then
-                    return! loop (count + 1)
-                else
-                    ()
+                try
+                    let! attempt = tryEvent key cachedValues
+                    if not attempt then
+                        return! loop (count + 1)
+                    else
+                        ()
+                with | e ->
+                    return! loop(count + 1)
             else
                 processingExceptions.Mark()
                 consoleLog <| sprintf "Processing failed permanently: %A %A" key values
