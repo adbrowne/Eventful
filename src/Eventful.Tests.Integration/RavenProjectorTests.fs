@@ -10,6 +10,7 @@ open Eventful
 open Eventful.Raven
 type MyCountingDoc = Eventful.CsTests.MyCountingDoc
 open Eventful.Tests
+open Metrics
 
 module Util = 
     let taskToAsync (task:System.Threading.Tasks.Task) =
@@ -113,7 +114,8 @@ module RavenProjectorTests =
 
     [<Fact>]
     let ``Pump many events at Raven`` () : unit =
-
+        let config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
+        
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 
         let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
@@ -203,15 +205,19 @@ module RavenProjectorTests =
         let processorSet = ProcessorSet.Empty.Add myProcessor
 
         let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10, 10000, 10)
-        projector.StartWork()
+        // projector.StartWork()
 
         seq {
             yield async {
+                let sw = System.Diagnostics.Stopwatch.StartNew()
                 for event in myEvents do
                     do! projector.Enqueue event
 
                 projector.StartWork()
                 do! projector.WaitAll()
+                sw.Stop()
+
+                consoleLog <| sprintf "Insert all time: %A ms" sw.ElapsedMilliseconds
             }
 
             yield! seq {

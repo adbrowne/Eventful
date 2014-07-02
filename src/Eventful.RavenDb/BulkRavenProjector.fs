@@ -4,6 +4,7 @@ open System
 open System.Runtime.Caching
 
 open Eventful
+open Metrics
 
 open FSharpx
 
@@ -25,7 +26,11 @@ type BulkRavenProjector<'TEventContext>
 
     let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
 
+    let batchWriteTracker = Metric.Histogram("BatchWriteSize", Unit.Items)
+    let completeItemsTracker = Metric.Meter("EventsComplete", Unit.Items)
+    let batchWriteTime = Metric.Timer("WriteTime", Unit.None)
     let writeBatch _ docs = async {
+        let sw = System.Diagnostics.Stopwatch.StartNew()
         let originalDocMap = 
             docs
             |> Seq.collect (fun (writeRequests, callback) -> 
@@ -41,6 +46,7 @@ type BulkRavenProjector<'TEventContext>
         let writeSuccessful = 
             match result with
             | Some (batchResult, docs) ->
+                batchWriteTracker.Update(batchResult.LongLength)
                 for docResult in batchResult do
                     let (doc, callback) = originalDocMap.[docResult.Key]
                     cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
@@ -52,6 +58,9 @@ type BulkRavenProjector<'TEventContext>
         
         for (_, callback) in docs do
             do! callback writeSuccessful
+
+        sw.Stop()
+        batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
     }
 
     let writeQueue = new WorktrackingQueue<unit, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton ())), writeBatch, maxWriterQueueSize, writerWorkers) 
@@ -114,6 +123,7 @@ type BulkRavenProjector<'TEventContext>
         let position = getPosition event.Context
         async {
             tracker.Complete(position)
+            completeItemsTracker.Mark(1L)
         }
 
     let queue = 

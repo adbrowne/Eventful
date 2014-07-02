@@ -94,6 +94,10 @@
     <Reference Include="FsUnit.Xunit">
       <HintPath>..\packages\FsUnit.xUnit.1.2.2.1\Lib\net40\FsUnit.Xunit.dll</HintPath>
     </Reference>
+    <Reference Include="Metrics">
+      <HintPath>..\packages\Metrics.NET.0.1.8\lib\net45\Metrics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\packages\Newtonsoft.Json.6.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>

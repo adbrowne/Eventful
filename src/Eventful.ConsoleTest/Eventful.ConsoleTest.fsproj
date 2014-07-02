@@ -54,10 +54,18 @@
       <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Metrics">
+      <HintPath>..\packages\Metrics.NET.0.1.8\lib\net45\Metrics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
+    <Reference Include="xunit">
+      <HintPath>..\packages\xunit.1.9.2\lib\net20\xunit.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.fs" />
@@ -65,6 +73,11 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Eventful.Tests.Integration\Eventful.Tests.Integration.fsproj">
+      <Name>Eventful.Tests.Integration</Name>
+      <Project>{ab8d41f5-147c-42a0-83d1-cf0676864431}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful\Eventful.fsproj">
       <Name>Eventful</Name>
       <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
