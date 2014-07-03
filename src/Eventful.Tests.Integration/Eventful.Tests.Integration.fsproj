@@ -68,6 +68,7 @@
     <Compile Include="EventStoreStreamInterpreterTests.fs" />
     <Compile Include="AggregateIntegrationTests.fs" />
     <Compile Include="PositionTests.fs" />
+    <Compile Include="RavenOperationTests.fs" />
     <Compile Include="RavenProjectorTests.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />

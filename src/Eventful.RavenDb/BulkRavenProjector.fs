@@ -78,6 +78,8 @@ type BulkRavenProjector<'TEventContext>
         new IDocumentFetcher with
             member x.GetDocument key =
                 RavenOperations.getDocument documentStore cache databaseName key
+            member x.GetDocuments request = 
+                RavenOperations.getDocuments documentStore cache databaseName request
     }
 
     let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TEventContext>) events =
@@ -104,6 +106,7 @@ type BulkRavenProjector<'TEventContext>
                     else
                         ()
                 with | e ->
+                    consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
                     return! loop(count + 1)
             else
                 processingExceptions.Mark()
