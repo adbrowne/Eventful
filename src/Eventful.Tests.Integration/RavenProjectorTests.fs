@@ -116,9 +116,12 @@ module RavenProjectorTests =
     let ``Pump many events at Raven`` () : unit =
         let config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
         
+        let streamCount = 100
+        let itemPerStreamCount = 100
+        let totalEvents = streamCount * itemPerStreamCount
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 10000 1000 |> Seq.cache
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
@@ -160,6 +163,15 @@ module RavenProjectorTests =
                 doc.Writes <- doc.Writes + 1
                 (doc, metadata, etag)
             )
+
+        let monitor = new System.Object()
+        let itemsComplete = ref 0
+
+        let writeComplete _ = async {
+            lock(monitor) (fun () -> 
+                itemsComplete := !itemsComplete + 1
+            )
+        }
 
         let processBatch key (fetcher : IDocumentFetcher) events = async {
             let docKey = "MyCountingDocs/" + key.ToString() 
@@ -204,7 +216,7 @@ module RavenProjectorTests =
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
 
-        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10, 10000, 10)
+        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10, 10000, 10, writeComplete)
         // projector.StartWork()
         projector.StartPersistingPosition()
 
@@ -254,6 +266,8 @@ module RavenProjectorTests =
             let! lastComplete = projector.LastComplete()
             consoleLog <| sprintf "Final Position: %A" lastComplete
             use session = documentStore.OpenAsyncSession("tenancy-blue")
+
+            !itemsComplete |> should equal totalEvents
 
             let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask
             let! permDocs = session.Advanced.LoadStartingWithAsync<MyPermissionDoc>("PermissionDocs/",0, 1024) |> Async.AwaitTask

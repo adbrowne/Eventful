@@ -21,7 +21,8 @@ type BulkRavenProjector<'TEventContext>
         maxEventQueueSize : int,
         eventWorkers: int,
         maxWriterQueueSize: int,
-        writerWorkers: int
+        writerWorkers: int,
+        onEventComplete : SubscriberEvent<'TEventContext> -> Async<unit>
     ) =
 
     let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
@@ -128,10 +129,15 @@ type BulkRavenProjector<'TEventContext>
 
     let eventComplete (event:SubscriberEvent<'TEventContext>) =
         let position = getPosition event.Context
-        async {
-            tracker.Complete(position)
-            completeItemsTracker.Mark(1L)
+        seq {
+            yield async {
+                tracker.Complete(position)
+                completeItemsTracker.Mark(1L)
+            }
+            yield onEventComplete event
         }
+        |> Async.Parallel
+        |> Async.Ignore
 
     let queue = 
         let x = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
@@ -139,6 +145,8 @@ type BulkRavenProjector<'TEventContext>
         x
 
     let positionDocumentKey = "EventProcessingPosition"
+
+    let mutable lastPositionWritten : Option<EventPosition> = None
 
     member x.LastComplete () = async {
         let getPersistedPosition = async {
@@ -154,30 +162,40 @@ type BulkRavenProjector<'TEventContext>
     }
 
     member x.StartPersistingPosition () = 
+        let writeUpdatedPosition position = async {
+            let (complete, wait) = getPromise()
+
+            let writeRequests =
+                {
+                    DocumentKey = positionDocumentKey
+                    Document = lazy(RavenOperations.serializeDocument documentStore position)
+                    Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)
+                    Etag = null // just write this blindly
+                }   
+                |> Seq.singleton
+
+            do! writeQueue.Add(writeRequests, complete)
+
+            let! success = wait 
+            if(success) then
+                lastPositionWritten <- Some position
+            else
+                ()
+        }
+
         let rec loop () =  async {
             do! Async.Sleep(1000)
-
-            let (complete, wait) = getPromise()
 
             let! position = x.LastComplete()
 
             do! 
-                match position with
-                | Some position -> async {
-                        let writeRequests =
-                            {
-                                DocumentKey = positionDocumentKey
-                                Document = lazy(RavenOperations.serializeDocument documentStore position)
-                                Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)
-                                Etag = null // just write this blindly
-                            }   
-                            |> Seq.singleton
-
-                        do! writeQueue.Add(writeRequests, complete)
-
-                        do! wait |> Async.Ignore
-                    }
-                | None -> async { () }
+                match (position, lastPositionWritten) with
+                | Some position, None -> 
+                    writeUpdatedPosition position
+                | Some position, Some lastPosition
+                    when position <> lastPosition ->
+                    writeUpdatedPosition position
+                | _ -> async { () }
 
             return! loop()
         }
