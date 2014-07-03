@@ -153,7 +153,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
 
         let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
         timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
-        subscription <- client.subscribe position x.EventAppeared }
+        subscription <- client.subscribe position x.EventAppeared (fun () -> ()) }
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
         log <| sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition

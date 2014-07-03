@@ -78,8 +78,13 @@ type Client (connection : IEventStoreConnection) =
             return ()
     }
 
-    member x.subscribe (start : Position option) (handler : Guid -> ResolvedEvent -> Async<unit>) = 
+    member x.subscribe (start : Position option) (handler : Guid -> ResolvedEvent -> Async<unit>) (onLive : (unit -> unit)) =
         let nullablePosition = match start with
                                | Some position -> Nullable.op_Implicit(position)
                                | None -> Nullable()
-        connection.SubscribeToAllFrom(nullablePosition, false, (fun subscription event -> handler event.Event.EventId event |> Async.RunSynchronously ))
+
+        let onEventHandler (event : ResolvedEvent) =
+            handler event.Event.EventId event
+            |> Async.RunSynchronously
+
+        connection.SubscribeToAllFrom(nullablePosition, false, (fun _ event -> onEventHandler event), (fun _ -> onLive ()))

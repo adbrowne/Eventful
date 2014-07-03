@@ -65,6 +65,7 @@
     <Compile Include="ISerializer.fs" />
     <Compile Include="EventStreamInterpreter.fs" />
     <Compile Include="EventModel.fs" />
+    <Compile Include="MultiTenancyEventStoreSubscriber.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="EventStore.ClientAPI">
