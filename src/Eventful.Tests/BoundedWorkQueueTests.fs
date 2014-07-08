@@ -1,4 +1,4 @@
-﻿namespace Eventful.Tests
+namespace Eventful.Tests
 
 open Eventful
 open System

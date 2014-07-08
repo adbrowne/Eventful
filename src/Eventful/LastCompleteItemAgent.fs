@@ -6,6 +6,7 @@ type LastCompleteItemMessage<'TItem when 'TItem : comparison> =
 |    Start of ('TItem * AsyncReplyChannel<unit>) 
 |    Complete of 'TItem
 |    LastComplete of (AsyncReplyChannel<'TItem option>) 
+|    Notify of ('TItem * Async<unit>)
 
 type LastCompleteItemAgent<'TItem when 'TItem : comparison> () = 
     let log (msg : string) = Console.WriteLine(msg)

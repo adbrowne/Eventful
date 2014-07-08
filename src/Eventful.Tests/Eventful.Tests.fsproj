@@ -12,7 +12,7 @@
     <Name>Eventful.Tests</Name>
     <TargetFSharpCoreVersion>4.3.0.0</TargetFSharpCoreVersion>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
-    <RestorePackages>true</RestorePackages>
+    <RestorePackages>false</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -68,14 +68,15 @@
     <None Include="log4net.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Compile Include="TestValueStream.fs" />
     <Compile Include="TestEventStore.fs" />
     <Compile Include="TestInterpreter.fs" />
-    <Compile Include="TestValueStream.fs" />
     <Compile Include="TestSystem.fs" />
     <Compile Include="TestHelpers.fs" />
     <Compile Include="CounterAgent.fs" />
     <Compile Include="BoundedWorkQueueTests.fs" />
     <Compile Include="OrderedGroupingQueueTests.fs" />
+    <Compile Include="MutableOrderedGroupingQueue.fs" />
     <Compile Include="GroupingBoundedQueueStateTests.fs" />
     <Compile Include="GroupingBoundedQueueTests.fs" />
     <Compile Include="WorktrackingQueueTests.fs" />
@@ -120,10 +121,6 @@
     </Reference>
     <Reference Include="log4net">
       <HintPath>..\packages\log4net.1.2.10\lib\2.0\log4net.dll</HintPath>
-    </Reference>
-    <Reference Include="metrics">
-      <HintPath>..\packages\Metrics.NET.0.1.8\lib\net45\Metrics.dll</HintPath>
-      <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Microsoft.Data.Edm">
