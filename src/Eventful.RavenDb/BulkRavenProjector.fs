@@ -27,11 +27,13 @@ type BulkRavenProjector<'TEventContext>
 
     let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
 
-    let batchWriteTracker = Metric.Histogram("BatchWriteSize", Unit.Items)
-    let completeItemsTracker = Metric.Meter("EventsComplete", Unit.Items)
-    let processingExceptions = Metric.Meter("ProcessingExceptions", Unit.Items)
-    let batchWriteTime = Metric.Timer("WriteTime", Unit.None)
-    let batchWritesMeter = Metric.Meter("BatchWrites", Unit.Items)
+    let batchWriteTracker = Metric.Histogram(sprintf "BatchWriteSize %s" databaseName, Unit.Items)
+    let completeItemsTracker = Metric.Meter(sprintf "EventsComplete %s" databaseName, Unit.Items)
+    let processingExceptions = Metric.Meter(sprintf "ProcessingExceptions %s" databaseName, Unit.Items)
+    let batchWriteTime = Metric.Timer(sprintf "WriteTime %s" databaseName, Unit.None)
+    let batchWritesMeter = Metric.Meter(sprintf "BatchWrites %s" databaseName, Unit.Items)
+    let batchConflictsMeter = Metric.Meter(sprintf "BatchConflicts %s" databaseName, Unit.Items)
+
     let writeBatch _ docs = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
         let originalDocMap = 
@@ -56,6 +58,7 @@ type BulkRavenProjector<'TEventContext>
                     cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
                 true
             | None ->
+                batchConflictsMeter.Mark()
                 for (docKey, (_, callback)) in originalDocMap |> Map.toSeq do
                     cache.Remove(docKey) |> ignore
                 false
