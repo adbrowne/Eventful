@@ -40,9 +40,13 @@ type BulkRavenProjector<'TEventContext>
             docs
             |> Seq.collect (fun (writeRequests, callback) -> 
                 writeRequests
-                |> Seq.map(fun { DocumentKey = key; Document = document } ->
-                    let document = document.Force()
-                    (key, (document, callback))
+                |> Seq.map(fun processAction ->
+                    match processAction with
+                    | Write { DocumentKey = key; Document = document } ->
+                        let document = document.Force()
+                        (key, Choice1Of2 (document, callback))
+                    | Delete { DocumentKey = key } ->
+                        (key, Choice2Of2 ())
                 )
             )
             |> Map.ofSeq
@@ -54,13 +58,20 @@ type BulkRavenProjector<'TEventContext>
                 batchWriteTracker.Update(batchResult.LongLength)
                 batchWritesMeter.Mark()
                 for docResult in batchResult do
-                    let (doc, callback) = originalDocMap.[docResult.Key]
-                    cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
+                    match originalDocMap.[docResult.Key] with
+                    | Choice1Of2 (doc, callback) ->
+                        cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
+                    | Choice2Of2 _ ->
+                        cache.Remove(docResult.Key) |> ignore
+
                 true
             | None ->
                 batchConflictsMeter.Mark()
-                for (docKey, (_, callback)) in originalDocMap |> Map.toSeq do
-                    cache.Remove(docKey) |> ignore
+                for docRequest in originalDocMap |> Map.toSeq do
+                    match docRequest with
+                    | (docKey, Choice1Of2 (_, callback)) ->
+                        cache.Remove(docKey) |> ignore
+                    | _ -> ()
                 false
         
         for (_, callback) in docs do
@@ -172,7 +183,7 @@ type BulkRavenProjector<'TEventContext>
             let (complete, wait) = getPromise()
 
             let writeRequests =
-                {
+                Write {
                     DocumentKey = positionDocumentKey
                     Document = lazy(RavenOperations.serializeDocument documentStore position)
                     Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)

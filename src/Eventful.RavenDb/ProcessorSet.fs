@@ -7,7 +7,7 @@ type HashSet<'T> = System.Collections.Generic.HashSet<'T>
 [<CustomEquality; CustomComparison>]
 type UntypedDocumentProcessor<'TContext> = {
     ProcessorKey : string
-    Process : IDocumentFetcher -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<DocumentWriteRequest>>
+    Process : IDocumentFetcher -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<ProcessAction>>
     MatchingKeys: SubscriberEvent<'TContext> -> seq<IComparable>
     EventTypes : HashSet<Type>
 }

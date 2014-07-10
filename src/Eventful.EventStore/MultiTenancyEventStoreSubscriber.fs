@@ -2,6 +2,7 @@
 
 open EventStore.ClientAPI
 open Eventful
+open Metrics
 open FSharp.Control
 
 type MultiTenancyEventStoreSubscriber<'TWrappedEvent>
@@ -16,6 +17,8 @@ type MultiTenancyEventStoreSubscriber<'TWrappedEvent>
         parallelDeserializers : int,
         maxQueueSize : int
     ) =
+
+    let forceEventTimer = Metric.Timer("Force Event Time", Unit.None)
 
     let ignoredStreamsHash = new System.Collections.Generic.HashSet<string>(ignoredStreams)
     let ignoredEventTypesHash = new System.Collections.Generic.HashSet<string>(ignoredEventTypes)
@@ -41,7 +44,10 @@ type MultiTenancyEventStoreSubscriber<'TWrappedEvent>
             async {
                 let rec loop () = async {
                     let! next = buffer.AsyncGet()
+                    let sw = System.Diagnostics.Stopwatch.StartNew()
                     forceEvent next
+                    sw.Stop()
+                    forceEventTimer.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
                     return! loop ()
                 }
 

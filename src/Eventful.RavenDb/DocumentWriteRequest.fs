@@ -15,3 +15,12 @@ type DocumentWriteRequest = {
     Metadata : Lazy<Raven.Json.Linq.RavenJObject>
     Etag : Raven.Abstractions.Data.Etag
 }
+
+type DocumentDeleteRequest = {
+    DocumentKey : string
+    Etag : Raven.Abstractions.Data.Etag
+}
+
+type ProcessAction = 
+| Write of DocumentWriteRequest
+| Delete of DocumentDeleteRequest

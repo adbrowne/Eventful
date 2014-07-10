@@ -193,13 +193,13 @@ module RavenProjectorTests =
             permDoc.Writes <- permDoc.Writes + 1
 
             return seq {
-                yield {
+                yield Write {
                     DocumentKey = docKey
                     Document = lazy(RavenJObject.FromObject(doc))
                     Metadata = lazy(metadata)
                     Etag = etag
                 }
-                yield {
+                yield Write {
                     DocumentKey = permDocKey
                     Document = lazy(RavenJObject.FromObject(permDoc))
                     Metadata = lazy(permMetadata)

@@ -4,7 +4,7 @@ open Eventful
 
 open Raven.Abstractions.Commands
 
-type BatchWrite = (seq<DocumentWriteRequest> * (bool -> Async<unit>))
+type BatchWrite = (seq<ProcessAction> * (bool -> Async<unit>))
 
 module BatchOperations =
     let buildPutCommand (writeRequest:DocumentWriteRequest) =
@@ -14,13 +14,23 @@ module BatchOperations =
         cmd.Etag <- writeRequest.Etag
         cmd.Metadata <- writeRequest.Metadata.Force()
         cmd
+
+    let buildDeleteCommand (deleteRequest:DocumentDeleteRequest) =
+        let cmd = new DeleteCommandData()
+        cmd.Key <- deleteRequest.DocumentKey
+        cmd.Etag <- deleteRequest.Etag
+        cmd
+        
+    let buildCommandFromProcessAction processAction =
+        match processAction with
+        | Write x -> buildPutCommand x :> ICommandData
+        | Delete x -> buildDeleteCommand x :> ICommandData
         
     let writeBatch (documentStore : Raven.Client.IDocumentStore) database (docs:seq<BatchWrite>) = async {
         try 
             let! batchResult = 
                 docs
-                |> Seq.collect (fst >> Seq.map buildPutCommand)
-                |> Seq.cast<ICommandData>
+                |> Seq.collect (fst >> Seq.map buildCommandFromProcessAction)
                 |> Array.ofSeq
                 |> documentStore.AsyncDatabaseCommands.ForDatabase(database).BatchAsync
                 |> Async.AwaitTask
