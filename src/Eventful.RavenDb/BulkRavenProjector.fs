@@ -80,7 +80,10 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
     }
 
-    let writeQueue = new WorktrackingQueue<unit, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton ())), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write") 
+    let writeQueue = 
+        let x = new WorktrackingQueue<unit, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton ())), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write") 
+        x.StopWork()
+        x
 
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
@@ -159,10 +162,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         |> Async.Parallel
         |> Async.Ignore
 
-    let queue = 
-        let x = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
-        x.StopWork()
-        x
+    let queue = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
 
     let positionDocumentKey = "EventProcessingPosition"
 
@@ -237,4 +237,4 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
    
     member x.WaitAll = queue.AsyncComplete
 
-    member x.StartWork () = queue.StartWork()
+    member x.StartWork () = writeQueue.StartWork()

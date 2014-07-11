@@ -35,6 +35,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         for i in [1.._workerCount] do
             async {
                 while true do
+                    //consoleLog <| sprintf "Running: %A %A Working: %A" _name i working
                     do! queue.Consume doWork
                     if not working then
                         do! Async.Sleep(2000)
