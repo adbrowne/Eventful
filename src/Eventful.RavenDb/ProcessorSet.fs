@@ -5,10 +5,10 @@ open System
 type HashSet<'T> = System.Collections.Generic.HashSet<'T>
 
 [<CustomEquality; CustomComparison>]
-type UntypedDocumentProcessor<'TContext> = {
+type UntypedDocumentProcessor<'TMessage> = {
     ProcessorKey : string
-    Process : IDocumentFetcher -> obj -> seq<SubscriberEvent<'TContext>> -> Async<seq<ProcessAction>>
-    MatchingKeys: SubscriberEvent<'TContext> -> seq<IComparable>
+    Process : IDocumentFetcher -> obj -> seq<'TMessage> -> Async<seq<ProcessAction>>
+    MatchingKeys: 'TMessage -> seq<IComparable>
     EventTypes : HashSet<Type>
 }
 with
@@ -16,15 +16,15 @@ with
         let {ProcessorKey = key } = p
         key
     override x.Equals(y) = 
-        equalsOn UntypedDocumentProcessor<'TContext>.Key x y
+        equalsOn UntypedDocumentProcessor<'TMessage>.Key x y
     override x.GetHashCode() = 
-        hashOn UntypedDocumentProcessor<'TContext>.Key x
+        hashOn UntypedDocumentProcessor<'TMessage>.Key x
     interface System.IComparable with 
-        member x.CompareTo y = compareOn UntypedDocumentProcessor<'TContext>.Key x y
+        member x.CompareTo y = compareOn UntypedDocumentProcessor<'TMessage>.Key x y
 
-type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TEventContext>>) =
+type ProcessorSet<'TMessage>(processors : List<UntypedDocumentProcessor<'TMessage>>) =
     member x.Items = processors
-    member x.Add<'TKey,'TDocument>(processor:DocumentProcessor<'TKey, 'TDocument, 'TEventContext>) =
+    member x.Add<'TKey,'TDocument>(processor:DocumentProcessor<'TKey, 'TDocument, 'TMessage>) =
         
         let processUntyped (fetcher:IDocumentFetcher) (untypedKey : obj) events =
             let key = untypedKey :?> 'TKey
@@ -42,6 +42,6 @@ type ProcessorSet<'TEventContext>(processors : List<UntypedDocumentProcessor<'TE
         }
 
         let processors' = untypedProcessor::processors
-        new ProcessorSet<'TEventContext>(processors')
+        new ProcessorSet<'TMessage>(processors')
 
-    static member Empty = new ProcessorSet<'TEventContext>(List.empty)
+    static member Empty = new ProcessorSet<'TMessage>(List.empty)

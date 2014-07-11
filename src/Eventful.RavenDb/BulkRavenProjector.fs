@@ -12,17 +12,16 @@ open Raven.Client
 open Raven.Abstractions.Data
 open Raven.Json.Linq
 
-type BulkRavenProjector<'TEventContext> 
+type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage> 
     (
         documentStore:Raven.Client.IDocumentStore, 
-        processors:ProcessorSet<'TEventContext>,
+        processors:ProcessorSet<'TMessage>,
         databaseName: string,
-        getPosition:'TEventContext -> EventPosition,
         maxEventQueueSize : int,
         eventWorkers: int,
         maxWriterQueueSize: int,
         writerWorkers: int,
-        onEventComplete : SubscriberEvent<'TEventContext> -> Async<unit>
+        onEventComplete : 'TMessage -> Async<unit>
     ) =
 
     let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
@@ -96,7 +95,7 @@ type BulkRavenProjector<'TEventContext>
                 RavenOperations.getDocuments documentStore cache databaseName request
     }
 
-    let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TEventContext>) events =
+    let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TMessage>) events =
         async { 
             let untypedKey = key :> obj
 
@@ -130,11 +129,11 @@ type BulkRavenProjector<'TEventContext>
         do! loop 0
     }
 
-    let grouper (event : SubscriberEvent<'TEventContext>) =
+    let grouper (event : 'TMessage) =
         let groups = 
             processors.Items
             |> Seq.collect (fun x -> 
-                if x.EventTypes.Contains(event.Event.GetType()) then
+                if x.EventTypes.Contains(event.EventType) then
                     x.MatchingKeys event
                     |> Seq.map (fun k9 -> (k9, x))
                 else 
@@ -144,13 +143,17 @@ type BulkRavenProjector<'TEventContext>
     
     let tracker = new LastCompleteItemAgent2<EventPosition>()
 
-    let eventComplete (event:SubscriberEvent<'TEventContext>) =
-        let position = getPosition event.Context
+    let eventComplete (event : 'TMessage) =
         seq {
-            yield async {
-                tracker.Complete(position)
-                completeItemsTracker.Mark(1L)
-            }
+            let position = event.GlobalPosition
+            match position with
+            | Some position ->
+                yield async {
+                    tracker.Complete(position)
+                    completeItemsTracker.Mark(1L)
+                }
+            | None -> ()
+
             yield onEventComplete event
         }
         |> Async.Parallel
@@ -222,10 +225,14 @@ type BulkRavenProjector<'TEventContext>
 
     member x.DatabaseName = databaseName
 
-    member x.Enqueue subscriberEvent =
+    member x.Enqueue (message : 'TMessage) =
         async {
-            do! subscriberEvent.Context |> getPosition |> tracker.Start 
-            do! queue.Add subscriberEvent
+            match message.GlobalPosition with
+            | Some position -> 
+                do! tracker.Start position
+            | None -> ()
+
+            do! queue.Add message
         }
    
     member x.WaitAll = queue.AsyncComplete

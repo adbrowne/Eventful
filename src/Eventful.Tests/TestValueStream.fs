@@ -5,12 +5,21 @@ open FSharpx.Collections
 open FSharpx
 open Eventful
 
+type Dictionary<'Key,'Value> = System.Collections.Generic.Dictionary<'Key,'Value>
+
 type EventContext = {
     Tenancy : string
     Position : EventPosition
 }
 
-type Dictionary<'Key,'Value> = System.Collections.Generic.Dictionary<'Key,'Value>
+type SubscriberEvent = 
+    { Event : obj
+      Context : EventContext
+      StreamId : string
+      EventNumber: int }
+    interface IBulkRavenMessage with
+        member x.GlobalPosition = Some x.Context.Position
+        member x.EventType = x.Event.GetType()
 
 module TestEventStream =
     let sequentialNumbers streamCount valuesPerStreamCount = 

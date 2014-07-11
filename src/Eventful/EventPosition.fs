@@ -5,9 +5,6 @@ type EventPosition = {
     Prepare : int64
 }
 
-type SubscriberEvent<'TContext> = {
-    Event : obj
-    Context : 'TContext
-    StreamId : string
-    EventNumber: int
-}
+type IBulkRavenMessage = 
+    abstract member GlobalPosition : EventPosition option
+    abstract member EventType : System.Type

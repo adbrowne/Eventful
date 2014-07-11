@@ -146,7 +146,7 @@ module RavenProjectorTests =
 
             (newDoc, metadata, etag)
 
-        let matcher (subscriberEvent : SubscriberEvent<EventContext>) =
+        let matcher (subscriberEvent : SubscriberEvent) =
             match subscriberEvent.Event with
             | :? (Guid * int) as event ->
                 event |> fst |> Seq.singleton
@@ -208,7 +208,7 @@ module RavenProjectorTests =
             }
         }
 
-        let myProcessor : DocumentProcessor<Guid, MyCountingDoc, EventContext> = {
+        let myProcessor : DocumentProcessor<Guid, MyCountingDoc, SubscriberEvent> = {
             EventTypes = Seq.singleton typeof<(Guid * int)>
             MatchingKeys = matcher
             Process = processBatch
@@ -216,7 +216,7 @@ module RavenProjectorTests =
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
 
-        let projector = new BulkRavenProjector<EventContext>(documentStore, processorSet, "tenancy-blue", (fun e -> e.Position), 1000000, 10, 10000, 10, writeComplete)
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 10, 10000, 10, writeComplete)
         // projector.StartWork()
         projector.StartPersistingPosition()
 
