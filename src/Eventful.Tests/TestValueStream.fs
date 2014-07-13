@@ -32,7 +32,7 @@ module TestEventStream =
 
         let streamValueOrdering =
             streams
-            |> Seq.map(fun s -> Seq.repeat s |> Seq.take 100)
+            |> Seq.map(fun s -> Seq.repeat s |> Seq.take valuesPerStreamCount)
             |> Seq.collect id
             |> Seq.sortBy(fun x -> rnd.Next(100000))
             |> LazyList.ofSeq

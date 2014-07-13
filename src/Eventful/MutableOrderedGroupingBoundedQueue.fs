@@ -4,11 +4,13 @@ open System
 
 type GroupEntry<'TItem> = {
     Items : List<Int64 * 'TItem>
+    Processing : List<Int64 * 'TItem>
 }
   
 type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : comparison> = 
   | AddItem of (seq<'TItem * 'TGroup> * Async<unit> * AsyncReplyChannel<unit>)
   | ConsumeWork of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<unit>)
+  | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
 type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(?maxItems) =
@@ -21,13 +23,18 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
     // very mutable
     let groupItems = new System.Collections.Generic.Dictionary<'TGroup, GroupEntry<'TItem>>()
 
+    let workQueue = new System.Collections.Generic.Queue<'TGroup>()
+
     let lastCompleteTracker = new LastCompleteItemAgent2<int64>()
 
     let addItemToGroup item group =
         let (exists, value) = groupItems.TryGetValue(group)
         let value = 
-            if exists then value
-            else { Items = List.empty } 
+            if exists then 
+                value
+            else 
+                workQueue.Enqueue group
+                { Items = List.empty; Processing = List.empty } 
         let value' = { value with Items = item::value.Items }
         groupItems.Remove group |> ignore
         groupItems.Add(group, value')
@@ -39,28 +46,43 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             match msg with
             | AddItem x -> Some (enqueue x itemIndex)
             | NotifyWhenAllComplete reply -> 
-                lastCompleteTracker.NotifyWhenComplete(itemIndex, async { reply.Reply() } )
+                reply.Reply()
                 Some(empty itemIndex)
+            | GroupComplete group -> Some(groupComplete group itemIndex)
             | _ -> None)
         and hasWork itemIndex =
             agent.Scan(fun msg ->
             match msg with
             | AddItem x -> Some <| enqueue x itemIndex
             | ConsumeWork x -> Some <| consume x itemIndex
+            | GroupComplete group -> Some(groupComplete group itemIndex)
             | NotifyWhenAllComplete reply ->
-                lastCompleteTracker.NotifyWhenComplete(itemIndex, async { reply.Reply() } )
+                lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, async { reply.Reply() } )
                 Some(hasWork itemIndex))
         and enqueue (items, onComplete, reply) itemIndex = async {
-            let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x))
+            let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
             for ((item, group), index) in indexedItems do
                 addItemToGroup (index, item) group
                 do! lastCompleteTracker.Start index
             reply.Reply()
-            // todo watch out for no items
-            let nextIndex = indexedItems |> Seq.map snd |> Seq.max
-            return! hasWork (nextIndex) }
+            let nextIndex = 
+                if Seq.length indexedItems > 0 then
+                    let blah = 
+                        indexedItems |> Seq.map snd |> Seq.last
+                    blah + 1L
+                else
+                    itemIndex
+            return! (nextMessage nextIndex) }
+        and groupComplete group itemIndex = async {
+            let values = groupItems.Item group
+            if (not (values.Items |> List.isEmpty)) then
+                workQueue.Enqueue(group)
+            else
+                groupItems.Remove group |> ignore
+
+            return! nextMessage itemIndex }
         and consume (workCallback, reply) itemIndex = async {
-            let nextKey = groupItems.Keys |> Seq.head
+            let nextKey = workQueue.Dequeue()
             let values = groupItems.Item nextKey
             async {
                 try
@@ -70,12 +92,18 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 
                 for (i, _) in values.Items do
                     lastCompleteTracker.Complete i
+                
+                agent.Post <| GroupComplete nextKey
 
             } |> Async.StartAsTask |> ignore
 
             reply.Reply()
+            let newValues = { values with Items = List.empty; Processing = values.Items }
             groupItems.Remove(nextKey) |> ignore
-            if(groupItems.Count = 0) then
+            groupItems.Add(nextKey, newValues)
+            return! nextMessage itemIndex }
+        and nextMessage itemIndex = async {
+            if(workQueue.Count = 0) then
                 return! empty itemIndex
             else
                 return! hasWork itemIndex

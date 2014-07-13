@@ -85,7 +85,9 @@ module MutableOrderedGroupingBoundedQueueTests =
         let queue = new MutableOrderedGroupingBoundedQueue<Guid, int>()
         let store = new System.Collections.Generic.Dictionary<Guid, int>()
         let monitor = new Object()
-        let items = TestEventStream.sequentialValues 10 1000
+        let streamCount = 100
+        let itemCount = 100
+        let inputItems = TestEventStream.sequentialValues streamCount itemCount |> Seq.cache
 
         let accumulator s a =
             if(a % 2 = 0) then
@@ -95,7 +97,6 @@ module MutableOrderedGroupingBoundedQueueTests =
 
         let rec consumer ()  = async {
             do! queue.Consume((fun (g, items) -> async {
-                // Console.WriteLine("{0} count: {1}", g, items |> Seq.length)
                 let current = 
                     if store.ContainsKey g then
                         store.Item(g)
@@ -123,11 +124,15 @@ module MutableOrderedGroupingBoundedQueueTests =
         consumer () |> Async.StartAsTask |> ignore
         consumer () |> Async.StartAsTask |> ignore
 
+        let expectedValue = [1..itemCount] |> List.fold accumulator 0
+
+        let queueItems = 
+            inputItems 
+            |> Seq.map (fun (eventPosition, key, value) -> queue.Add(value, (fun v -> Seq.singleton (value, key)))) 
         async {
-            for (eventPosition, key, value) in items do
-                do! queue.Add(value, (fun v -> Seq.singleton (value, key)))
+            do! queueItems |> Async.Parallel |> Async.Ignore
             do! queue.CurrentItemsComplete()
-            Assert.Equal(10, store.Count)
+            Assert.True((streamCount = store.Count), sprintf "store.Count %A should equal streamCount %A" store.Count streamCount)
             for pair in store do
-                Assert.Equal(50, pair.Value)
+                Assert.Equal(expectedValue, pair.Value)
         } |> Async.RunSynchronously
