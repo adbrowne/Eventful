@@ -81,7 +81,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     }
 
     let writeQueue = 
-        let x = new WorktrackingQueue<unit, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton ())), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write") 
+        let x = new WorktrackingQueue<int, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton 1)), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write") 
         x.StopWork()
         x
 

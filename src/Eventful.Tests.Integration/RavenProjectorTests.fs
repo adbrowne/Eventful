@@ -116,7 +116,7 @@ module RavenProjectorTests =
     let ``Pump many events at Raven`` () : unit =
         let config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
         
-        let streamCount = 100
+        let streamCount = 1000
         let itemPerStreamCount = 100
         let totalEvents = streamCount * itemPerStreamCount
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
@@ -217,7 +217,7 @@ module RavenProjectorTests =
         let processorSet = ProcessorSet.Empty.Add myProcessor
 
         let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 10, 10000, 10, writeComplete)
-        // projector.StartWork()
+        projector.StartWork()
         projector.StartPersistingPosition()
 
         seq {
