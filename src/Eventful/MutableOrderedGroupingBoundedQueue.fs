@@ -14,14 +14,21 @@ type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : c
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
 type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(?maxItems) =
+    let log = Common.Logging.LogManager.GetLogger(typeof<MutableOrderedGroupingBoundedQueue<_,_>>)
+
     let maxItems =
         match maxItems with
         | Some v -> v
         | None -> 10000
     
+    let equalityComparer = 
+        { new System.Collections.Generic.IEqualityComparer<'TGroup> with
+            member this.Equals(x : 'TGroup, y : 'TGroup) : bool = 
+                x.CompareTo(y) = 0
+            member this.GetHashCode(x) = x.GetHashCode() }
     // normal .NET dictionary for performance
     // very mutable
-    let groupItems = new System.Collections.Generic.Dictionary<'TGroup, GroupEntry<'TItem>>()
+    let groupItems = new System.Collections.Generic.Dictionary<'TGroup, GroupEntry<'TItem>>(equalityComparer)
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
@@ -33,6 +40,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             if exists then 
                 value
             else 
+                log.Error(sprintf "Enqueue %A" group)
                 workQueue.Enqueue group
                 { Items = List.empty; Processing = List.empty } 
         let value' = { value with Items = item::value.Items }
@@ -82,6 +90,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         and groupComplete group itemIndex = async {
             let values = groupItems.Item group
             if (not (values.Items |> List.isEmpty)) then
+                log.Error(sprintf "Group Complete Enqueue %A" group)
                 workQueue.Enqueue(group)
             else
                 groupItems.Remove group |> ignore
@@ -92,6 +101,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             let values = groupItems.Item nextKey
             async {
                 try
+                    log.Error(sprintf "Starting %A" nextKey) 
                     do! workCallback(nextKey,values.Items |> List.rev |> List.map snd) 
                 with | e ->
                     System.Console.WriteLine ("Error" + e.Message)
@@ -99,6 +109,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 for (i, _) in values.Items do
                     lastCompleteTracker.Complete i
                 
+                log.Error(sprintf "Complete %A" nextKey) 
+
                 agent.Post <| GroupComplete nextKey
 
             } |> Async.StartAsTask |> ignore

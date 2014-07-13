@@ -195,13 +195,13 @@ module RavenProjectorTests =
             return seq {
                 yield Write {
                     DocumentKey = docKey
-                    Document = lazy(RavenJObject.FromObject(doc))
+                    Document = doc
                     Metadata = lazy(metadata)
                     Etag = etag
                 }
                 yield Write {
                     DocumentKey = permDocKey
-                    Document = lazy(RavenJObject.FromObject(permDoc))
+                    Document = permDoc
                     Metadata = lazy(permMetadata)
                     Etag = permEtag
                 }

@@ -11,7 +11,7 @@ type IDocumentFetcher =
 
 type DocumentWriteRequest = {
     DocumentKey : string
-    Document : Lazy<Raven.Json.Linq.RavenJObject>
+    Document : obj
     Metadata : Lazy<Raven.Json.Linq.RavenJObject>
     Etag : Raven.Abstractions.Data.Etag
 }

@@ -18,8 +18,10 @@ module RavenOperations =
     let deserialize<'T> (documentStore : IDocumentStore) ravenJObject =
         deserializeToType documentStore typeof<'T> ravenJObject
 
+    let getCacheKey databaseName docKey = databaseName + "::" + docKey 
+
     let getDocument (documentStore : IDocumentStore) (cache : MemoryCache) database docKey =
-        let cacheEntry = cache.Get(database + "::" + docKey)
+        let cacheEntry = getCacheKey database docKey |> cache.Get
         match cacheEntry with
         | :? ProjectedDocument<_> as doc ->
             async { return Some doc }
@@ -39,13 +41,13 @@ module RavenOperations =
         let requestCacheMatches =
             request
             |> Seq.map(fun (docKey, docType) -> 
-                let cacheEntry = cache.Get(database + "::" + docKey)
+                let cacheEntry = getCacheKey database docKey |> cache.Get
                 match cacheEntry with
                 | null -> (docKey, docType, None)
                 | :? (obj * RavenJObject * Etag) as value -> 
                     let (doc, metadata, etag) = value
                     (docKey, docType, Some (doc, metadata, etag))
-                | _ -> failwith "Unexpected")
+                | a -> failwith <| sprintf "Unexpected %A" a)
 
         let toFetch =
             requestCacheMatches

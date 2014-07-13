@@ -13,7 +13,7 @@ type UntypedDocumentProcessor<'TMessage> = {
 }
 with
     static member Key p = 
-        let {ProcessorKey = key } = p
+        let { ProcessorKey = key } = p
         key
     override x.Equals(y) = 
         equalsOn UntypedDocumentProcessor<'TMessage>.Key x y

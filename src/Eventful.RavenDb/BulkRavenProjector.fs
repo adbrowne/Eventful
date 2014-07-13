@@ -23,6 +23,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         writerWorkers: int,
         onEventComplete : 'TMessage -> Async<unit>
     ) =
+    let log = Common.Logging.LogManager.GetLogger(typeof<BulkRavenProjector<_>>)
 
     let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
 
@@ -41,9 +42,9 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                 writeRequests
                 |> Seq.map(fun processAction ->
                     match processAction with
-                    | Write { DocumentKey = key; Document = document } ->
-                        let document = document.Force()
-                        (key, Choice1Of2 (document, callback))
+                    | Write { DocumentKey = key; Document = document; Metadata = metadata } ->
+                        let document = document
+                        (key, Choice1Of2 (document, metadata.Force(), callback))
                     | Delete { DocumentKey = key } ->
                         (key, Choice2Of2 ())
                 )
@@ -58,18 +59,21 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                 batchWritesMeter.Mark()
                 for docResult in batchResult do
                     match originalDocMap.[docResult.Key] with
-                    | Choice1Of2 (doc, callback) ->
-                        cache.Set(docResult.Key, (doc, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
+                    | Choice1Of2 (doc, metadata, callback) ->
+                        let cacheKey = RavenOperations.getCacheKey databaseName docResult.Key
+                        cache.Set(cacheKey, (doc, metadata, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
                     | Choice2Of2 _ ->
-                        cache.Remove(docResult.Key) |> ignore
+                        let cacheKey = RavenOperations.getCacheKey databaseName docResult.Key
+                        cache.Remove(cacheKey) |> ignore
 
                 true
             | None ->
                 batchConflictsMeter.Mark()
                 for docRequest in originalDocMap |> Map.toSeq do
                     match docRequest with
-                    | (docKey, Choice1Of2 (_, callback)) ->
-                        cache.Remove(docKey) |> ignore
+                    | (docKey, Choice1Of2 (_, _, callback)) ->
+                        let cacheKey = RavenOperations.getCacheKey databaseName docKey
+                        cache.Remove(cacheKey) |> ignore
                     | _ -> ()
                 false
         
