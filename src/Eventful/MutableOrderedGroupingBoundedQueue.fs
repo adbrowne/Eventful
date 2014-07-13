@@ -46,7 +46,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             match msg with
             | AddItem x -> Some (enqueue x itemIndex)
             | NotifyWhenAllComplete reply -> 
-                reply.Reply()
+                if(itemIndex = 0L) then reply.Reply()
+                else lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, async { reply.Reply() } )
                 Some(empty itemIndex)
             | GroupComplete group -> Some(groupComplete group itemIndex)
             | _ -> None)
@@ -65,14 +66,19 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 addItemToGroup (index, item) group
                 do! lastCompleteTracker.Start index
             reply.Reply()
-            let nextIndex = 
+
+            let lastIndex = 
                 if Seq.length indexedItems > 0 then
-                    let blah = 
-                        indexedItems |> Seq.map snd |> Seq.last
-                    blah + 1L
+                    indexedItems |> Seq.map snd |> Seq.last
                 else
                     itemIndex
-            return! (nextMessage nextIndex) }
+
+            if(lastIndex = itemIndex) then
+                do! onComplete
+            else
+                lastCompleteTracker.NotifyWhenComplete(lastIndex, onComplete)
+
+            return! (nextMessage (lastIndex + 1L)) }
         and groupComplete group itemIndex = async {
             let values = groupItems.Item group
             if (not (values.Items |> List.isEmpty)) then

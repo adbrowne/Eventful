@@ -9,12 +9,13 @@ type SortedSet<'a> = System.Collections.Generic.SortedSet<'a>
 [<CustomEquality; CustomComparison>]
 type NotificationItem<'TItem when 'TItem : comparison> = {
     Item : 'TItem
+    Unique : Guid // each item in the set must be unique
     Callback : Async<unit>
 }
 with
     static member Key p = 
-        let { Item = key } = p
-        key
+        let { Item = key; Unique = unique } = p
+        (key,unique)
     override x.Equals(y) = 
         equalsOn NotificationItem<'TItem>.Key x y
     override x.GetHashCode() = 
@@ -23,7 +24,7 @@ with
         member x.CompareTo y = compareOn NotificationItem<'TItem>.Key x y
 
 type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () = 
-    let log (msg : string) = Console.WriteLine(msg)
+    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent2<_>>)
     let started = new System.Collections.Generic.SortedSet<'TItem>()
     let completed = new System.Collections.Generic.SortedSet<'TItem>()
     let notifications = new System.Collections.Generic.SortedSet<NotificationItem<'TItem>>()
@@ -95,7 +96,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () =
                 reply.Reply(currentLastComplete)
                 return! loop ()
             | Notify (item, callback) ->
-                notifications.Add({ Item = item; Callback = callback}) |> ignore
+                notifications.Add({ Item = item; Unique = Guid.NewGuid(); Callback = callback}) |> ignore
 
                 match currentLastComplete with
                 | Some x -> do! checkNotifications x

@@ -187,11 +187,12 @@ module WorktrackingQueueTests =
         async {
             let worktrackingQueue = new WorktrackingQueue<int,(string * string),(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000, 10, complete)
             do! worktrackingQueue.Add ("group", "item")
+            do! Async.Sleep 100
             do! worktrackingQueue.AsyncComplete()
             do! Async.Sleep 100
             let! count = completeCount.Get()
             count |> should equal 1
-        } |> Async.RunSynchronously
+        } |> (fun f -> Async.RunSynchronously(f, 3000))
 
     [<Fact>]
     let ``Given empty queue When complete Then returns immediately`` () : unit =

@@ -23,7 +23,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let _complete = complete |> getOrElse (fun _ -> async { return () })
     let _name = name |> getOrElse "unnamed"
 
-    let queue = new OrderedGroupingQueue<'TGroup, 'TWorkItem>(_maxItems)
+    let queue = new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems)
 
     let doWork (group, items) = async {
          do! workAction group items
@@ -41,6 +41,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                         do! Async.Sleep(2000)
             } |> Async.Start
 
+    let sequenceGrouping a =
+        let (item, groups) = grouping a
+        groups |> Set.toSeq |> Seq.map (fun g -> (item, g))
+        
     member this.StopWork () =
         working <- false
 
@@ -48,10 +52,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         working <- true
 
     member this.Add (item:'TInput) =
-        queue.Add (item, grouping, _complete item)
+        queue.Add (item, sequenceGrouping, _complete item)
 
     member this.AddWithCallback (item:'TInput, onComplete : ('TInput -> Async<unit>)) =
-        queue.Add (item, grouping, onComplete item)
+        queue.Add (item, sequenceGrouping, onComplete item)
 
     member this.AsyncComplete () =
         queue.CurrentItemsComplete ()
