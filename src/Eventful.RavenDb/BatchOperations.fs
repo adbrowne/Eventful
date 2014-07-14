@@ -25,8 +25,8 @@ module BatchOperations =
         
     let buildCommandFromProcessAction documentStore processAction =
         match processAction with
-        | Write x -> buildPutCommand documentStore x :> ICommandData
-        | Delete x -> buildDeleteCommand x :> ICommandData
+        | Write (x,request) -> buildPutCommand documentStore x :> ICommandData
+        | Delete (x,_) -> buildDeleteCommand x :> ICommandData
         
     let writeBatch (documentStore : Raven.Client.IDocumentStore) database (docs:seq<BatchWrite>) = async {
         let buildCmd = (buildCommandFromProcessAction documentStore)
@@ -39,7 +39,12 @@ module BatchOperations =
                 |> Async.AwaitTask
 
             return Some (batchResult, docs)
-        with | e -> 
-            log.Error(sprintf "Write Error: %A" e.Message)
-            return None
+        with    
+            | :? System.AggregateException as e -> 
+                log.Error("Write Error", e)
+                log.Error("Write Inner", e.InnerException)
+                return None
+            | e ->
+                log.Error("Write Error", e)
+                return None
     }

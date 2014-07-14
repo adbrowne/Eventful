@@ -1,5 +1,6 @@
 ﻿namespace Eventful.Raven
 
+open System
 open Raven.Json.Linq
 open Raven.Abstractions.Data
 
@@ -22,5 +23,5 @@ type DocumentDeleteRequest = {
 }
 
 type ProcessAction = 
-| Write of DocumentWriteRequest
-| Delete of DocumentDeleteRequest
+| Write of DocumentWriteRequest * Guid
+| Delete of DocumentDeleteRequest * Guid

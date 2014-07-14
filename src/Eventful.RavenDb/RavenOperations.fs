@@ -7,6 +7,8 @@ open Raven.Client
 open Raven.Abstractions.Data
 
 module RavenOperations =
+    let log = Common.Logging.LogManager.GetLogger(typeof<BatchWrite>)
+
     let serializeDocument<'T> (documentStore : IDocumentStore) (doc : 'T) =
         let serializer = documentStore.Conventions.CreateSerializer()
         RavenJObject.FromObject(doc, serializer)
@@ -20,12 +22,14 @@ module RavenOperations =
 
     let getCacheKey databaseName docKey = databaseName + "::" + docKey 
 
-    let getDocument (documentStore : IDocumentStore) (cache : MemoryCache) database docKey =
-        let cacheEntry = getCacheKey database docKey |> cache.Get
+    let getDocument<'TDocument> (documentStore : IDocumentStore) (cache : MemoryCache) database docKey =
+        let cacheKey = getCacheKey database docKey 
+        let cacheEntry = cache.Get cacheKey
         match cacheEntry with
-        | :? ProjectedDocument<_> as doc ->
-            async { return Some doc }
-        | _ -> 
+        | :? ProjectedDocument<obj> as projectedDoc ->
+            let (doc, metadata, etag) = projectedDoc
+            async { return Some (doc :?> 'TDocument, metadata, etag) }
+        | null -> 
             async {
                 use session = documentStore.OpenAsyncSession(database)
                 let! doc = session.LoadAsync<_>(docKey) |> Async.AwaitTask
@@ -36,6 +40,7 @@ module RavenOperations =
                     let metadata = session.Advanced.GetMetadataFor(doc)
                     return Some (doc, metadata, etag)
             }
+        | entry -> failwith <| sprintf "Unexpected entry type %A" entry
 
     let getDocuments (documentStore : IDocumentStore) (cache : MemoryCache) (database : string) (request : seq<string * Type>) = async {
         let requestCacheMatches =

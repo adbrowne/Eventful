@@ -174,6 +174,7 @@ module RavenProjectorTests =
         }
 
         let processBatch key (fetcher : IDocumentFetcher) events = async {
+            let requestId = Guid.NewGuid()
             let docKey = "MyCountingDocs/" + key.ToString() 
             let permDocKey = "PermissionDocs/" + key.ToString() 
             let! (doc, metadata, etag) =  
@@ -193,18 +194,22 @@ module RavenProjectorTests =
             permDoc.Writes <- permDoc.Writes + 1
 
             return seq {
-                yield Write {
-                    DocumentKey = docKey
-                    Document = doc
-                    Metadata = lazy(metadata)
-                    Etag = etag
-                }
-                yield Write {
-                    DocumentKey = permDocKey
-                    Document = permDoc
-                    Metadata = lazy(permMetadata)
-                    Etag = permEtag
-                }
+                yield (
+                        Write ({
+                                DocumentKey = docKey
+                                Document = doc
+                                Metadata = lazy(metadata)
+                                Etag = etag
+                            }, 
+                            requestId))
+                yield (
+                        Write({
+                                DocumentKey = permDocKey
+                                Document = permDoc
+                                Metadata = lazy(permMetadata)
+                                Etag = permEtag
+                            },
+                            requestId))
             }
         }
 

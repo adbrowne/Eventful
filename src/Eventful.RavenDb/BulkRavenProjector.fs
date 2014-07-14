@@ -36,16 +36,17 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
     let writeBatch _ docs = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
+        let batchId = Guid.NewGuid()
         let originalDocMap = 
             docs
             |> Seq.collect (fun (writeRequests, callback) -> 
                 writeRequests
                 |> Seq.map(fun processAction ->
                     match processAction with
-                    | Write { DocumentKey = key; Document = document; Metadata = metadata } ->
+                    | Write ({ DocumentKey = key; Document = document; Metadata = metadata }, _) ->
                         let document = document
                         (key, Choice1Of2 (document, metadata.Force(), callback))
-                    | Delete { DocumentKey = key } ->
+                    | Delete ({ DocumentKey = key }, _) ->
                         (key, Choice2Of2 ())
                 )
             )
@@ -77,7 +78,8 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     | _ -> ()
                 false
         
-        for (_, callback) in docs do
+        for (docs, callback) in docs do
+
             do! callback writeSuccessful
 
         sw.Stop()
@@ -96,8 +98,8 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         
     let fetcher = {
         new IDocumentFetcher with
-            member x.GetDocument key =
-                RavenOperations.getDocument documentStore cache databaseName key
+            member x.GetDocument<'TDocument> key =
+                RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
             member x.GetDocuments request = 
                 RavenOperations.getDocuments documentStore cache databaseName request
     }
@@ -107,11 +109,13 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             let untypedKey = key :> obj
 
             let! writeRequests = documentProcessor.Process fetcher untypedKey events
+
             let (complete, wait) = getPromise()
                 
             do! writeQueue.Add(writeRequests, complete)
 
-            return! wait 
+            let! result = wait
+            return result 
         }
         
     let processEvent key values = async {
@@ -190,12 +194,13 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             let (complete, wait) = getPromise()
 
             let writeRequests =
-                Write {
-                    DocumentKey = positionDocumentKey
-                    Document = position
-                    Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)
-                    Etag = null // just write this blindly
-                }   
+                Write (
+                    {
+                        DocumentKey = positionDocumentKey
+                        Document = position
+                        Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)
+                        Etag = null // just write this blindly
+                    }, Guid.NewGuid())
                 |> Seq.singleton
 
             do! writeQueue.Add(writeRequests, complete)
