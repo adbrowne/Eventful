@@ -82,6 +82,7 @@
     <Compile Include="WorktrackingQueueTests.fs" />
     <Compile Include="LastCompleteTrackerTests.fs" />
     <Compile Include="LastCompleteItemTracker.fs" />
+    <Compile Include="LastCompleteItemAgent2Tests.fs" />
     <Compile Include="MagicMapper.fs" />
     <Compile Include="FoldPlay.fs" />
     <Compile Include="FoldCombining.fs" />

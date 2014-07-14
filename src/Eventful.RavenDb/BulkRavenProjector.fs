@@ -192,7 +192,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             let writeRequests =
                 Write {
                     DocumentKey = positionDocumentKey
-                    Document = lazy(RavenOperations.serializeDocument documentStore position)
+                    Document = position
                     Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)
                     Etag = null // just write this blindly
                 }   

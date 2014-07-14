@@ -10,6 +10,7 @@ type SortedSet<'a> = System.Collections.Generic.SortedSet<'a>
 type NotificationItem<'TItem when 'TItem : comparison> = {
     Item : 'TItem
     Unique : Guid // each item in the set must be unique
+    Tag : string option
     Callback : Async<unit>
 }
 with
@@ -23,7 +24,13 @@ with
     interface System.IComparable with 
         member x.CompareTo y = compareOn NotificationItem<'TItem>.Key x y
 
-type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () = 
+type LastCompleteItemMessage2<'TItem when 'TItem : comparison> = 
+|    Start of ('TItem * AsyncReplyChannel<unit>) 
+|    Complete of 'TItem
+|    LastComplete of (AsyncReplyChannel<'TItem option>) 
+|    Notify of ('TItem * string option * Async<unit>)
+
+type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) = 
     let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent2<_>>)
     let started = new System.Collections.Generic.SortedSet<'TItem>()
     let completed = new System.Collections.Generic.SortedSet<'TItem>()
@@ -48,7 +55,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () =
 
     let rec checkNotifications lastComplete = async {
         match (notifications |> Seq.tryHead) with
-        | Some ({ Item = item; Callback = callback } as value) ->
+        | Some ({ Item = item; Callback = callback; Tag = tag; Unique = unique } as value) ->
             if(item <= lastComplete) then
                 do! callback
                 notifications.Remove value |> ignore
@@ -58,55 +65,65 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () =
         | None -> return ()
     }
 
-    let agent = Agent.Start(fun agent ->
-        let rec loop state = async {
-            let! msg = agent.Receive()
-            match msg with
-            | Start (item, reply) ->
-                reply.Reply()
-                started.Add(item) |> ignore
-                
-                match nextToComplete with
-                | Some next when next > item ->
-                    nextToComplete <- Some item
-                | None ->
-                    nextToComplete <- Some item
-                | _ -> ()
-
-                return! loop state
-            | Complete item ->
-                completed.Add(item) |> ignore
-
-                if Some item = nextToComplete then
-                    let lastComplete' = removeMatchingHeads started completed
-
-                    currentLastComplete <-
-                        match lastComplete' with
-                        | Some x -> Some x
-                        | None -> currentLastComplete
+    let agent =
+        let theAgent =  Agent.Start(fun agent ->
+            let rec loop state = async {
+                let! msg = agent.Receive()
+                match msg with
+                | Start (item, reply) ->
+                    reply.Reply()
+                    let addedToStarted = started.Add(item) 
                     
+                    match nextToComplete with
+                    | Some next when next > item ->
+                        nextToComplete <- Some item
+                    | None ->
+                        nextToComplete <- Some item
+                    | _ -> ()
+
+                    return! loop state
+                | Complete item ->
+                    let addedToComplete = completed.Add(item)
+
+                    if Some item = nextToComplete then
+                        let lastComplete' = removeMatchingHeads started completed
+
+                        currentLastComplete <-
+                            match lastComplete', currentLastComplete with
+                            | Some x, None -> Some x
+                            | Some x, Some y when x > y -> Some x
+                            | Some x, Some y -> currentLastComplete
+                            | None, _ -> currentLastComplete
+
+                        nextToComplete <- (started |> Seq.tryHead)
+
+                        match currentLastComplete with
+                        | Some x -> do! checkNotifications x
+                        | None -> ()
+                    else
+                        ()
+
+                    return! loop state
+                | LastComplete reply ->
+                    reply.Reply(currentLastComplete)
+                    return! loop ()
+                | Notify (item, tag, callback) ->
+                    let uniqueId = Guid.NewGuid()
+
+                    let added = notifications.Add({ Item = item; Unique = uniqueId; Tag = tag; Callback = callback}) 
+
                     match currentLastComplete with
                     | Some x -> do! checkNotifications x
                     | None -> ()
 
-                    nextToComplete <- (started |> Seq.tryHead)
+                    return! loop ()
+            }
 
-                return! loop state
-            | LastComplete reply ->
-                reply.Reply(currentLastComplete)
-                return! loop ()
-            | Notify (item, callback) ->
-                notifications.Add({ Item = item; Unique = Guid.NewGuid(); Callback = callback}) |> ignore
-
-                match currentLastComplete with
-                | Some x -> do! checkNotifications x
-                | None -> ()
-
-                return! loop ()
-        }
-
-        loop ()
-    )
+            loop ()
+        )
+        theAgent.Error.Add(fun exn -> 
+            log.Error("Exception thrown by LastCompleteItemAgent2", exn))
+        theAgent
 
     member x.LastComplete () : Async<'TItem option> =
         agent.PostAndAsyncReply((fun ch -> LastComplete(ch)))
@@ -117,5 +134,5 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> () =
     member x.Complete(item) = 
       agent.Post(Complete item)
 
-    member x.NotifyWhenComplete(item, callback :  Async<unit>) =
-      agent.Post <| Notify (item, callback)
+    member x.NotifyWhenComplete(item, tag : string option, callback :  Async<unit>) =
+      agent.Post <| Notify (item, tag, callback)

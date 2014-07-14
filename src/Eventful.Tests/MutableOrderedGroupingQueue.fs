@@ -50,7 +50,7 @@ module MutableOrderedGroupingBoundedQueueTests =
             for item in randomItems do
                 tracker.Complete(item)
             
-            tracker.NotifyWhenComplete (maxValue, async { tcs.SetResult true })
+            tracker.NotifyWhenComplete (maxValue, None, async { tcs.SetResult true })
         } |> Async.RunSynchronously
 
         tcs.Task.Wait()
