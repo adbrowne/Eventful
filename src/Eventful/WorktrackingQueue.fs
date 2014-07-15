@@ -26,7 +26,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let _complete = complete |> getOrElse (fun _ -> async { return () })
     let _name = name |> getOrElse "unnamed"
 
-    let queue = new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems)
+    let queue = new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name)
 
     let doWork (group, items) = async {
          do! workAction group items
@@ -38,9 +38,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         let workAsync = async {
             let! ct = Async.CancellationToken
             while not ct.IsCancellationRequested do
-                do! queue.Consume doWork
                 if not working then
                     do! Async.Sleep(2000)
+                else
+                    do! queue.Consume doWork
         }
 
         for i in [1.._workerCount] do
