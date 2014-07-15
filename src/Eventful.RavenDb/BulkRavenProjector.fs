@@ -37,7 +37,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let batchWritesMeter = Metric.Meter(sprintf "BatchWrites %s" databaseName, Unit.Items)
     let batchConflictsMeter = Metric.Meter(sprintf "BatchConflicts %s" databaseName, Unit.Items)
 
-    let writeBatch _ docs = async {
+    let writeDocs docs = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
         let batchId = Guid.NewGuid()
         let originalDocMap = 
@@ -87,6 +87,17 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
         sw.Stop()
         batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
+    }
+
+    let writeBatch _ (docs : seq<BatchWrite>) = async {
+        let maxWriteSize = 100
+        let writeGroups = 
+            docs
+            |> Seq.zip (Seq.initInfinite id)
+            |> Seq.groupBy (fun (i,d) -> i / maxWriteSize)
+
+        for (_, w) in writeGroups do
+            do! writeDocs (w |> Seq.map snd)
     }
 
     let writeQueue = 
@@ -155,7 +166,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             |> Set.ofSeq
         (event, groups)
     
-    let tracker = new LastCompleteItemAgent2<EventPosition>()
+    let tracker = new LastCompleteItemAgent2<EventPosition>(name = databaseName)
 
     let eventComplete (event : 'TMessage) =
         seq {
@@ -173,7 +184,10 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         |> Async.Parallel
         |> Async.Ignore
 
-    let queue = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
+    let queue = 
+        let q = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
+        q.StopWork()
+        q
 
     let positionDocumentKey = "EventProcessingPosition"
 
@@ -253,4 +267,6 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
    
     member x.WaitAll = queue.AsyncComplete
 
-    member x.StartWork () = writeQueue.StartWork()
+    member x.StartWork () = 
+        writeQueue.StartWork()
+        queue.StartWork()
