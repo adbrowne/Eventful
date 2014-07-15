@@ -221,8 +221,8 @@ module RavenProjectorTests =
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
 
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 10, 10000, 10, writeComplete, cancellationToken = Async.DefaultCancellationToken)
-        projector.StartWork()
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 10, 1000, 1, writeComplete, cancellationToken = Async.DefaultCancellationToken)
+        // projector.StartWork()
         projector.StartPersistingPosition()
 
         seq {
@@ -230,6 +230,8 @@ module RavenProjectorTests =
                 let sw = System.Diagnostics.Stopwatch.StartNew()
                 for event in myEvents do
                     do! projector.Enqueue event
+
+                consoleLog <| sprintf "Enqueue Time: %A ms" sw.ElapsedMilliseconds
 
                 projector.StartWork()
                 do! projector.WaitAll()

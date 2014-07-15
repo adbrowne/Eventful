@@ -36,7 +36,8 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
 
     let workers = 
         let workAsync = async {
-            while true do
+            let! ct = Async.CancellationToken
+            while not ct.IsCancellationRequested do
                 do! queue.Consume doWork
                 if not working then
                     do! Async.Sleep(2000)

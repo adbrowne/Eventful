@@ -229,10 +229,14 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     writeUpdatedPosition position
                 | _ -> async { () }
 
-            return! loop()
+            let! ct = Async.CancellationToken
+            if(ct.IsCancellationRequested) then
+                return ()
+            else
+                return! loop ()
         }
             
-        loop () |> Async.StartAsTask |> ignore
+        Async.StartAsTask(loop (), System.Threading.Tasks.TaskCreationOptions.None, cancellationToken) |> ignore
         ()
 
     member x.DatabaseName = databaseName
