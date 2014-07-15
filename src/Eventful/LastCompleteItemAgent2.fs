@@ -109,7 +109,6 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
 
                     return! loop state
                 | LastComplete reply ->
-                    log.ErrorFormat("Incomplete Count : {0}", incompleteCount)
                     reply.Reply(currentLastComplete)
                     return! loop ()
                 | Notify (item, tag, callback) ->
