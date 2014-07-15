@@ -221,7 +221,7 @@ module RavenProjectorTests =
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
 
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 10, 10000, 10, writeComplete)
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 10, 10000, 10, writeComplete, cancellationToken = Async.DefaultCancellationToken)
         projector.StartWork()
         projector.StartPersistingPosition()
 

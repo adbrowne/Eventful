@@ -1,6 +1,7 @@
 ﻿namespace Eventful.Raven
 
 open System
+open System.Threading
 open System.Runtime.Caching
 
 open Eventful
@@ -21,8 +22,10 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         eventWorkers: int,
         maxWriterQueueSize: int,
         writerWorkers: int,
-        onEventComplete : 'TMessage -> Async<unit>
+        onEventComplete : 'TMessage -> Async<unit>,
+        cancellationToken : CancellationToken
     ) =
+
     let log = Common.Logging.LogManager.GetLogger(typeof<BulkRavenProjector<_>>)
 
     let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
@@ -87,7 +90,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     }
 
     let writeQueue = 
-        let x = new WorktrackingQueue<int, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton 1)), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write") 
+        let x = new WorktrackingQueue<int, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton 1)), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write", cancellationToken = cancellationToken) 
         x.StopWork()
         x
 

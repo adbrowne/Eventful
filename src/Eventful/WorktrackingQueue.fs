@@ -2,6 +2,8 @@
 
 open System
 open System.Collections.Generic
+open System.Threading
+open System.Threading.Tasks
 
 type internal CompleteQueueMessage<'TGroup, 'TItem when 'TGroup : comparison> = 
     | Start of 'TItem * Set<'TGroup> * Async<unit> * AsyncReplyChannel<unit>
@@ -15,7 +17,8 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         ?maxItems : int, 
         ?workerCount,
         ?complete : 'TInput -> Async<unit>,
-        ?name : string
+        ?name : string,
+        ?cancellationToken : CancellationToken
     ) =
 
     let _maxItems = maxItems |> getOrElse 1000
@@ -32,14 +35,17 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let mutable working = true
 
     let workers = 
+        let workAsync = async {
+            while true do
+                do! queue.Consume doWork
+                if not working then
+                    do! Async.Sleep(2000)
+        }
+
         for i in [1.._workerCount] do
-            async {
-                while true do
-                    //consoleLog <| sprintf "Running: %A %A Working: %A" _name i working
-                    do! queue.Consume doWork
-                    if not working then
-                        do! Async.Sleep(2000)
-            } |> Async.Start
+            match cancellationToken with 
+            | Some token -> Async.StartAsTask(workAsync, TaskCreationOptions.None, token) |> ignore
+            | None -> Async.StartAsTask(workAsync) |> ignore
 
     let sequenceGrouping a =
         let (item, groups) = grouping a
