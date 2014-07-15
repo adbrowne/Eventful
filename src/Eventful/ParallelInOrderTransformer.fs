@@ -80,7 +80,6 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
                         else
                             state.Queue.Add(state.NextIndex, Queued(state.NextIndex, input, continuation))
                             { state with 
-                                RunningItems = state.RunningItems + 1; 
                                 NextIndex = state.NextIndex + 1L }
                     Some (async { return! (loop state') })
                 else
