@@ -38,6 +38,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
 
     let mutable nextToComplete = None
     let mutable currentLastComplete = None
+    let mutable incompleteCount = 0L
 
     // remove matching head sequences from xs and ys
     // returns sequences and highest matching value
@@ -73,6 +74,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
                 | Start (item, reply) ->
                     reply.Reply()
                     let addedToStarted = started.Add(item) 
+                    incompleteCount <- incompleteCount + 1L
                     
                     match nextToComplete with
                     | Some next when next > item ->
@@ -84,6 +86,8 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
                     return! loop state
                 | Complete item ->
                     let addedToComplete = completed.Add(item)
+
+                    incompleteCount <- incompleteCount - 1L
 
                     if Some item = nextToComplete then
                         let lastComplete' = removeMatchingHeads started completed
@@ -105,6 +109,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
 
                     return! loop state
                 | LastComplete reply ->
+                    log.ErrorFormat("Incomplete Count : {0}", incompleteCount)
                     reply.Reply(currentLastComplete)
                     return! loop ()
                 | Notify (item, tag, callback) ->
