@@ -2,13 +2,15 @@
 
 open System
 
+open FSharpx
+
 type GroupEntry<'TItem> = {
     Items : List<Int64 * 'TItem>
     Processing : List<Int64 * 'TItem>
 }
   
 type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : comparison> = 
-  | AddItem of (seq<'TItem * 'TGroup> * Async<unit> * AsyncReplyChannel<unit>)
+  | AddItem of (seq<'TItem * 'TGroup> * Async<unit> option * AsyncReplyChannel<unit>)
   | ConsumeWork of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<unit>)
   | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
@@ -76,13 +78,18 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 let nextIndex = 
                     if Seq.length indexedItems > 0 then
                         let lastIndex = indexedItems |> Seq.map snd |> Seq.last
-                        lastCompleteTracker.NotifyWhenComplete(lastIndex, None, onComplete)
+                        match onComplete with
+                        | Some a -> lastCompleteTracker.NotifyWhenComplete(lastIndex, None, a)
+                        | None -> ()
                         lastIndex + 1L
                     else
                         itemIndex
 
                 // there were not items keep moving
-                if(nextIndex = itemIndex) then do! onComplete
+                if(nextIndex = itemIndex) then 
+                    match onComplete with
+                    | Some a -> do! a
+                    | None -> ()
 
                 return! (nextMessage nextIndex) }
             and groupComplete group itemIndex = async {
@@ -125,17 +132,16 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             log.Error("Exception thrown by MutableOrderedGroupingBoundedQueueMessages", exn))
         theAgent
     
+    let addTimer = Metrics.Metric.Timer("AddTimer", Metrics.Unit.None)
     member this.Add (input:'TInput, group: ('TInput -> (seq<'TItem * 'TGroup>)), ?onComplete : Async<unit>) =
-        async {
-            let items = group input
-            let onCompleteCallback = async {
-                match onComplete with
-                | Some callback -> return! callback
-                | None -> return ()
+        addTimer.Time(fun () ->
+            async {
+                let items = group input
+                
+                do! dispatcherAgent.PostAndAsyncReply(fun ch ->  AddItem (items, onComplete, ch))
+                ()
             }
-            do! dispatcherAgent.PostAndAsyncReply(fun ch ->  AddItem (items, onCompleteCallback, ch))
-            ()
-        }
+        )
 
     member this.Consume (work:(('TGroup * seq<'TItem>) -> Async<unit>)) =
         dispatcherAgent.PostAndAsyncReply(fun ch -> ConsumeWork(work, ch))
