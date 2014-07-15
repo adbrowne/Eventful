@@ -15,7 +15,7 @@ type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : c
   | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
-type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(?maxItems) =
+type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(?maxItems, ?name : string) =
     let log = Common.Logging.LogManager.GetLogger(typeof<MutableOrderedGroupingBoundedQueue<_,_>>)
 
     let maxItems =
@@ -29,13 +29,15 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
-    let trackerName = Guid.NewGuid().ToString()
-    let lastCompleteTracker = new LastCompleteItemAgent2<int64>(trackerName)
+    let lastCompleteTracker = 
+        match name with
+        | Some name -> new LastCompleteItemAgent2<int64>(name)
+        | None -> new LastCompleteItemAgent2<int64>() 
 
     let addItemToGroup item group =
         let (exists, value) = groupItems.TryGetValue(group)
         let value = 
-            if exists then 
+            if exists then
                 value
             else 
                 workQueue.Enqueue group
