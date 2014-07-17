@@ -41,3 +41,19 @@ module Prelude =
         match yobj with
         | :? 'T as y -> compare (f x) (f y)
         | _ -> invalidArg "yobj" "cannot compare values of different types"
+
+    let taskLog = Common.Logging.LogManager.GetLogger("Eventful.Task")
+    let runAsyncAsTask (name : string) cancellationToken action = 
+        let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cancellationToken)
+
+        let continueFunction (t : System.Threading.Tasks.Task<'a>) =
+            if(t.IsFaulted) then
+                taskLog.ErrorFormat("Exception thrown in task {0}", t.Exception, [|name :> obj|])
+            elif(t.IsCanceled) then
+                taskLog.WarnFormat("Timed out on task {0}", name)
+            else
+                ()
+
+        task.ContinueWith (continueFunction) |> ignore
+
+        ()

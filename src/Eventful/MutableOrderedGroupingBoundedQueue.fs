@@ -34,6 +34,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         | Some name -> new LastCompleteItemAgent2<int64>(name)
         | None -> new LastCompleteItemAgent2<int64>() 
 
+    let workerCallbackName = sprintf "Worker callback %A" name
+
     let addItemToGroup item group =
         let (exists, value) = groupItems.TryGetValue(group)
         let value = 
@@ -116,9 +118,9 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
 
                     agent.Post <| GroupComplete nextKey
 
-                } |> Async.StartAsTask |> ignore
+                    reply.Reply()
+                } |> runAsyncAsTask workerCallbackName Async.DefaultCancellationToken
 
-                reply.Reply()
                 let newValues = { values with Items = List.empty; Processing = values.Items }
                 groupItems.Remove(nextKey) |> ignore
                 groupItems.Add(nextKey, newValues)

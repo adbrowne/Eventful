@@ -185,7 +185,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         |> Async.Ignore
 
     let queue = 
-        let q = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete);
+        let q = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete, name = databaseName + " processing");
         q.StopWork()
         q
 
@@ -250,7 +250,8 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                 return! loop ()
         }
             
-        Async.StartAsTask(loop (), System.Threading.Tasks.TaskCreationOptions.None, cancellationToken) |> ignore
+        let task = Async.StartAsTask(loop (), System.Threading.Tasks.TaskCreationOptions.None, cancellationToken)
+        
         ()
 
     member x.DatabaseName = databaseName
