@@ -73,39 +73,51 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
                 match msg with
                 | Start (item, reply) ->
                     reply.Reply()
-                    let addedToStarted = started.Add(item) 
-                    incompleteCount <- incompleteCount + 1L
-                    
-                    match nextToComplete with
-                    | Some next when next > item ->
-                        nextToComplete <- Some item
-                    | None ->
-                        nextToComplete <- Some item
-                    | _ -> ()
+
+                    let shouldAdd = 
+                        match started |> Seq.tryHead with
+                        | Some minStarted when item > minStarted  -> true
+                        | Some _ -> false
+                        | None -> true
+                        
+                    if shouldAdd then
+                        let addedToStarted = started.Add(item) 
+                        incompleteCount <- incompleteCount + 1L
+                        
+                        match nextToComplete with
+                        | Some next when next > item ->
+                            nextToComplete <- Some item
+                        | None ->
+                            nextToComplete <- Some item
+                        | _ -> ()
+                    else
+                        log.ErrorFormat("Item added out of order: {0}",item)
 
                     return! loop state
                 | Complete item ->
-                    let addedToComplete = completed.Add(item)
+                    if (started.Contains(item)) then
+                        let addedToComplete = completed.Add(item)
 
-                    incompleteCount <- incompleteCount - 1L
+                        incompleteCount <- incompleteCount - 1L
 
-                    if Some item = nextToComplete then
-                        let lastComplete' = removeMatchingHeads started completed
+                        if Some item = nextToComplete then
+                            let lastComplete' = removeMatchingHeads started completed
 
-                        currentLastComplete <-
-                            match lastComplete', currentLastComplete with
-                            | Some x, None -> Some x
-                            | Some x, Some y when x > y -> Some x
-                            | Some x, Some y -> currentLastComplete
-                            | None, _ -> currentLastComplete
+                            currentLastComplete <-
+                                match lastComplete', currentLastComplete with
+                                | Some x, None -> Some x
+                                | Some x, Some y when x > y -> Some x
+                                | Some x, Some y -> currentLastComplete
+                                | None, _ -> currentLastComplete
 
-                        nextToComplete <- (started |> Seq.tryHead)
+                            nextToComplete <- (started |> Seq.tryHead)
 
-                        match currentLastComplete with
-                        | Some x -> do! checkNotifications x
-                        | None -> ()
-                    else
-                        ()
+                            match currentLastComplete with
+                            | Some x -> do! checkNotifications x
+                            | None -> ()
+                        else
+                            log.ErrorFormat("Item completed before started: {0}",item)
+                    else ()
 
                     return! loop state
                 | LastComplete reply ->
