@@ -43,6 +43,7 @@ module Prelude =
         | _ -> invalidArg "yobj" "cannot compare values of different types"
 
     let taskLog = Common.Logging.LogManager.GetLogger("Eventful.Task")
+
     let runAsyncAsTask (name : string) cancellationToken action = 
         let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cancellationToken)
 
@@ -57,3 +58,12 @@ module Prelude =
         task.ContinueWith (continueFunction) |> ignore
 
         ()
+
+    let runWithTimeout name timeout action =
+        async {
+            let cts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(float timeout))
+            let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cts.Token)
+            // let! result =  runAsyncAsTask name cts.Token action |> Async.AwaitTask
+            let! result = task |> Async.AwaitTask
+            return result
+        }

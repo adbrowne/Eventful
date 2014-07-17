@@ -73,6 +73,7 @@
     <Compile Include="TestInterpreter.fs" />
     <Compile Include="TestSystem.fs" />
     <Compile Include="TestHelpers.fs" />
+    <Compile Include="PreludeTests.fs" />
     <Compile Include="CounterAgent.fs" />
     <Compile Include="BoundedWorkQueueTests.fs" />
     <Compile Include="ParellelInOrderTransformerTests.fs" />

@@ -113,9 +113,9 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let fetcher = {
         new IDocumentFetcher with
             member x.GetDocument<'TDocument> key =
-                RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
+                runWithTimeout "Single Fetch" 30 <| RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
             member x.GetDocuments request = 
-                RavenOperations.getDocuments documentStore cache databaseName request
+                runWithTimeout "Multi Fetch" 30 <| RavenOperations.getDocuments documentStore cache databaseName request
     }
 
     let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TMessage>) events =
