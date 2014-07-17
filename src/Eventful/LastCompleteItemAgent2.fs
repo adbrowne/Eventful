@@ -27,7 +27,7 @@ with
 type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
     let started = new System.Collections.Generic.SortedSet<'TItem>()
     let completed = new System.Collections.Generic.SortedSet<'TItem>()
-    let notifications = new System.Collections.Generic.SortedSet<NotificationItem<'TItem>>()
+    let notifications = new System.Collections.Generic.SortedDictionary<'TItem, NotificationItem<'TItem> list>()
 
     let mutable nextToComplete = None
     let mutable currentLastComplete = None
@@ -97,10 +97,11 @@ type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
     member this.GetNotifications () = 
         let rec loop lastComplete callbacks = 
             match (notifications |> Seq.tryHead) with
-            | Some ({ Item = item; Callback = callback; Tag = tag; Unique = unique } as value) ->
-                if(item <= lastComplete) then
-                    notifications.Remove value |> ignore
-                    loop lastComplete (callback::callbacks)
+            | Some kvp -> //({ Item = item; Callback = callback; Tag = tag; Unique = unique } as value) ->
+                if(kvp.Key <= lastComplete) then
+                    let newCallbacks = kvp.Value |> List.map (fun { Callback = callback } -> callback)
+                    notifications.Remove kvp.Key |> ignore
+                    loop lastComplete (newCallbacks@callbacks)
                 else
                     callbacks
             | None -> 
@@ -112,7 +113,14 @@ type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
 
     member this.AddNotification (item, tag, callback) =
         let uniqueId = Guid.NewGuid()
-        let added = notifications.Add({ Item = item; Unique = uniqueId; Tag = tag; Callback = callback}) 
+        let newValue = { Item = item; Unique = uniqueId; Tag = tag; Callback = callback}
+        if(notifications.ContainsKey item) then
+            let currentValues = notifications.Item item
+            notifications.Remove item |> ignore
+            notifications.Add (item, (newValue::currentValues))
+        else
+            notifications.Add (item, (List.singleton newValue))
+            
         this.GetNotifications()
 
     static member Empty = new MutableLastCompleteTrackingState<'TItem>()
