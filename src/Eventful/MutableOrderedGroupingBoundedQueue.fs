@@ -29,6 +29,9 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
+    let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, (fun () -> float groupItems.Count), Metrics.Unit.Items)
+    let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, (fun () -> float workQueue.Count), Metrics.Unit.Items)
+
     let lastCompleteTracker = 
         match name with
         | Some name -> new LastCompleteItemAgent2<int64>(name)
