@@ -24,14 +24,7 @@ with
     interface System.IComparable with 
         member x.CompareTo y = compareOn NotificationItem<'TItem>.Key x y
 
-type LastCompleteItemMessage2<'TItem when 'TItem : comparison> = 
-|    Start of ('TItem * AsyncReplyChannel<unit>) 
-|    Complete of 'TItem
-|    LastComplete of (AsyncReplyChannel<'TItem option>) 
-|    Notify of ('TItem * string option * Async<unit>)
-
-type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) = 
-    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent2<_>>)
+type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
     let started = new System.Collections.Generic.SortedSet<'TItem>()
     let completed = new System.Collections.Generic.SortedSet<'TItem>()
     let notifications = new System.Collections.Generic.SortedSet<NotificationItem<'TItem>>()
@@ -55,90 +48,127 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
 
         loop None
 
-    let rec checkNotifications lastComplete = async {
-        match (notifications |> Seq.tryHead) with
-        | Some ({ Item = item; Callback = callback; Tag = tag; Unique = unique } as value) ->
-            if(item <= lastComplete) then
+    member this.LastComplete = currentLastComplete
+
+    member this.Start item =
+        let shouldAdd = 
+            match maxStarted with
+            | None  -> true
+            | Some i when item > i -> true
+            | _ -> false
+            
+        if shouldAdd then
+            let addedToStarted = started.Add(item) 
+            incompleteCount <- incompleteCount + 1L
+            
+            match nextToComplete with
+            | Some next when next > item ->
+                nextToComplete <- Some item
+            | None ->
+                nextToComplete <- Some item
+            | _ -> ()
+            
+            maxStarted <- Some item
+            Some this
+        else
+            None
+
+    member this.Complete item =
+        if (started.Contains(item)) then
+            let addedToComplete = completed.Add(item)
+
+            incompleteCount <- incompleteCount - 1L
+
+            if Some item = nextToComplete then
+                let lastComplete' = removeMatchingHeads started completed
+
+                currentLastComplete <-
+                    match lastComplete', currentLastComplete with
+                    | Some x, None -> Some x
+                    | Some x, Some y when x > y -> Some x
+                    | Some x, Some y -> currentLastComplete
+                    | None, _ -> currentLastComplete
+
+                nextToComplete <- (started |> Seq.tryHead)
+            Some this
+        else
+            None
+
+    member this.GetNotifications () = 
+        let rec loop lastComplete callbacks = 
+            match (notifications |> Seq.tryHead) with
+            | Some ({ Item = item; Callback = callback; Tag = tag; Unique = unique } as value) ->
+                if(item <= lastComplete) then
+                    notifications.Remove value |> ignore
+                    loop lastComplete (callback::callbacks)
+                else
+                    callbacks
+            | None -> 
+                callbacks
+
+        match currentLastComplete with
+        | Some a -> (this, loop a List.empty)
+        | None -> (this, List.empty)
+
+    member this.AddNotification (item, tag, callback) =
+        let uniqueId = Guid.NewGuid()
+        let added = notifications.Add({ Item = item; Unique = uniqueId; Tag = tag; Callback = callback}) 
+        this.GetNotifications()
+
+    static member Empty = new MutableLastCompleteTrackingState<'TItem>()
+
+type LastCompleteItemMessage2<'TItem when 'TItem : comparison> = 
+|    Start of ('TItem * AsyncReplyChannel<unit>) 
+|    Complete of 'TItem
+|    LastComplete of (AsyncReplyChannel<'TItem option>) 
+|    Notify of ('TItem * string option * Async<unit>)
+
+type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) = 
+    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent2<_>>)
+
+    let runCallbacks callbacks = async {
+         for callback in callbacks do
+            try
                 do! callback
-                notifications.Remove value |> ignore
-                return! checkNotifications lastComplete 
-            else
-                return ()
-        | None -> return ()
-    }
+            with | e ->
+                log.Error("Exception in notification callback", e) }
 
     let agent =
         let theAgent =  Agent.Start(fun agent ->
-            let rec loop state = async {
+            let rec loop (state : MutableLastCompleteTrackingState<'TItem>) = async {
                 let! msg = agent.Receive()
                 match msg with
                 | Start (item, reply) ->
                     reply.Reply()
 
-                    let shouldAdd = 
-                        match maxStarted with
-                        | None  -> true
-                        | Some i when item > i -> true
-                        | _ -> false
-                        
-                    if shouldAdd then
-                        let addedToStarted = started.Add(item) 
-                        incompleteCount <- incompleteCount + 1L
-                        
-                        match nextToComplete with
-                        | Some next when next > item ->
-                            nextToComplete <- Some item
-                        | None ->
-                            nextToComplete <- Some item
-                        | _ -> ()
-                        
-                        maxStarted <- Some item
-                    else
+                    match state.Start item with
+                    | Some state' ->
+                        return! loop state'
+                    | None ->
                         log.ErrorFormat("Item added out of order: {0}",item)
-
-                    return! loop state
+                        return! loop state
                 | Complete item ->
-                    if (started.Contains(item)) then
-                        let addedToComplete = completed.Add(item)
+                    match state.Complete item with
+                    | Some s ->
+                        let (state', notificationCallbacks) = s.GetNotifications()
 
-                        incompleteCount <- incompleteCount - 1L
+                        do! runCallbacks notificationCallbacks
 
-                        if Some item = nextToComplete then
-                            let lastComplete' = removeMatchingHeads started completed
-
-                            currentLastComplete <-
-                                match lastComplete', currentLastComplete with
-                                | Some x, None -> Some x
-                                | Some x, Some y when x > y -> Some x
-                                | Some x, Some y -> currentLastComplete
-                                | None, _ -> currentLastComplete
-
-                            nextToComplete <- (started |> Seq.tryHead)
-
-                            match currentLastComplete with
-                            | Some x -> do! checkNotifications x
-                            | None -> ()
-                        else
-                            log.ErrorFormat("Item completed before started: {0}",item)
-                    else ()
-
-                    return! loop state
+                        return! loop state'
+                    | None ->
+                        log.ErrorFormat("Item completed before started: {0}",item)
+                        return! loop state
                 | LastComplete reply ->
-                    reply.Reply(currentLastComplete)
-                    return! loop ()
+                    reply.Reply(state.LastComplete)
+                    return! loop state
                 | Notify (item, tag, callback) ->
-                    let uniqueId = Guid.NewGuid()
+                    let(state', notificationCallbacks) = state.AddNotification(item, tag, callback) 
+                    do! runCallbacks notificationCallbacks
 
-                    let added = notifications.Add({ Item = item; Unique = uniqueId; Tag = tag; Callback = callback}) 
-
-                    match currentLastComplete with
-                    | Some x -> do! checkNotifications x
-                    | None -> ()
-
-                    return! loop ()
+                    return! loop state'
             }
 
-            loop ()
+            loop MutableLastCompleteTrackingState<'TItem>.Empty
         )
         theAgent.Error.Add(fun exn -> 
             log.Error("Exception thrown by LastCompleteItemAgent2", exn))
