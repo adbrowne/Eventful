@@ -41,13 +41,17 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                 if not working then
                     do! Async.Sleep(2000)
                 else
-                    do! queue.Consume doWork
+                    let! work = queue.Consume doWork
+                    do! work
         }
 
-        for i in [1.._workerCount] do
+        let cancellationToken =
             match cancellationToken with 
-            | Some token -> Async.StartAsTask(workAsync, TaskCreationOptions.None, token) |> ignore
-            | None -> Async.StartAsTask(workAsync) |> ignore
+            | Some token -> token
+            | None -> Async.DefaultCancellationToken
+            
+        for i in [1.._workerCount] do
+            runAsyncAsTask (sprintf "WorktrackingQueue worker %A" name) cancellationToken workAsync
 
     let sequenceGrouping a =
         let (item, groups) = grouping a

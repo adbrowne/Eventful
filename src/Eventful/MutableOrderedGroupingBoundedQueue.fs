@@ -11,7 +11,7 @@ type GroupEntry<'TItem> = {
   
 type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : comparison> = 
   | AddItem of (seq<'TItem * 'TGroup> * Async<unit> option * AsyncReplyChannel<unit>)
-  | ConsumeWork of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<unit>)
+  | ConsumeWork of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<Async<unit>>)
   | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
@@ -110,19 +110,20 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             and consume (workCallback, reply) itemIndex = async {
                 let nextKey = workQueue.Dequeue()
                 let values = groupItems.Item nextKey
-                async {
-                    try
-                        do! workCallback(nextKey,values.Items |> List.rev |> List.map snd) 
-                    with | e ->
-                        System.Console.WriteLine ("Error" + e.Message)
-                    
-                    for (i, _) in values.Items do
-                        lastCompleteTracker.Complete i
+                let work =
+                    async {
+                        try
+                            do! workCallback(nextKey,values.Items |> List.rev |> List.map snd) 
+                        with | e ->
+                            System.Console.WriteLine ("Error" + e.Message)
+                        
+                        for (i, _) in values.Items do
+                            lastCompleteTracker.Complete i
 
-                    agent.Post <| GroupComplete nextKey
+                        agent.Post <| GroupComplete nextKey
+                    }
 
-                    reply.Reply()
-                } |> runAsyncAsTask workerCallbackName Async.DefaultCancellationToken
+                reply.Reply work
 
                 let newValues = { values with Items = List.empty; Processing = values.Items }
                 groupItems.Remove(nextKey) |> ignore

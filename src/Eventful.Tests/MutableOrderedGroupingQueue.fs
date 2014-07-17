@@ -13,10 +13,11 @@ module MutableOrderedGroupingBoundedQueueTests =
         let queue = new MutableOrderedGroupingBoundedQueue<int, int>()
         let counter = new Eventful.CounterAgent()
         let rec consumer (counter : Eventful.CounterAgent)  = async {
-            do! queue.Consume((fun (g, items) -> async {
+            let! work =  queue.Consume((fun (g, items) -> async {
                 do! counter.Incriment(items |> Seq.length)
                 return ()
             }))
+            do! work
             return! consumer counter
         }
 
@@ -96,7 +97,7 @@ module MutableOrderedGroupingBoundedQueueTests =
                 s - a
 
         let rec consumer ()  = async {
-            do! queue.Consume((fun (g, items) -> async {
+            let! work = queue.Consume((fun (g, items) -> async {
                 let current = 
                     if store.ContainsKey g then
                         store.Item(g)
@@ -113,6 +114,7 @@ module MutableOrderedGroupingBoundedQueueTests =
                 )
                 return ()
             }))
+            do! work
             return! consumer ()
         }
 
