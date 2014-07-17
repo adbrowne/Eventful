@@ -165,7 +165,3 @@ module LastCompleteItemAgent2Tests =
         let normalizedResult = simulateTracking normalizedOperations
 
         Assert.Equal(normalizedResult, result)
-
-    [<Fact>]
-    let ``Blah`` () : unit =
-        ``LastComplete ignores items started before their time or completed before started`` [Start -4L; Start 1L; Start 0L; Complete -4L; Complete 0L]

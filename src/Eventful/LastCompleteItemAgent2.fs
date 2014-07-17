@@ -38,6 +38,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
 
     let mutable nextToComplete = None
     let mutable currentLastComplete = None
+    let mutable maxStarted = None
     let mutable incompleteCount = 0L
 
     // remove matching head sequences from xs and ys
@@ -75,10 +76,10 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
                     reply.Reply()
 
                     let shouldAdd = 
-                        match started |> Seq.tryHead with
-                        | Some minStarted when item > minStarted  -> true
-                        | Some _ -> false
-                        | None -> true
+                        match maxStarted with
+                        | None  -> true
+                        | Some i when item > i -> true
+                        | _ -> false
                         
                     if shouldAdd then
                         let addedToStarted = started.Add(item) 
@@ -90,6 +91,8 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
                         | None ->
                             nextToComplete <- Some item
                         | _ -> ()
+                        
+                        maxStarted <- Some item
                     else
                         log.ErrorFormat("Item added out of order: {0}",item)
 
