@@ -153,7 +153,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
                     | Some state' ->
                         return! loop state'
                     | None ->
-                        log.ErrorFormat("Item added out of order: {0}",item)
+                        log.Error(sprintf "Item added out of order: %A" item)
                         return! loop state
                 | Complete item ->
                     match state.Complete item with
@@ -164,7 +164,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
 
                         return! loop state'
                     | None ->
-                        log.ErrorFormat("Item completed before started: {0}",item)
+                        log.Error(sprintf "Item completed before started: %A" item)
                         return! loop state
                 | LastComplete reply ->
                     reply.Reply(state.LastComplete)

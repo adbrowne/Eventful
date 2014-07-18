@@ -118,6 +118,13 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                 runWithTimeout "Multi Fetcher" 30 <| RavenOperations.getDocuments documentStore cache databaseName request
     }
 
+    let positionDocumentKey = "EventProcessingPosition"
+
+    let getPersistedPosition = async {
+        let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument positionDocumentKey
+        return persistedLastComplete |> Option.map((fun (doc,_,_) -> doc))
+    }
+
     let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TMessage>) events =
         async { 
             let untypedKey = key :> obj
@@ -166,7 +173,20 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             |> Set.ofSeq
         (event, groups)
     
-    let tracker = new LastCompleteItemAgent2<EventPosition>(name = databaseName)
+    let tracker = 
+        let t = new LastCompleteItemAgent2<EventPosition>(name = databaseName)
+        async {
+            let! persistedPosition = getPersistedPosition
+
+            match persistedPosition with
+            | Some pos ->
+                do! t.Start pos
+                t.Complete pos
+            | None -> ()
+                
+        } |> Async.RunSynchronously
+
+        t
 
     let eventComplete (event : 'TMessage) =
         seq {
@@ -189,22 +209,9 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         q.StopWork()
         q
 
-    let positionDocumentKey = "EventProcessingPosition"
-
     let mutable lastPositionWritten : Option<EventPosition> = None
 
-    member x.LastComplete () = async {
-        let getPersistedPosition = async {
-            let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument positionDocumentKey
-            return persistedLastComplete |> Option.map((fun (doc,_,_) -> doc))
-        }
-
-        let! thisSessionLastComplete = tracker.LastComplete()
-
-        match thisSessionLastComplete with
-        | Some position -> return Some position
-        | None -> return! getPersistedPosition
-    }
+    member x.LastComplete () = tracker.LastComplete()
 
     member x.StartPersistingPosition () = 
         let writeUpdatedPosition position = async {

@@ -34,6 +34,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
 
     let mutable working = true
 
+    let workerName = (sprintf "WorktrackingQueue worker %A" name)
     let workers = 
         let workAsync = async {
             let! ct = Async.CancellationToken
@@ -42,7 +43,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                     do! Async.Sleep(2000)
                 else
                     let! work = queue.Consume doWork
-                    do! work
+                    do! runWithTimeout workerName 60 work
         }
 
         let cancellationToken =
@@ -51,7 +52,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
             | None -> Async.DefaultCancellationToken
             
         for i in [1.._workerCount] do
-            runAsyncAsTask (sprintf "WorktrackingQueue worker %A" name) cancellationToken workAsync
+            runAsyncAsTask workerName cancellationToken workAsync
 
     let sequenceGrouping a =
         let (item, groups) = grouping a
