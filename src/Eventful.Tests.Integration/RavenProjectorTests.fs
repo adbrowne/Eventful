@@ -54,6 +54,8 @@ type CurrentDoc = (MyCountingDoc * RavenJObject * Etag)
 
 module RavenProjectorTests = 
 
+    let log = Common.Logging.LogManager.GetLogger("Eventful.Tests.RavenProjectorTests")
+
     let buildDocumentStore () =
         let documentStore = new Raven.Client.Document.DocumentStore()
         documentStore.Url <- "http://localhost:8080"
@@ -214,8 +216,15 @@ module RavenProjectorTests =
                 itemsComplete := !itemsComplete + 1
             )
         }
+        
+        let rnd = new Random()
 
         let processBatch key (fetcher : IDocumentFetcher) events = async {
+
+            log.Error("About to sleep")
+            do! Async.Sleep(1000000)
+            log.Error("Sleep done")
+
             let requestId = Guid.NewGuid()
             let docKey = "MyCountingDocs/" + key.ToString() 
             let permDocKey = "PermissionDocs/" + key.ToString() 
@@ -271,7 +280,6 @@ module RavenProjectorTests =
     let ``Enqueue events into projector`` () : unit =   
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 
-
         let streamCount = 1000
         let itemPerStreamCount = 100
         let totalEvents = streamCount * itemPerStreamCount
@@ -291,6 +299,42 @@ module RavenProjectorTests =
 
             // do! projector.WaitAll()
         } |> Async.RunSynchronously
+
+    [<Fact>]
+    let ``Deal with timeouts gracefully`` () : unit =
+        let config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
+        
+        let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
+
+        let streamCount = 1
+        let itemPerStreamCount = 1
+        let totalEvents = streamCount * itemPerStreamCount
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+
+        let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
+
+        let projector = ``Get Raven Projector`` documentStore
+        // projector.StartWork()
+        // projector.StartPersistingPosition()
+
+        seq {
+            yield async {
+                let sw = System.Diagnostics.Stopwatch.StartNew()
+                for event in myEvents do
+                    do! projector.Enqueue event
+
+                consoleLog <| sprintf "Enqueue Time: %A ms" sw.ElapsedMilliseconds
+
+                projector.StartWork()
+                do! projector.WaitAll()
+                sw.Stop()
+
+                consoleLog <| sprintf "Insert all time: %A ms" sw.ElapsedMilliseconds
+            }
+        }
+        |> Async.Parallel
+        |> Async.Ignore
+        |> Async.RunSynchronously
 
     [<Fact>]
     let ``Pump many events at Raven`` () : unit =

@@ -113,9 +113,9 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let fetcher = {
         new IDocumentFetcher with
             member x.GetDocument<'TDocument> key =
-                runWithTimeout "Single Fetcher" 30 <| RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
+                runWithTimeout "Single Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
             member x.GetDocuments request = 
-                runWithTimeout "Multi Fetcher" 30 <| RavenOperations.getDocuments documentStore cache databaseName request
+                runWithTimeout "Multi Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocuments documentStore cache databaseName request
     }
 
     let positionDocumentKey = "EventProcessingPosition"

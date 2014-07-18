@@ -59,11 +59,40 @@ module Prelude =
 
         ()
 
-    let runWithTimeout name timeout action =
-        async {
-            let cts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(float timeout))
-            let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cts.Token)
-            // let! result =  runAsyncAsTask name cts.Token action |> Async.AwaitTask
-            let! result = task |> Async.AwaitTask
-            return result
-        }
+    open System
+    open System.Threading
+
+    let invokeOnce funcs =
+        let counter = ref 0
+        let invokeOnce' f x =
+            if (Interlocked.CompareExchange (counter, 1, 0) = 0) then
+                f x
+        let (a, b, c) = funcs
+        (invokeOnce' a, invokeOnce' b, invokeOnce' c)
+
+    let runWithTimeout name (timeout : System.TimeSpan) (computation : 'a Async) : 'a Async =
+        let callback (success, error, cancellation) =
+            let (success, error, cancellation) = invokeOnce (success, error, cancellation)
+            let fetchResult = async {
+                let! result = computation
+                success result }
+            let timeoutExpired = async {
+                do! Async.Sleep (int timeout.TotalMilliseconds)
+                let ex = new TimeoutException ("Timeout expired: " + name) :> Exception
+                error ex }
+     
+            Async.StartImmediate fetchResult
+            Async.StartImmediate timeoutExpired
+     
+        Async.FromContinuations callback    
+//    let runWithTimeout name timeout action =
+//        async {
+//            let timeoutSeconds = System.TimeSpan.FromSeconds(float timeout)
+//            taskLog.Error(sprintf "Timeout Seconds %A" timeoutSeconds)
+//            let cts = new System.Threading.CancellationTokenSource(timeoutSeconds)
+//            taskLog.Error(sprintf "About to run %s with cancellation token" name)
+//            let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cts.Token)
+//            // let! result =  runAsyncAsTask name cts.Token action |> Async.AwaitTask
+//            let! result = task |> Async.AwaitTask
+//            return result
+//        }

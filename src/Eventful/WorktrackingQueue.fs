@@ -35,6 +35,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let mutable working = true
 
     let workerName = (sprintf "WorktrackingQueue worker %A" name)
+    let workTimeout = TimeSpan.FromSeconds(60.0)
     let workers = 
         let workAsync = async {
             let! ct = Async.CancellationToken
@@ -43,7 +44,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                     do! Async.Sleep(2000)
                 else
                     let! work = queue.Consume doWork
-                    do! runWithTimeout workerName 60 work
+                    do! runWithTimeout workerName workTimeout work
         }
 
         let cancellationToken =
