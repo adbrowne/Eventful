@@ -40,11 +40,6 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
         | Some x -> x
         | None -> 10
 
-    let newAgent (log : Common.Logging.ILog) f  =
-        let agent= Agent.Start(f)
-        agent.Error.Add(fun e -> log.Error("Exception thrown by ParallelInOrderTransformer", e))
-        agent
-
     let rec clearCompleteItemsFromHead (queue : ParallelTransformerQueue<'TInput, 'TOutput>) =
         if queue.Count > 0 then
             let headIndex = queue.Keys |> Seq.head
@@ -57,7 +52,7 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
             | _ ->
                 ()
 
-    let transformerAgent = newAgent log (fun agent ->
+    let transformerAgent = newAgent "ParallelInOrderTransformer" log (fun agent ->
         let runItem (index : int64) input = 
             async { 
                 let! output = work input

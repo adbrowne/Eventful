@@ -96,3 +96,8 @@ module Prelude =
 //            let! result = task |> Async.AwaitTask
 //            return result
 //        }
+
+    let newAgent (name : string) (log : Common.Logging.ILog) f  =
+        let agent= Agent.Start(f)
+        agent.Error.Add(fun e -> log.Error(sprintf "Exception thrown by %A" name, e))
+        agent

@@ -25,7 +25,6 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         onEventComplete : 'TMessage -> Async<unit>,
         cancellationToken : CancellationToken
     ) =
-
     let log = Common.Logging.LogManager.GetLogger(typeof<BulkRavenProjector<_>>)
 
     let cache = new MemoryCache("RavenBatchWrite-" + databaseName)

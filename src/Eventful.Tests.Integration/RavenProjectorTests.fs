@@ -222,7 +222,7 @@ module RavenProjectorTests =
         let processBatch key (fetcher : IDocumentFetcher) events = async {
 
             log.Error("About to sleep")
-            do! Async.Sleep(1000000)
+            //do! Async.Sleep(1000000)
             log.Error("Sleep done")
 
             let requestId = Guid.NewGuid()

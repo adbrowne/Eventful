@@ -82,6 +82,7 @@
     <Compile Include="GroupingBoundedQueueStateTests.fs" />
     <Compile Include="GroupingBoundedQueueTests.fs" />
     <Compile Include="WorktrackingQueueTests.fs" />
+    <Compile Include="BatchingQueueTests.fs" />
     <Compile Include="LastCompleteTrackerTests.fs" />
     <Compile Include="LastCompleteItemTracker.fs" />
     <Compile Include="LastCompleteItemAgent2Tests.fs" />

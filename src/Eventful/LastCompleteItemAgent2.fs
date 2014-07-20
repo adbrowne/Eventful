@@ -142,7 +142,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
                 log.Error("Exception in notification callback", e) }
 
     let agent =
-        let theAgent =  Agent.Start(fun agent ->
+        let theAgent = Agent.Start(fun agent ->
             let rec loop (state : MutableLastCompleteTrackingState<'TItem>) = async {
                 let! msg = agent.Receive()
                 match msg with
