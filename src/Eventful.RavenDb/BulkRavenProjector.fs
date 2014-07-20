@@ -20,133 +20,21 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         databaseName: string,
         maxEventQueueSize : int,
         eventWorkers: int,
-        maxWriterQueueSize: int,
-        writerWorkers: int,
         onEventComplete : 'TMessage -> Async<unit>,
-        cancellationToken : CancellationToken
+        cancellationToken : CancellationToken,
+        writeQueue : RavenWriteQueue,
+        readQueue : RavenReadQueue
     ) =
     let log = Common.Logging.LogManager.GetLogger(typeof<BulkRavenProjector<_>>)
 
-    let cache = new MemoryCache("RavenBatchWrite-" + databaseName)
-
-    let batchWriteTracker = Metric.Histogram(sprintf "BatchWriteSize %s" databaseName, Unit.Items)
     let completeItemsTracker = Metric.Meter(sprintf "EventsComplete %s" databaseName, Unit.Items)
     let processingExceptions = Metric.Meter(sprintf "ProcessingExceptions %s" databaseName, Unit.Items)
-    let batchWriteTime = Metric.Timer(sprintf "WriteTime %s" databaseName, Unit.None)
-    let batchWritesMeter = Metric.Meter(sprintf "BatchWrites %s" databaseName, Unit.Items)
-    let batchConflictsMeter = Metric.Meter(sprintf "BatchConflicts %s" databaseName, Unit.Items)
 
-    let readDocs (docs : seq<(seq<GetDocRequest> * AsyncReplyChannel<seq<GetDocResponse>>)>) : Async<unit>  = 
-
-        let request = 
-            docs
-            |> Seq.collect (fun i -> fst i) 
-           
-        async {
-            let! getResult = 
-                RavenOperations.getDocuments documentStore cache databaseName request
-
-            let resultMap =
-                getResult
-                |> Seq.map(fun (docId, t, response) -> (docId, (docId, t, response)))
-                |> Map.ofSeq
-
-            for (request, reply) in docs do
-                let responses =
-                    request
-                    |> Seq.map (fun (k,_) -> resultMap.Item k)
-
-                reply.Reply responses
-
-            return ()
-        }
-        
-
-    let writeDocs (docs : seq<BatchWrite * AsyncReplyChannel<bool>>) = async {
-        let sw = System.Diagnostics.Stopwatch.StartNew()
-        let batchId = Guid.NewGuid()
-        let originalDocMap = 
-            docs
-            |> Seq.collect (fun (writeRequests, callback) -> 
-                writeRequests
-                |> Seq.map(fun processAction ->
-                    match processAction with
-                    | Write ({ DocumentKey = key; Document = document; Metadata = metadata }, _) ->
-                        let document = document
-                        (key, Choice1Of2 (document, metadata.Force(), callback))
-                    | Delete ({ DocumentKey = key }, _) ->
-                        (key, Choice2Of2 ())
-                )
-            )
-            |> Map.ofSeq
-
-        let! result = BatchOperations.writeBatch documentStore databaseName (docs |> Seq.map fst)
-        let writeSuccessful = 
-            match result with
-            | Some (batchResult, docs) ->
-                batchWriteTracker.Update(batchResult.LongLength)
-                batchWritesMeter.Mark()
-                for docResult in batchResult do
-                    match originalDocMap.[docResult.Key] with
-                    | Choice1Of2 (doc, metadata, callback) ->
-                        let cacheKey = RavenOperations.getCacheKey databaseName docResult.Key
-                        cache.Set(cacheKey, (doc, metadata, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
-                    | Choice2Of2 _ ->
-                        let cacheKey = RavenOperations.getCacheKey databaseName docResult.Key
-                        cache.Remove(cacheKey) |> ignore
-
-                true
-            | None ->
-                batchConflictsMeter.Mark()
-                for docRequest in originalDocMap |> Map.toSeq do
-                    match docRequest with
-                    | (docKey, Choice1Of2 (_, _, callback)) ->
-                        let cacheKey = RavenOperations.getCacheKey databaseName docKey
-                        cache.Remove(cacheKey) |> ignore
-                    | _ -> ()
-                false
-        
-        for (docs, callback) in docs do
-            callback.Reply writeSuccessful
-
-        sw.Stop()
-        batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
-    }
-
-    let writeQueue = 
-        let x = new BatchingQueue<BatchWrite, bool>(100, maxWriterQueueSize) // new WorktrackingQueue<int, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton 1)), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write", cancellationToken = cancellationToken) 
-
-        let consumer = async {
-            while true do
-                let! batch = x.Consume()
-                do! (writeDocs batch)
-        }
-        for _ in [1..1000] do
-         consumer |> Async.StartAsTask |> ignore
-        x
-
-    let readQueue = 
-        let x = new BatchingQueue<seq<string * Type>, seq<GetDocResponse>>(10, 10000)
-
-        let consumer = async {
-            while true do
-                let! batch = x.Consume()
-                do! (readDocs batch)
-        }
-        for _ in [1..1000] do
-          consumer |> Async.StartAsTask |> ignore
-        x
-
-    let getPromise () =
-        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
-        let complete  = fun success -> async { tcs.SetResult(success) }
-        (complete, Async.AwaitTask tcs.Task)
-        
     let fetcher = {
         new IDocumentFetcher with
             member x.GetDocument<'TDocument> key = async {
                 //runWithTimeout "Single Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
-                let! result = readQueue.Work <| Seq.singleton (key, typeof<'TDocument>)
+                let! result = readQueue.Work databaseName <| Seq.singleton (key, typeof<'TDocument>)
                 let (key, t, result) = Seq.head result
 
                 match result with
@@ -156,7 +44,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     return None
             }
             member x.GetDocuments request = async {
-                return! readQueue.Work request
+                return! readQueue.Work databaseName request
             } 
                 //runWithTimeout "Multi Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocuments documentStore cache databaseName request
     }
@@ -174,9 +62,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
             let! writeRequests = documentProcessor.Process fetcher untypedKey events
 
-            let (complete, wait) = getPromise()
-                
-            return! writeQueue.Work(writeRequests)
+            return! writeQueue.Work databaseName writeRequests
         }
         
     let processEvent key values = async {
@@ -191,7 +77,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     else
                         ()
                 with | e ->
-                    consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
+                    //consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
                     return! loop(count + 1)
             else
                 processingExceptions.Mark()
@@ -265,7 +151,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     }, Guid.NewGuid())
                 |> Seq.singleton
 
-            let! success = writeQueue.Work(writeRequests)
+            let! success = writeQueue.Work databaseName writeRequests
 
             if(success) then
                 lastPositionWritten <- Some position

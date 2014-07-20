@@ -20,6 +20,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         ?name : string,
         ?cancellationToken : CancellationToken
     ) =
+    let log = Common.Logging.LogManager.GetLogger("Eventful.WorktrackingQueue")
 
     let _maxItems = maxItems |> getOrElse 1000
     let _workerCount = workerCount |> getOrElse 1
@@ -35,7 +36,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let mutable working = true
 
     let workerName = (sprintf "WorktrackingQueue worker %A" name)
-    let workTimeout = TimeSpan.FromSeconds(60.0)
+    let workTimeout = TimeSpan.FromMinutes(2.0)
     let workers = 
         let workAsync = async {
             let! ct = Async.CancellationToken
@@ -44,7 +45,20 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                     do! Async.Sleep(2000)
                 else
                     let! work = queue.Consume doWork
-                    do! runWithTimeout workerName workTimeout work
+
+                    let maxAttempts = 10
+                    let rec loop count = async {
+                        if count < maxAttempts then
+                            try
+                                do! runWithTimeout workerName workTimeout work
+                            with | e ->
+                                //consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
+                                return! loop(count + 1)
+                        else
+                            log.Error(sprintf "Work failed permanently: %A" workerName)
+                            ()
+                    }
+                    do! loop 0
         }
 
         let cancellationToken =

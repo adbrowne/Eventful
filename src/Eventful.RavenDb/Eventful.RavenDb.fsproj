@@ -63,6 +63,8 @@
     <Compile Include="BatchOperations.fs" />
     <Compile Include="ProcessorSet.fs" />
     <Compile Include="RavenOperations.fs" />
+    <Compile Include="RavenWriteQueue.fs" />
+    <Compile Include="RavenReadQueue.fs" />
     <Compile Include="BulkRavenProjector.fs" />
     <None Include="app.config" />
   </ItemGroup>

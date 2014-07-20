@@ -272,7 +272,12 @@ module RavenProjectorTests =
 
         let processorSet = ProcessorSet.Empty.Add myProcessor
 
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 1000, 10000, 5, writeComplete, cancellationToken = Async.DefaultCancellationToken)
+        let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
+
+        let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cache)
+        let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cache)
+
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 1000, writeComplete, Async.DefaultCancellationToken, writeQueue, readQueue)
 
         projector
   
@@ -350,7 +355,7 @@ module RavenProjectorTests =
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
         let projector = ``Get Raven Projector`` documentStore
-        // projector.StartWork()
+        //projector.StartWork()
         projector.StartPersistingPosition()
 
         seq {
