@@ -36,6 +36,32 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let batchWritesMeter = Metric.Meter(sprintf "BatchWrites %s" databaseName, Unit.Items)
     let batchConflictsMeter = Metric.Meter(sprintf "BatchConflicts %s" databaseName, Unit.Items)
 
+    let readDocs (docs : seq<(seq<GetDocRequest> * AsyncReplyChannel<seq<GetDocResponse>>)>) : Async<unit>  = 
+
+        let request = 
+            docs
+            |> Seq.collect (fun i -> fst i) 
+           
+        async {
+            let! getResult = 
+                RavenOperations.getDocuments documentStore cache databaseName request
+
+            let resultMap =
+                getResult
+                |> Seq.map(fun (docId, t, response) -> (docId, (docId, t, response)))
+                |> Map.ofSeq
+
+            for (request, reply) in docs do
+                let responses =
+                    request
+                    |> Seq.map (fun (k,_) -> resultMap.Item k)
+
+                reply.Reply responses
+
+            return ()
+        }
+        
+
     let writeDocs (docs : seq<BatchWrite * AsyncReplyChannel<bool>>) = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
         let batchId = Guid.NewGuid()
@@ -99,6 +125,18 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
          consumer |> Async.StartAsTask |> ignore
         x
 
+    let readQueue = 
+        let x = new BatchingQueue<seq<string * Type>, seq<GetDocResponse>>(10, 10000)
+
+        let consumer = async {
+            while true do
+                let! batch = x.Consume()
+                do! (readDocs batch)
+        }
+        for _ in [1..1000] do
+          consumer |> Async.StartAsTask |> ignore
+        x
+
     let getPromise () =
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
         let complete  = fun success -> async { tcs.SetResult(success) }
@@ -106,10 +144,21 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         
     let fetcher = {
         new IDocumentFetcher with
-            member x.GetDocument<'TDocument> key =
-                runWithTimeout "Single Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
-            member x.GetDocuments request = 
-                runWithTimeout "Multi Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocuments documentStore cache databaseName request
+            member x.GetDocument<'TDocument> key = async {
+                //runWithTimeout "Single Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
+                let! result = readQueue.Work <| Seq.singleton (key, typeof<'TDocument>)
+                let (key, t, result) = Seq.head result
+
+                match result with
+                | Some (doc, metadata, etag) -> 
+                    return (Some (doc :?> 'TDocument, metadata, etag))
+                | None -> 
+                    return None
+            }
+            member x.GetDocuments request = async {
+                return! readQueue.Work request
+            } 
+                //runWithTimeout "Multi Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocuments documentStore cache databaseName request
     }
 
     let positionDocumentKey = "EventProcessingPosition"

@@ -6,6 +6,9 @@ open Raven.Json.Linq
 open Raven.Client
 open Raven.Abstractions.Data
 
+type GetDocRequest = string * Type 
+type GetDocResponse = string * Type * (obj * RavenJObject * Etag) option
+
 module RavenOperations =
     let log = Common.Logging.LogManager.GetLogger(typeof<BatchWrite>)
 
@@ -42,7 +45,7 @@ module RavenOperations =
             }
         | entry -> failwith <| sprintf "Unexpected entry type %A" entry
 
-    let getDocuments (documentStore : IDocumentStore) (cache : MemoryCache) (database : string) (request : seq<string * Type>) = async {
+    let getDocuments (documentStore : IDocumentStore) (cache : MemoryCache) (database : string) (request : seq<GetDocRequest>) : Async<seq<GetDocResponse>> = async {
         let requestCacheMatches =
             request
             |> Seq.map(fun (docKey, docType) -> 
