@@ -83,6 +83,7 @@ type BatchingQueue<'T,'U>
 
         empty BatchingQueueState<'T,'U>.Zero
     )
+
     member x.Consume () : Async<BatchWork<'T,'U>> =
         agent.PostAndAsyncReply(fun ch -> Consume ch)
 

@@ -36,7 +36,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let batchWritesMeter = Metric.Meter(sprintf "BatchWrites %s" databaseName, Unit.Items)
     let batchConflictsMeter = Metric.Meter(sprintf "BatchConflicts %s" databaseName, Unit.Items)
 
-    let writeDocs docs = async {
+    let writeDocs (docs : seq<BatchWrite * AsyncReplyChannel<bool>>) = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
         let batchId = Guid.NewGuid()
         let originalDocMap = 
@@ -54,7 +54,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             )
             |> Map.ofSeq
 
-        let! result = BatchOperations.writeBatch documentStore databaseName docs
+        let! result = BatchOperations.writeBatch documentStore databaseName (docs |> Seq.map fst)
         let writeSuccessful = 
             match result with
             | Some (batchResult, docs) ->
@@ -81,27 +81,22 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                 false
         
         for (docs, callback) in docs do
-
-            do! callback writeSuccessful
+            callback.Reply writeSuccessful
 
         sw.Stop()
         batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
     }
 
-    let writeBatch _ (docs : seq<BatchWrite>) = async {
-        let maxWriteSize = 100
-        let writeGroups = 
-            docs
-            |> Seq.zip (Seq.initInfinite id)
-            |> Seq.groupBy (fun (i,d) -> i / maxWriteSize)
-
-        for (_, w) in writeGroups do
-            do! writeDocs (w |> Seq.map snd)
-    }
-
     let writeQueue = 
-        let x = new WorktrackingQueue<int, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton 1)), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write", cancellationToken = cancellationToken) 
-        x.StopWork()
+        let x = new BatchingQueue<BatchWrite, bool>(100, maxWriterQueueSize) // new WorktrackingQueue<int, BatchWrite, BatchWrite>((fun a -> (a, Set.singleton 1)), writeBatch, maxWriterQueueSize, writerWorkers, name = databaseName + " write", cancellationToken = cancellationToken) 
+
+        let consumer = async {
+            while true do
+                let! batch = x.Consume()
+                do! (writeDocs batch)
+        }
+        for _ in [1..1000] do
+         consumer |> Async.StartAsTask |> ignore
         x
 
     let getPromise () =
@@ -132,10 +127,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
             let (complete, wait) = getPromise()
                 
-            do! writeQueue.Add(writeRequests, complete)
-
-            let! result = wait
-            return result 
+            return! writeQueue.Work(writeRequests)
         }
         
     let processEvent key values = async {
@@ -214,8 +206,6 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
     member x.StartPersistingPosition () = 
         let writeUpdatedPosition position = async {
-            let (complete, wait) = getPromise()
-
             let writeRequests =
                 Write (
                     {
@@ -226,9 +216,8 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     }, Guid.NewGuid())
                 |> Seq.singleton
 
-            do! writeQueue.Add(writeRequests, complete)
+            let! success = writeQueue.Work(writeRequests)
 
-            let! success = wait 
             if(success) then
                 lastPositionWritten <- Some position
             else
@@ -236,7 +225,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         }
 
         let rec loop () =  async {
-            do! Async.Sleep(1000)
+            do! Async.Sleep(5000)
 
             let! position = x.LastComplete()
 
@@ -275,5 +264,5 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     member x.WaitAll = queue.AsyncComplete
 
     member x.StartWork () = 
-        writeQueue.StartWork()
+        // writeQueue.StartWork()
         queue.StartWork()

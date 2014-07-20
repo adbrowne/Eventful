@@ -5,7 +5,7 @@ open Eventful
 open Raven.Abstractions.Commands
 open Raven.Json.Linq
 
-type BatchWrite = (seq<ProcessAction> * (bool -> Async<unit>))
+type BatchWrite = seq<ProcessAction>
 
 module BatchOperations =
     let log = Common.Logging.LogManager.GetLogger(typeof<BatchWrite>)
@@ -33,7 +33,7 @@ module BatchOperations =
         try 
             let! batchResult = 
                 docs
-                |> Seq.collect (fst >> Seq.map buildCmd)
+                |> Seq.collect (Seq.map buildCmd)
                 |> Array.ofSeq
                 |> documentStore.AsyncDatabaseCommands.ForDatabase(database).BatchAsync
                 |> Async.AwaitTask
