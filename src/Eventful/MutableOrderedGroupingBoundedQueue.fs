@@ -80,6 +80,18 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 | NotifyWhenAllComplete reply ->
                     lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, Some "NotifyWhenComplete hasWork", async { reply.Reply() } )
                     Some(hasWork itemIndex))
+            and full itemIndex = 
+                agent.Scan(fun msg -> 
+                match msg with
+                | ConsumeWork x -> Some <| consume x itemIndex
+                | AddItem x -> None
+                | NotifyWhenAllComplete reply -> 
+                    if(itemIndex = 0L) then
+                        reply.Reply()
+                    else 
+                        lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, Some "NotifyWhenComplete empty", async { reply.Reply() } )
+                    Some(empty itemIndex)
+                | GroupComplete group -> Some(groupComplete group itemIndex))
             and enqueue (items, onComplete, reply) itemIndex = async {
                 let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
                 for ((item, group), index) in indexedItems do
@@ -135,8 +147,11 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 groupItems.Add(nextKey, newValues)
                 return! nextMessage itemIndex }
             and nextMessage itemIndex = async {
-                if(workQueue.Count = 0) then
+                let currentQueueSize = workQueue.Count
+                if(currentQueueSize = 0) then
                     return! empty itemIndex
+                elif currentQueueSize >= maxItems then
+                    return! full itemIndex   
                 else
                     return! hasWork itemIndex
             }

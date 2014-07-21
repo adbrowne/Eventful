@@ -9,7 +9,6 @@ open FsUnit.Xunit
 
 module MutableOrderedGroupingBoundedQueueTests = 
     [<Fact>]
-    [<Trait("category", "foo3")>]
     let ``Can process single item`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<int, int>()
         let counter = new CounterAgent()
@@ -55,7 +54,6 @@ module MutableOrderedGroupingBoundedQueueTests =
 
 
     [<Fact>]
-    [<Trait("category", "foo5")>]
     let ``speed test for 1 million items to tracker`` () : unit =
         let maxValue  = 1000000L
         let items = [1L..maxValue]
@@ -79,7 +77,6 @@ module MutableOrderedGroupingBoundedQueueTests =
         tcs.Task.Wait()
 
     [<Fact>]
-    [<Trait("category", "foo5")>]
     let ``speed test for 1 million items to empty agent`` () : unit =
         let maxValue  = 1000000L
         let items = [1L..maxValue]
@@ -103,7 +100,6 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
-    [<Trait("category", "foo3")>]
     let ``Can calculate correct values`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<Guid, int>()
         let store = new System.Collections.Generic.Dictionary<Guid, int>()
@@ -234,7 +230,7 @@ module MutableOrderedGroupingBoundedQueueTests =
             } |> Async.StartAsTask
 
         async {
-            do! Async.Sleep waitMilliseconds
+            do! Async.Sleep (waitMilliseconds + 50) // give 50 ms grace
             do! groupingQueue.Consume((fun _ -> async { return () })) |> Async.Ignore
         } |> Async.Start
 
