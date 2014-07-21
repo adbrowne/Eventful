@@ -109,7 +109,6 @@ module RavenProjectorTests =
             |> Seq.map (fun item -> 
                 {
                     Eventful.NotificationItem.Item = item
-                    Unique = Guid.NewGuid()
                     Tag = None
                     Callback = async { () }
                 })

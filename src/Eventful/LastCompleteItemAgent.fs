@@ -6,23 +6,11 @@ open FSharpx
 
 type SortedSet<'a> = System.Collections.Generic.SortedSet<'a>
 
-[<CustomEquality; CustomComparison>]
-type NotificationItem<'TItem when 'TItem : comparison> = {
+type NotificationItem<'TItem> = {
     Item : 'TItem
-    Unique : Guid // each item in the set must be unique
     Tag : string option
     Callback : Async<unit>
 }
-with
-    static member Key p = 
-        let { Item = key; Unique = unique } = p
-        (key,unique)
-    override x.Equals(y) = 
-        equalsOn NotificationItem<'TItem>.Key x y
-    override x.GetHashCode() = 
-        hashOn NotificationItem<'TItem>.Key x
-    interface System.IComparable with 
-        member x.CompareTo y = compareOn NotificationItem<'TItem>.Key x y
 
 type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
     let started = new System.Collections.Generic.SortedSet<'TItem>()
@@ -112,8 +100,7 @@ type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
         | None -> (this, List.empty)
 
     member this.AddNotification (item, tag, callback) =
-        let uniqueId = Guid.NewGuid()
-        let newValue = { Item = item; Unique = uniqueId; Tag = tag; Callback = callback}
+        let newValue = { Item = item; Tag = tag; Callback = callback}
         if(notifications.ContainsKey item) then
             let currentValues = notifications.Item item
             notifications.Remove item |> ignore
