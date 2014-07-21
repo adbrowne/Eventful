@@ -145,11 +145,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 return! (nextMessage nextIndex) }
             and groupComplete group itemIndex = async {
                 state.GroupComplete group
-                
-
                 return! nextMessage itemIndex }
             and consume (workCallback, reply) itemIndex = async {
-
                 let (nextKey, values) = state.ConsumeNext()
                 let work =
                     async {
