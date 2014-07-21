@@ -215,3 +215,73 @@ module MutableOrderedGroupingBoundedQueueTests =
             printfn "Received %d %d %d %d total: %d" value1 value2 value3 value4 (value1 + value2 + value3 + value4) 
 
         } |> Async.RunSynchronously
+
+    [<Fact>]
+    let ``Producer will wait for consumers once queues are full`` () : unit = 
+        let groupingQueue = new MutableOrderedGroupingBoundedQueue<string,string>(1)
+
+        let groupName = "group"
+        let itemValue = "item"
+
+        let waitMilliseconds = 200
+
+        let producer = 
+            async {
+                do! groupingQueue.Add("itemValue",(fun _ -> Seq.singleton (groupName, itemValue)))
+                let stopwatch = System.Diagnostics.Stopwatch.StartNew()
+                do! groupingQueue.Add("itemValue",(fun _ -> Seq.singleton (groupName, itemValue)))
+                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo <| int64 waitMilliseconds)
+            } |> Async.StartAsTask
+
+        async {
+            do! Async.Sleep waitMilliseconds
+            do! groupingQueue.Consume((fun _ -> async { return () })) |> Async.Ignore
+        } |> Async.Start
+
+        producer.Wait ()
+
+    [<Fact>]
+    let ``Next items from the same group will not be consumed until previous items are complete`` () : unit =
+        let groupingQueue = new MutableOrderedGroupingBoundedQueue<string,string>(1000)
+
+        let groupName = "group"
+        let itemValue = "item"
+
+        let waitMilliseconds = 200
+
+        let consumer (group, items) = async {
+            let startTime = DateTime.Now
+            do! Async.Sleep(100)
+            let endTime = DateTime.Now
+            return (startTime, endTime)
+        }
+
+        let worker1 = async {
+                        let stopwatch = System.Diagnostics.Stopwatch.StartNew()
+                        let result = ref ("empty","empty")
+                        let! work = groupingQueue.Consume((fun (g, items) -> async { return result := (g, items |> Seq.head) }))
+                        do! work
+                        return (!result)
+                      } 
+
+        let worker2 = async {
+                        let stopwatch = System.Diagnostics.Stopwatch.StartNew()
+                        let result = ref ("empty","empty")
+                        let! work = groupingQueue.Consume((fun (g, items) -> async { return result := (g, items |> Seq.head) }))
+                        do! work
+                        return (!result)
+                      } 
+
+        async {
+            do! groupingQueue.Add("item1",(fun _ -> Seq.singleton ("item1", "group")))
+            do! Async.Sleep 100 // needs to be long enough to ensure the first worker does not get a single item
+            do! groupingQueue.Add("item1",(fun _ -> Seq.singleton ("item1", "group")))
+        } |> Async.Start
+
+        async {
+            let! results = Async.Parallel [worker1; worker2]
+
+            match results with
+            | [|(s1,e1);(s2,e2)|] -> Assert.True(s1 < s2 && e1 <= s2 || s2 < s1 && e2 <= s1, sprintf "Consumers should not overlap (%A - %A) (%A - %A)" s1 e1 s2 e2)
+            | x -> Assert.True(false,sprintf "Unexpected result: %A" x)
+        } |> Async.RunSynchronously

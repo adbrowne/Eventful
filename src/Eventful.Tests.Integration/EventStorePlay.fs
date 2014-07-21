@@ -178,50 +178,6 @@
 
             } |> Async.RunSynchronously
 
-        [<Fact>]
-        let ``Play eventstore events through grouping queue`` () : unit = 
-            let eventsMeter = Metric.Meter("event", Unit.None)
-            let reports = new Metrics.Reports.MetricsReports(new Metrics.Core.LocalRegistry(), (fun _ -> new HealthStatus()))
-            reports.WithConsoleReport(System.TimeSpan.FromSeconds(2.0)) |> ignore
-
-            let queue = new GroupingBoundedQueue<string, RecordedEvent, unit>(100000)
-
-            let worker () = 
-                async {
-                    let rec readQueue () = async{
-                            do! queue.AsyncConsume ((fun (group, eventList) -> async { 
-                                   // System.Console.WriteLine(sprintf "Group: %s, Count: %d" group eventList.Length)
-                                   do! Async.Sleep (1)
-                                 }))
-                            do! readQueue ()
-                        }
-
-                    do! readQueue()
-                }
-
-            Seq.init 1000 (fun _ -> worker ()) |> Async.Parallel |> Async.Ignore |> Async.Start
-
-            async {
-                printfn "Started"
-                let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
-                let tcs = new System.Threading.Tasks.TaskCompletionSource<unit>()
-                let connectionSettingsBuilder = 
-                    ConnectionSettings.Create().OnConnected(fun _ _ -> printf "Connected"; ).OnErrorOccurred(fun _ ex -> printfn "Error: %A" ex).SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit"))
-                let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
-
-                let connection = EventStoreConnection.Create(connectionSettings, ipEndPoint)
-
-                connection.Connect()
-                let eventAppeared (event:ResolvedEvent) = 
-                    queue.AsyncAdd (event.OriginalStreamId, event.Event) |> Async.RunSynchronously
-                    eventsMeter.Mark()
-
-                connection.SubscribeToAllFrom(System.Nullable(), false, (fun subscription event -> eventAppeared event)) |> ignore        
-
-                printfn "Subscribed"
-                do! tcs.Task |> Async.AwaitTask
-            } |> Async.RunSynchronously
-
     //    [<Fact>]
     //    let ``Play eventstore events through new queue`` () : unit = 
     //        let eventsMeter = Metrics.Meter(typeof<TestType>, "event", "events", TimeUnit.Seconds)

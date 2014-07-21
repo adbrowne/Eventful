@@ -73,8 +73,6 @@
     <Compile Include="BoundedWorkCounter.fs" />
     <Compile Include="MutableOrderedGroupingBoundedQueue.fs" />
     <Compile Include="BatchingQueue.fs" />
-    <Compile Include="GroupingBoundedQueueState.fs" />
-    <Compile Include="GroupingBoundedQueue.fs" />
     <Compile Include="WorktrackingQueueState.fs" />
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="WorktrackingQueue.CSharp.fs" />
