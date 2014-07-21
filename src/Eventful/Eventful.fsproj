@@ -73,7 +73,6 @@
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="WorktrackingQueue.CSharp.fs" />
     <Compile Include="CounterAgent.fs" />
-    <Compile Include="ReadModel.fs" />
     <Compile Include="MagicMapper.fs" />
     <Compile Include="EventStream.fs" />
     <Compile Include="StateFolding.fs" />
