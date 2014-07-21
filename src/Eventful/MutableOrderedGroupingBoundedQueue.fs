@@ -134,7 +134,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                     else
                         itemIndex
 
-                // there were not items keep moving
+                // there were no items keep moving
                 if(nextIndex = itemIndex) then 
                     match onComplete with
                     | Some a -> do! a
@@ -179,16 +179,13 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             log.Error("Exception thrown by MutableOrderedGroupingBoundedQueueMessages", exn))
         theAgent
     
-    let addTimer = Metrics.Metric.Timer("AddTimer", Metrics.Unit.None)
     member this.Add (input:'TInput, group: ('TInput -> (seq<'TItem * 'TGroup>)), ?onComplete : Async<unit>) =
-        addTimer.Time(fun () ->
-            async {
-                let items = group input
-                
-                do! dispatcherAgent.PostAndAsyncReply(fun ch ->  AddItem (items, onComplete, ch))
-                ()
-            }
-        )
+        async {
+            let items = group input
+            
+            do! dispatcherAgent.PostAndAsyncReply(fun ch ->  AddItem (items, onComplete, ch))
+            ()
+        }
 
     member this.Consume (work:(('TGroup * seq<'TItem>) -> Async<unit>)) =
         dispatcherAgent.PostAndAsyncReply(fun ch -> ConsumeWork(work, ch))
