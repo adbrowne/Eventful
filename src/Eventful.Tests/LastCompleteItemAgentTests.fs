@@ -13,12 +13,12 @@ open Eventful.Tests
 open FSharpx
 open FSharpx.Collections
 
-module LastCompleteItemAgent2Tests = 
-    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent2<_>>)
+module LastCompleteItemAgentTests = 
+    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent<_>>)
 
     [<Fact>]
     let ``Can have two callbacks for the one item`` () : unit =  
-        let lastCompleteTracker = new LastCompleteItemAgent2<int64>(Guid.NewGuid().ToString())
+        let lastCompleteTracker = new LastCompleteItemAgent<int64>(Guid.NewGuid().ToString())
 
         let monitor = new obj()
 
@@ -50,7 +50,7 @@ module LastCompleteItemAgent2Tests =
         !called |> should equal 2
 
     let simulateTracking actions =
-        let lastCompleteTracker = new LastCompleteItemAgent2<int64>(Guid.NewGuid().ToString())
+        let lastCompleteTracker = new LastCompleteItemAgent<int64>(Guid.NewGuid().ToString())
 
         let result = 
             async {

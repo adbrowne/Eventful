@@ -39,8 +39,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
 
     let lastCompleteTracker = 
         match name with
-        | Some name -> new LastCompleteItemAgent2<int64>(name)
-        | None -> new LastCompleteItemAgent2<int64>() 
+        | Some name -> new LastCompleteItemAgent<int64>(name)
+        | None -> new LastCompleteItemAgent<int64>() 
 
     let workerCallbackName = sprintf "Worker callback %A" name
 

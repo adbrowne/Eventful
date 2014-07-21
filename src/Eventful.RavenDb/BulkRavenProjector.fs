@@ -100,7 +100,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         (event, groups)
     
     let tracker = 
-        let t = new LastCompleteItemAgent2<EventPosition>(name = databaseName)
+        let t = new LastCompleteItemAgent<EventPosition>(name = databaseName)
         async {
             let! persistedPosition = getPersistedPosition
 

@@ -66,12 +66,11 @@
     <Compile Include="Helpers.fs" />
     <Compile Include="LastCompleteTracker.fs" />
     <Compile Include="LastCompleteItemTracker.fs" />
-    <Compile Include="LastCompleteItemAgent2.fs" />
+    <Compile Include="LastCompleteItemAgent.fs" />
     <Compile Include="ParallelInOrderTransformer.fs" />
     <Compile Include="ParellelInOrderTransformer.CSharp.fs" />
     <Compile Include="BoundedWorkQueue.fs" />
     <Compile Include="BoundedWorkCounter.fs" />
-    <Compile Include="OrderedGroupingQueue.fs" />
     <Compile Include="MutableOrderedGroupingBoundedQueue.fs" />
     <Compile Include="BatchingQueue.fs" />
     <Compile Include="GroupingBoundedQueueState.fs" />

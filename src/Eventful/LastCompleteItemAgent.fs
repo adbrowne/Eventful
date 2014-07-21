@@ -131,8 +131,8 @@ type LastCompleteItemMessage2<'TItem when 'TItem : comparison> =
 |    LastComplete of (AsyncReplyChannel<'TItem option>) 
 |    Notify of ('TItem * string option * Async<unit>)
 
-type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) = 
-    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent2<_>>)
+type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) = 
+    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent<_>>)
 
     let runCallbacks callbacks = async {
          for callback in callbacks do
@@ -179,7 +179,7 @@ type LastCompleteItemAgent2<'TItem when 'TItem : comparison> (?name : string) =
             loop MutableLastCompleteTrackingState<'TItem>.Empty
         )
         theAgent.Error.Add(fun exn -> 
-            log.Error("Exception thrown by LastCompleteItemAgent2", exn))
+            log.Error("Exception thrown by LastCompleteItemAgent", exn))
         theAgent
 
     member x.LastComplete () : Async<'TItem option> =

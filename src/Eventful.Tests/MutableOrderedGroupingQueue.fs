@@ -5,6 +5,7 @@ open System
 open Xunit
 open System.Threading.Tasks
 open FSharpx.Collections
+open FsUnit.Xunit
 
 module MutableOrderedGroupingBoundedQueueTests = 
     [<Fact>]
@@ -33,6 +34,27 @@ module MutableOrderedGroupingBoundedQueueTests =
     open System.Collections.Generic
 
     [<Fact>]
+    let ``Can process single item with 2 groups`` () : unit = 
+        let queue = new MutableOrderedGroupingBoundedQueue<int, int>()
+        let counter = new Eventful.CounterAgent()
+        let rec consumer (counter : Eventful.CounterAgent)  = async {
+            let! work = queue.Consume((fun (g, items) -> async {
+                do! counter.Incriment(items |> Seq.length)
+                return ()
+            }))
+            do! work
+            return! consumer counter
+        }
+
+        async {
+            do! queue.Add(1, (fun _ -> [(1,1);(1,2)] |> List.toSeq))
+            do! queue.CurrentItemsComplete()
+            let! result = counter.Get()
+            result |> should equal 2
+        } |> Async.Start
+
+
+    [<Fact>]
     [<Trait("category", "foo5")>]
     let ``speed test for 1 million items to tracker`` () : unit =
         let maxValue  = 1000000L
@@ -40,7 +62,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         let rnd = new Random(1024)
         let randomItems = items |> Seq.sortBy (fun _ -> rnd.Next(1000000)) |> Seq.cache
 
-        let tracker = new LastCompleteItemAgent2<int64>()
+        let tracker = new LastCompleteItemAgent<int64>()
 
         let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
 
@@ -137,4 +159,59 @@ module MutableOrderedGroupingBoundedQueueTests =
             Assert.True((streamCount = store.Count), sprintf "store.Count %A should equal streamCount %A" store.Count streamCount)
             for pair in store do
                 Assert.Equal(expectedValue, pair.Value)
+        } |> Async.RunSynchronously
+
+    [<Fact>]
+    let ``Test many items across many groups`` () : unit = 
+        let myQueue = new MutableOrderedGroupingBoundedQueue<int, int>()
+
+        let counter1 = new Eventful.CounterAgent()
+        let counter2 = new Eventful.CounterAgent()
+        let counter3 = new Eventful.CounterAgent()
+        let counter4 = new Eventful.CounterAgent()
+
+        let rec consumer (counter : Eventful.CounterAgent)  = async {
+            let! work = myQueue.Consume((fun (g, items) -> async {
+                // Console.WriteLine(sprintf "Group: %A Items: %A ItemCount: %d" g items (items |> Seq.length))
+                // do! Async.Sleep 100
+                do! counter.Incriment(items |> Seq.length)
+                return ()
+            }))
+            do! work
+            return! consumer counter
+        }
+
+        consumer counter1 |> Async.Start
+        consumer counter2 |> Async.Start
+        consumer counter3 |> Async.Start
+        consumer counter1 |> Async.Start
+        consumer counter2 |> Async.Start
+        consumer counter3 |> Async.Start
+        consumer counter1 |> Async.Start
+        consumer counter2 |> Async.Start
+        consumer counter3 |> Async.Start
+        consumer counter1 |> Async.Start
+        consumer counter2 |> Async.Start
+        consumer counter3 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+        consumer counter4 |> Async.Start
+
+        async {
+
+            for i in [1..100000] do
+                do! myQueue.Add(i, (fun input -> Seq.singleton (input, input)))
+
+            do! myQueue.CurrentItemsComplete()
+
+            let! value1 = counter1.Get()
+            let! value2 = counter2.Get()
+            let! value3 = counter3.Get()
+            let! value4 = counter4.Get()
+           
+            printfn "Received %d %d %d %d total: %d" value1 value2 value3 value4 (value1 + value2 + value3 + value4) 
+
         } |> Async.RunSynchronously

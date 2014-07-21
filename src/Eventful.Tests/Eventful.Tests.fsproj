@@ -77,7 +77,6 @@
     <Compile Include="CounterAgent.fs" />
     <Compile Include="BoundedWorkQueueTests.fs" />
     <Compile Include="ParellelInOrderTransformerTests.fs" />
-    <Compile Include="OrderedGroupingQueueTests.fs" />
     <Compile Include="MutableOrderedGroupingQueue.fs" />
     <Compile Include="GroupingBoundedQueueStateTests.fs" />
     <Compile Include="GroupingBoundedQueueTests.fs" />
@@ -85,7 +84,7 @@
     <Compile Include="BatchingQueueTests.fs" />
     <Compile Include="LastCompleteTrackerTests.fs" />
     <Compile Include="LastCompleteItemTracker.fs" />
-    <Compile Include="LastCompleteItemAgent2Tests.fs" />
+    <Compile Include="LastCompleteItemAgentTests.fs" />
     <Compile Include="MagicMapper.fs" />
     <Compile Include="FoldPlay.fs" />
     <Compile Include="FoldCombining.fs" />
