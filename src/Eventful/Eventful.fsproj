@@ -64,10 +64,8 @@
     <Compile Include="Agent.fs" />
     <Compile Include="Prelude.fs" />
     <Compile Include="Helpers.fs" />
-    <Compile Include="Bucket.fs" />
     <Compile Include="LastCompleteTracker.fs" />
     <Compile Include="LastCompleteItemTracker.fs" />
-    <Compile Include="LastCompleteItemAgent.fs" />
     <Compile Include="LastCompleteItemAgent2.fs" />
     <Compile Include="ParallelInOrderTransformer.fs" />
     <Compile Include="ParellelInOrderTransformer.CSharp.fs" />

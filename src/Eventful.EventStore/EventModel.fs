@@ -19,7 +19,7 @@ type EventModel (connection : IEventStoreConnection, config : EventProcessingCon
 
     let client = new Client(connection)
 
-    let completeTracker = new LastCompleteItemAgent<EventPosition>()
+    let completeTracker = new LastCompleteItemAgent2<EventPosition>()
 
     let groupMessageIntoStream message =
         match message with
