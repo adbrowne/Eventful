@@ -68,8 +68,6 @@
     <Compile Include="LastCompleteItemAgent.fs" />
     <Compile Include="ParallelInOrderTransformer.fs" />
     <Compile Include="ParellelInOrderTransformer.CSharp.fs" />
-    <Compile Include="BoundedWorkQueue.fs" />
-    <Compile Include="BoundedWorkCounter.fs" />
     <Compile Include="MutableOrderedGroupingBoundedQueue.fs" />
     <Compile Include="BatchingQueue.fs" />
     <Compile Include="WorktrackingQueue.fs" />
