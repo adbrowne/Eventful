@@ -32,6 +32,8 @@ type RavenWriteQueue
                         (key, Choice1Of2 (document, metadata.Force(), callback))
                     | Delete ({ DocumentKey = key }, _) ->
                         (key, Choice2Of2 ())
+                    | Custom c ->
+                        (c.Key, Choice2Of2 ())
                 )
             )
             |> Map.ofSeq

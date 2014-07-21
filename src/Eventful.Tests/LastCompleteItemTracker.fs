@@ -93,8 +93,12 @@ module LastCompleteItemTrackerTests =
                     ()
                 else
                     let operations = allOperations |> Seq.take (allOperations.Length - 1) |> Seq.toList
+
                     // last item must be a complete in a valid sequence
-                    let (Complete missingValue) = allOperations |> Seq.last
+                    let missingValue =  
+                        match allOperations |> Seq.last with
+                        | Complete lastItem -> lastItem
+                        | _ -> failwith "Valid sequences must end with a complete call"
 
                     let result = operations |> List.fold accumulator LastCompleteZipper.empty<_>
 

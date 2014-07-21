@@ -10,14 +10,14 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         workAction :  Func<'TGroup, 'TItem seq, System.Threading.Tasks.Task>,
         maxItems, 
         workerCount,
-        complete : Func<'TItem', System.Threading.Tasks.Task>
+        complete : Func<'TItem, System.Threading.Tasks.Task>
     ) =
     let groupingfs = (fun i -> (i, grouping.Invoke(i) |> Set.ofSeq))
 
     let completeFs = 
         match complete with
         | null -> (fun i -> async { return () })
-        | complete ->  (fun (i:'TItem) -> async { 
+        | complete ->  (fun (i : 'TItem) -> async { 
                            let task = complete.Invoke(i) 
                            do! task |> Async.AwaitIAsyncResult |> Async.Ignore
                        })

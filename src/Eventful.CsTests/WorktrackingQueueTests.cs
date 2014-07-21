@@ -28,7 +28,9 @@ namespace Eventful.CsTests
             return tcs.Task;
         }
 
+#pragma warning disable 1998
         public async Task Complete(string item)
+#pragma warning restore 1998
         {
             Console.WriteLine("Complete");
         }
