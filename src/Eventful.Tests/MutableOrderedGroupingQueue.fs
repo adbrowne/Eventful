@@ -256,18 +256,12 @@ module MutableOrderedGroupingBoundedQueueTests =
             return (startTime, endTime)
         }
 
-        let worker1 = async {
+        let worker = async {
                         let stopwatch = System.Diagnostics.Stopwatch.StartNew()
-                        let result = ref ("empty","empty")
-                        let! work = groupingQueue.Consume((fun (g, items) -> async { return result := (g, items |> Seq.head) }))
-                        do! work
-                        return (!result)
-                      } 
-
-        let worker2 = async {
-                        let stopwatch = System.Diagnostics.Stopwatch.StartNew()
-                        let result = ref ("empty","empty")
-                        let! work = groupingQueue.Consume((fun (g, items) -> async { return result := (g, items |> Seq.head) }))
+                        let result = ref (DateTime.MinValue,DateTime.MinValue)
+                        let! work = groupingQueue.Consume((fun (g, items) -> async { 
+                            let! r = consumer(g, items)
+                            result := r }))
                         do! work
                         return (!result)
                       } 
@@ -279,7 +273,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.Start
 
         async {
-            let! results = Async.Parallel [worker1; worker2]
+            let! results = Async.Parallel [worker; worker]
 
             match results with
             | [|(s1,e1);(s2,e2)|] -> Assert.True(s1 < s2 && e1 <= s2 || s2 < s1 && e2 <= s1, sprintf "Consumers should not overlap (%A - %A) (%A - %A)" s1 e1 s2 e2)
