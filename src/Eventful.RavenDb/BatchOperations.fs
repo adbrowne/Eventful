@@ -48,3 +48,20 @@ module BatchOperations =
                 log.Error("Write Error", e)
                 return None
     }
+
+    let bulkInsert (documentStore : Raven.Client.IDocumentStore) (inserter : Raven.Client.Document.BulkInsertOperation) (docs:seq<BatchWrite>) = async {
+        let buildCmd = (buildCommandFromProcessAction documentStore)
+        try 
+            for doc in docs do
+                for req in doc do
+                    match req with
+                    | Write (req, _) ->
+                        inserter.Store(RavenJObject.FromObject(req.Document, documentStore.Conventions.CreateSerializer()), req.Metadata.Force(), req.DocumentKey)
+                    | _ -> ()
+        with    
+            | :? System.AggregateException as e -> 
+                log.Error("Write Error", e)
+                log.Error("Write Inner", e.InnerException)
+            | e ->
+                log.Error("Write Error", e)
+    }
