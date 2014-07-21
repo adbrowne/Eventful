@@ -12,8 +12,8 @@ module MutableOrderedGroupingBoundedQueueTests =
     [<Trait("category", "foo3")>]
     let ``Can process single item`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<int, int>()
-        let counter = new Eventful.CounterAgent()
-        let rec consumer (counter : Eventful.CounterAgent)  = async {
+        let counter = new CounterAgent()
+        let rec consumer (counter : CounterAgent)  = async {
             let! work =  queue.Consume((fun (g, items) -> async {
                 do! counter.Incriment(items |> Seq.length)
                 return ()
@@ -36,8 +36,8 @@ module MutableOrderedGroupingBoundedQueueTests =
     [<Fact>]
     let ``Can process single item with 2 groups`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<int, int>()
-        let counter = new Eventful.CounterAgent()
-        let rec consumer (counter : Eventful.CounterAgent)  = async {
+        let counter = new CounterAgent()
+        let rec consumer (counter : CounterAgent)  = async {
             let! work = queue.Consume((fun (g, items) -> async {
                 do! counter.Incriment(items |> Seq.length)
                 return ()
@@ -165,12 +165,12 @@ module MutableOrderedGroupingBoundedQueueTests =
     let ``Test many items across many groups`` () : unit = 
         let myQueue = new MutableOrderedGroupingBoundedQueue<int, int>()
 
-        let counter1 = new Eventful.CounterAgent()
-        let counter2 = new Eventful.CounterAgent()
-        let counter3 = new Eventful.CounterAgent()
-        let counter4 = new Eventful.CounterAgent()
+        let counter1 = new CounterAgent()
+        let counter2 = new CounterAgent()
+        let counter3 = new CounterAgent()
+        let counter4 = new CounterAgent()
 
-        let rec consumer (counter : Eventful.CounterAgent)  = async {
+        let rec consumer (counter : CounterAgent)  = async {
             let! work = myQueue.Consume((fun (g, items) -> async {
                 // Console.WriteLine(sprintf "Group: %A Items: %A ItemCount: %d" g items (items |> Seq.length))
                 // do! Async.Sleep 100

@@ -13,6 +13,10 @@ open Eventful.Tests
 open FSharpx
 open FSharpx.Collections
 
+type Item =
+| Start of int64
+| Complete of int64
+
 module LastCompleteItemAgentTests = 
     let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent<_>>)
 

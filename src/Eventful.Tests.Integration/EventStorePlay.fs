@@ -1,5 +1,7 @@
 ﻿namespace Eventful.Tests.Integration
 
+open Eventful.Tests
+
     module EventStorePlay = 
         open Eventful
         open Xunit

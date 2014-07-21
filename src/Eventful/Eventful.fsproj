@@ -65,8 +65,6 @@
     </Compile>
     <Compile Include="Agent.fs" />
     <Compile Include="Prelude.fs" />
-    <Compile Include="LastCompleteTracker.fs" />
-    <Compile Include="LastCompleteItemTracker.fs" />
     <Compile Include="LastCompleteItemAgent.fs" />
     <Compile Include="ParallelInOrderTransformer.fs" />
     <Compile Include="ParellelInOrderTransformer.CSharp.fs" />
@@ -74,7 +72,6 @@
     <Compile Include="BatchingQueue.fs" />
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="WorktrackingQueue.CSharp.fs" />
-    <Compile Include="CounterAgent.fs" />
     <Compile Include="MagicMapper.fs" />
     <Compile Include="EventStream.fs" />
     <Compile Include="StateFolding.fs" />

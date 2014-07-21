@@ -81,8 +81,6 @@
     <Compile Include="MutableOrderedGroupingQueue.fs" />
     <Compile Include="WorktrackingQueueTests.fs" />
     <Compile Include="BatchingQueueTests.fs" />
-    <Compile Include="LastCompleteTrackerTests.fs" />
-    <Compile Include="LastCompleteItemTracker.fs" />
     <Compile Include="LastCompleteItemAgentTests.fs" />
     <Compile Include="MagicMapper.fs" />
     <Compile Include="FoldPlay.fs" />
