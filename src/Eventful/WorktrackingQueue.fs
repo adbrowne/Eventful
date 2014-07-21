@@ -36,7 +36,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let mutable working = true
 
     let workerName = (sprintf "WorktrackingQueue worker %A" name)
-    let workTimeout = TimeSpan.FromMinutes(2.0)
+    let workTimeout = TimeSpan.FromSeconds(30.0)
     let workers = 
         let workAsync = async {
             let! ct = Async.CancellationToken
@@ -53,6 +53,8 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                                 do! runWithTimeout workerName workTimeout work
                             with | e ->
                                 //consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
+                                log.Warn(sprintf "Work failed..retrying: %A" workerName)
+
                                 return! loop(count + 1)
                         else
                             log.Error(sprintf "Work failed permanently: %A" workerName)

@@ -25,7 +25,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
     
     // normal .NET dictionary for performance
     // very mutable
-    let groupItems = new System.Collections.Generic.Dictionary<'TGroup, GroupEntry<'TItem>>()
+    let groupItems = new System.Collections.Generic.SortedDictionary<'TGroup, GroupEntry<'TItem>>()
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
