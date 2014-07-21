@@ -4,6 +4,7 @@ open System
 open System.Collections.Generic
 open System.Threading
 open System.Threading.Tasks
+open FSharpx
 
 type internal CompleteQueueMessage<'TGroup, 'TItem when 'TGroup : comparison> = 
     | Start of 'TItem * Set<'TGroup> * Async<unit> * AsyncReplyChannel<unit>
@@ -22,10 +23,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     ) =
     let log = Common.Logging.LogManager.GetLogger("Eventful.WorktrackingQueue")
 
-    let _maxItems = maxItems |> getOrElse 1000
-    let _workerCount = workerCount |> getOrElse 1
-    let _complete = complete |> getOrElse (fun _ -> async { return () })
-    let _name = name |> getOrElse "unnamed"
+    let _maxItems = maxItems |> Option.getOrElse 1000
+    let _workerCount = workerCount |> Option.getOrElse 1
+    let _complete = complete |> Option.getOrElse (fun _ -> async { return () })
+    let _name = name |> Option.getOrElse "unnamed"
 
     let queue = new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name)
 
