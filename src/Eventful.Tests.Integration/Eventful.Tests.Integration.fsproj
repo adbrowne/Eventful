@@ -28,6 +28,8 @@
         <Command type="Execute" command="../packages/xunit.runners.1.9.2/tools/xunit.console.clr4.exe ${TargetFile} /trait &quot;requires=eventstore&quot;" />
       </CustomCommands>
     </CustomCommands>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
