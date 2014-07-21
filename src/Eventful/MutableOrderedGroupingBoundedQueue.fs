@@ -10,7 +10,7 @@ type GroupEntry<'TItem> = {
 }
   
 type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : comparison> = 
-  | AddItem of (seq<'TItem * 'TGroup> * Async<unit> option * AsyncReplyChannel<unit>)
+  | AddItem of ((unit -> (seq<'TItem * 'TGroup>)) * Async<unit> option * AsyncReplyChannel<unit>)
   | ConsumeWork of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<Async<unit>>)
   | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
@@ -117,12 +117,14 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                         lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, Some "NotifyWhenComplete empty", async { reply.Reply() } )
                     Some(empty itemIndex)
                 | GroupComplete group -> Some(groupComplete group itemIndex))
-            and enqueue (items, onComplete, reply) itemIndex = async {
+            and enqueue (itemsF :(unit -> (seq<'TItem * 'TGroup>)), onComplete, reply:AsyncReplyChannel<unit>) itemIndex = async {
+                reply.Reply()
+                
+                let items = itemsF ()
                 let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
                 for ((item, group), index) in indexedItems do
                     state.AddItemToGroup (index, item) group
                     do! lastCompleteTracker.Start index
-                reply.Reply()
 
                 let nextIndex = 
                     if Seq.length indexedItems > 0 then
@@ -180,12 +182,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         theAgent
     
     member this.Add (input:'TInput, group: ('TInput -> (seq<'TItem * 'TGroup>)), ?onComplete : Async<unit>) =
-        async {
-            let items = group input
-            
-            do! dispatcherAgent.PostAndAsyncReply(fun ch ->  AddItem (items, onComplete, ch))
-            ()
-        }
+        dispatcherAgent.PostAndAsyncReply(fun ch -> AddItem ((fun () -> group input), onComplete, ch))
 
     member this.Consume (work:(('TGroup * seq<'TItem>) -> Async<unit>)) =
         dispatcherAgent.PostAndAsyncReply(fun ch -> ConsumeWork(work, ch))
