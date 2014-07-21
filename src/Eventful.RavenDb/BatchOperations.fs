@@ -27,6 +27,7 @@ module BatchOperations =
         match processAction with
         | Write (x,request) -> buildPutCommand documentStore x :> ICommandData
         | Delete (x,_) -> buildDeleteCommand x :> ICommandData
+        | Custom x -> x
         
     let writeBatch (documentStore : Raven.Client.IDocumentStore) database (docs:seq<BatchWrite>) = async {
         let buildCmd = (buildCommandFromProcessAction documentStore)

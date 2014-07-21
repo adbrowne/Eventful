@@ -25,3 +25,4 @@ type DocumentDeleteRequest = {
 type ProcessAction = 
 | Write of DocumentWriteRequest * Guid
 | Delete of DocumentDeleteRequest * Guid
+| Custom of Raven.Abstractions.Commands.ICommandData
