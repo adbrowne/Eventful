@@ -15,36 +15,24 @@ type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : c
   | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
-type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(?maxItems, ?name : string) =
-    let log = Common.Logging.LogManager.GetLogger(typeof<MutableOrderedGroupingBoundedQueue<_,_>>)
-
-    let maxItems =
-        match maxItems with
-        | Some v -> v
-        | None -> 10000
-    
+type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem when 'TGroup : comparison> () =
     // normal .NET dictionary for performance
     // very mutable
     let groupItems = new System.Collections.Generic.SortedDictionary<'TGroup, GroupEntry<'TItem>>()
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
-    let getGroupItemsCount () =
+    let mutable itemIndex = 0L
+    let mutable lastIndex = -1L
+
+    member x.GetGroupItemsCount () =
         let g = groupItems
-        let count = g.Count
-        float count
+        g.Count
 
-    let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, getGroupItemsCount, Metrics.Unit.Items)
-    let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, (fun () -> float workQueue.Count), Metrics.Unit.Items)
+    member x.GetWorkQueueCount () =
+        workQueue.Count
 
-    let lastCompleteTracker = 
-        match name with
-        | Some name -> new LastCompleteItemAgent<int64>(name)
-        | None -> new LastCompleteItemAgent<int64>() 
-
-    let workerCallbackName = sprintf "Worker callback %A" name
-
-    let addItemToGroup item group =
+    member x.AddItemToGroup item group =
         let (exists, value) = groupItems.TryGetValue(group)
         let value = 
             if exists then
@@ -57,6 +45,43 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         groupItems.Add(group, value')
         ()
 
+    member x.LastIndex () = lastIndex
+
+    member x.GroupComplete group =
+        let values = groupItems.Item group
+        if (not (values.Items |> List.isEmpty)) then
+            workQueue.Enqueue(group)
+        else
+            groupItems.Remove group |> ignore
+
+    member x.ConsumeNext () =
+        let nextKey = workQueue.Dequeue()
+        let values = groupItems.Item nextKey
+        let newValues = { values with Items = List.empty; Processing = values.Items }
+        groupItems.Remove(nextKey) |> ignore
+        groupItems.Add(nextKey, newValues)
+        (nextKey, values)
+
+type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(?maxItems, ?name : string) =
+    let log = Common.Logging.LogManager.GetLogger(typeof<MutableOrderedGroupingBoundedQueue<_,_>>)
+
+    let maxItems =
+        match maxItems with
+        | Some v -> v
+        | None -> 10000
+    
+    let state = new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>()
+    
+    let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, state.GetGroupItemsCount >> float, Metrics.Unit.Items)
+    let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, state.GetWorkQueueCount >> float, Metrics.Unit.Items)
+
+    let lastCompleteTracker = 
+        match name with
+        | Some name -> new LastCompleteItemAgent<int64>(name)
+        | None -> new LastCompleteItemAgent<int64>() 
+
+    let workerCallbackName = sprintf "Worker callback %A" name
+
     let dispatcherAgent = 
         let theAgent = Agent.Start(fun agent -> 
             let rec empty itemIndex = 
@@ -67,7 +92,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                     if(itemIndex = 0L) then
                         reply.Reply()
                     else 
-                        lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, Some "NotifyWhenComplete empty", async { reply.Reply() } )
+                        lastCompleteTracker.NotifyWhenComplete(state.LastIndex(), Some "NotifyWhenComplete empty", async { reply.Reply() } )
                     Some(empty itemIndex)
                 | GroupComplete group -> Some(groupComplete group itemIndex)
                 | _ -> None)
@@ -95,7 +120,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             and enqueue (items, onComplete, reply) itemIndex = async {
                 let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
                 for ((item, group), index) in indexedItems do
-                    addItemToGroup (index, item) group
+                    state.AddItemToGroup (index, item) group
                     do! lastCompleteTracker.Start index
                 reply.Reply()
 
@@ -117,16 +142,13 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
 
                 return! (nextMessage nextIndex) }
             and groupComplete group itemIndex = async {
-                let values = groupItems.Item group
-                if (not (values.Items |> List.isEmpty)) then
-                    workQueue.Enqueue(group)
-                else
-                    groupItems.Remove group |> ignore
+                state.GroupComplete group
+                
 
                 return! nextMessage itemIndex }
             and consume (workCallback, reply) itemIndex = async {
-                let nextKey = workQueue.Dequeue()
-                let values = groupItems.Item nextKey
+
+                let (nextKey, values) = state.ConsumeNext()
                 let work =
                     async {
                         try
@@ -142,12 +164,9 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
 
                 reply.Reply work
 
-                let newValues = { values with Items = List.empty; Processing = values.Items }
-                groupItems.Remove(nextKey) |> ignore
-                groupItems.Add(nextKey, newValues)
                 return! nextMessage itemIndex }
             and nextMessage itemIndex = async {
-                let currentQueueSize = workQueue.Count
+                let currentQueueSize = state.GetWorkQueueCount()
                 if(currentQueueSize = 0) then
                     return! empty itemIndex
                 elif currentQueueSize >= maxItems then
