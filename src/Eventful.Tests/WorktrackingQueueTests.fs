@@ -32,14 +32,11 @@ module WorktrackingQueueTests =
         let mutable ex =  null
 
         for item in [0..1] do
-            try
-                worktrackingQueue.Add item |> Async.RunSynchronously
-            with | e -> ex <- e
+            worktrackingQueue.Add item |> Async.RunSynchronously
 
         worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
         
         !itemsReceived |> should equal (Set.singleton 1)
-        ex |> should not' (be Null)
 
     [<Fact>]
     let ``Test speed of simple items`` () : unit =
@@ -138,13 +135,6 @@ module WorktrackingQueueTests =
 
         !completedItem |> fst |> should equal "group"
         !completedItem |> snd |> should equal "item"
-
-    [<Fact>]
-    let ``Add item throws if grouping function throws`` () : unit =
-        let groupingFunction _ = failwith "Grouping function exception"
-
-        let worktrackingQueue = new WorktrackingQueue<string,(string * string),(string * string)>(groupingFunction, (fun _ _ -> Async.Sleep(100)), 100000,  10)
-        (fun () -> worktrackingQueue.Add ("group", "item") |> Async.RunSynchronously  |> ignore) |> should throw typeof<System.Exception>
 
     [<Fact>]
     let ``Can run multiple items`` () : unit =

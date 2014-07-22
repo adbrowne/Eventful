@@ -49,7 +49,6 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
 
                     let maxAttempts = 10
                     let rec loop count = 
-                        log.Error("Looping")
                         async {
                             if count < maxAttempts then
                                 try

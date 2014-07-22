@@ -120,29 +120,34 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             and enqueue (itemsF :(unit -> (seq<'TItem * 'TGroup>)), onComplete, reply:AsyncReplyChannel<unit>) itemIndex = async {
                 reply.Reply()
                 
-                let items = itemsF ()
-                let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
-                for ((item, group), index) in indexedItems do
-                    state.AddItemToGroup (index, item) group
-                    do! lastCompleteTracker.Start index
+                try
+                    let items = itemsF ()
+                    let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
+                    for ((item, group), index) in indexedItems do
+                        state.AddItemToGroup (index, item) group
+                        do! lastCompleteTracker.Start index
 
-                let nextIndex = 
-                    if Seq.length indexedItems > 0 then
-                        let lastIndex = indexedItems |> Seq.map snd |> Seq.last
+                    let nextIndex = 
+                        if Seq.length indexedItems > 0 then
+                            let lastIndex = indexedItems |> Seq.map snd |> Seq.last
+                            match onComplete with
+                            | Some a -> lastCompleteTracker.NotifyWhenComplete(lastIndex, None, a)
+                            | None -> ()
+                            lastIndex + 1L
+                        else
+                            itemIndex
+
+                    // there were no items keep moving
+                    if(nextIndex = itemIndex) then 
                         match onComplete with
-                        | Some a -> lastCompleteTracker.NotifyWhenComplete(lastIndex, None, a)
+                        | Some a -> do! a
                         | None -> ()
-                        lastIndex + 1L
-                    else
-                        itemIndex
 
-                // there were no items keep moving
-                if(nextIndex = itemIndex) then 
-                    match onComplete with
-                    | Some a -> do! a
-                    | None -> ()
-
-                return! (nextMessage nextIndex) }
+                    return! (nextMessage nextIndex) 
+                with | e -> 
+                    log.Error("Exception thrown enqueueing item", e)
+                    return! nextMessage itemIndex
+                }
             and groupComplete group itemIndex = async {
                 state.GroupComplete group
                 return! nextMessage itemIndex }
