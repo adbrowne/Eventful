@@ -29,6 +29,16 @@ module Prelude =
 
     let consoleLog (value:string) = System.Console.WriteLine(value)
 
+    let ticksIntervalToNanoSeconds startTicks endTicks =
+        (endTicks - startTicks) * 100L
+        |> int64
+
+    let startNanoSecondTimer () =
+        let startTicks = System.DateTime.UtcNow.Ticks
+        (fun () -> 
+            let endTicks = System.DateTime.UtcNow.Ticks
+            ticksIntervalToNanoSeconds startTicks endTicks)
+            
     // from: http://blogs.msdn.com/b/dsyme/archive/2009/11/08/equality-and-comparison-constraints-in-f-1-9-7.aspx
     let equalsOn f x (yobj:obj) =
         match yobj with

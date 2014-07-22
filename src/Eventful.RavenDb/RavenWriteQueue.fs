@@ -15,10 +15,9 @@ type RavenWriteQueue
         cache : System.Runtime.Caching.MemoryCache
     ) =
 
-    let batchWriteTracker = Metric.Histogram("BatchWriteSize", Unit.Items)
-    let batchWritesMeter = Metric.Meter("BatchWrites" , Unit.Items)
-    let batchWriteTime = Metric.Timer("WriteTime", Unit.None)
-    let batchConflictsMeter = Metric.Meter("BatchConflicts", Unit.Items)
+    let batchWriteTracker = Metric.Histogram("RavenWriteQueue Batch Size", Unit.Items)
+    let batchWriteTime = Metric.Timer("RavenWriteQueue Timer", Unit.None)
+    let batchConflictsMeter = Metric.Meter("RavenWriteQueue Conflicts", Unit.Items)
 
     let writeDocs databaseName (docs : seq<BatchWrite * AsyncReplyChannel<bool>>) = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
@@ -45,7 +44,6 @@ type RavenWriteQueue
             match result with
             | Some (batchResult, docs) ->
                 batchWriteTracker.Update(batchResult.LongLength)
-                batchWritesMeter.Mark()
                 for docResult in batchResult do
                     match originalDocMap.[docResult.Key] with
                     | Choice1Of2 (doc, metadata, callback) ->

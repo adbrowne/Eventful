@@ -15,13 +15,20 @@ type RavenReadQueue
         cache : System.Runtime.Caching.MemoryCache
     ) =
 
+    let batchReadBatchSizeHistogram = Metric.Histogram("RavenReadQueue Batch Size", Unit.Items)
+    let batchReadTimer = Metric.Timer("RavenReadQueue Timer", Unit.None)
+
     let readDocs databaseName (docs : seq<(seq<GetDocRequest> * AsyncReplyChannel<seq<GetDocResponse>>)>) : Async<unit>  = 
 
         let request = 
             docs
-            |> Seq.collect (fun i -> fst i) 
+            |> Seq.collect (fun i -> fst i)
+            |> List.ofSeq
+
+        batchReadBatchSizeHistogram.Update(int64 request.Length)
            
         async {
+            let timer = startNanoSecondTimer()
             let! getResult = 
                 RavenOperations.getDocuments documentStore cache databaseName request
 
@@ -37,6 +44,7 @@ type RavenReadQueue
 
                 reply.Reply responses
 
+            batchReadTimer.Record(timer(), TimeUnit.Nanoseconds)
             return ()
         }
         
