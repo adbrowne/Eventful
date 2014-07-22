@@ -149,6 +149,8 @@ module MutableOrderedGroupingBoundedQueueTests =
         let queueItems = 
             inputItems 
             |> Seq.map (fun (eventPosition, key, value) -> queue.Add(value, (fun v -> Seq.singleton (value, key)))) 
+            |> Seq.cache
+
         async {
             do! queueItems |> Async.Parallel |> Async.Ignore
             do! queue.CurrentItemsComplete()
