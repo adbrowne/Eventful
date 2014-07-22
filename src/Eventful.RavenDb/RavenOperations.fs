@@ -12,7 +12,7 @@ type GetDocResponse = string * Type * (obj * RavenJObject * Etag) option
 module RavenOperations =
     let log = Common.Logging.LogManager.GetLogger(typeof<BatchWrite>)
 
-    let cacheHitCounter = Metrics.Metric.Counter("RavenOperations Cache Hit", Metrics.Unit.Items)
+    let cacheHitCounter = Metrics.Metric.Meter("RavenOperations Cache Hit", Metrics.Unit.Items)
 
     let serializeDocument<'T> (documentStore : IDocumentStore) (doc : 'T) =
         let serializer = documentStore.Conventions.CreateSerializer()
@@ -33,7 +33,7 @@ module RavenOperations =
         match cacheEntry with
         | :? ProjectedDocument<obj> as projectedDoc ->
             let (doc, metadata, etag) = projectedDoc
-            cacheHitCounter.Increment()
+            cacheHitCounter.Mark()
             async { return Some (doc :?> 'TDocument, metadata, etag) }
         | null -> 
             async {
@@ -56,7 +56,7 @@ module RavenOperations =
                 match cacheEntry with
                 | null -> (docKey, docType, None)
                 | :? (obj * RavenJObject * Etag) as value -> 
-                    cacheHitCounter.Increment()
+                    cacheHitCounter.Mark()
                     let (doc, metadata, etag) = value
                     (docKey, docType, Some (doc, metadata, etag))
                 | a -> failwith <| sprintf "Unexpected %A" a)
