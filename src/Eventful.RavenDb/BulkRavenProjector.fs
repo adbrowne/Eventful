@@ -16,7 +16,7 @@ open Raven.Json.Linq
 type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage> 
     (
         documentStore:Raven.Client.IDocumentStore, 
-        processors:ProcessorSet<'TMessage>,
+        documentProcessor:DocumentProcessor<string, 'TMessage>,
         databaseName: string,
         maxEventQueueSize : int,
         eventWorkers: int,
@@ -56,11 +56,9 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         return persistedLastComplete |> Option.map((fun (doc,_,_) -> doc))
     }
 
-    let tryEvent (key : IComparable, documentProcessor : UntypedDocumentProcessor<'TMessage>) events =
+    let tryEvent (key : string) events =
         async { 
-            let untypedKey = key :> obj
-
-            let! writeRequests = documentProcessor.Process fetcher untypedKey events
+            let! writeRequests = documentProcessor.Process key fetcher events
 
             return! writeQueue.Work databaseName writeRequests
         }
@@ -88,29 +86,24 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     }
 
     let grouper (event : 'TMessage) =
-        let groups = 
-            processors.Items
-            |> Seq.collect (fun x -> 
-                if x.EventTypes.Contains(event.EventType) then
-                    x.MatchingKeys event
-                    |> Seq.map (fun k9 -> (k9, x))
-                else 
-                    Seq.empty)
+        let docIds = 
+            documentProcessor.MatchingKeys event
             |> Set.ofSeq
-        (event, groups)
+
+        (event, docIds)
     
     let tracker = 
         let t = new LastCompleteItemAgent<EventPosition>(name = databaseName)
-        async {
-            let! persistedPosition = getPersistedPosition
-
-            match persistedPosition with
-            | Some pos ->
-                do! t.Start pos
-                t.Complete pos
-            | None -> ()
-                
-        } |> Async.RunSynchronously
+//        async {
+//            let! persistedPosition = getPersistedPosition
+//
+//            match persistedPosition with
+//            | Some pos ->
+//                do! t.Start pos
+//                t.Complete pos
+//            | None -> ()
+//                
+//        } |> Async.RunSynchronously
 
         t
 

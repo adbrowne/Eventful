@@ -168,6 +168,10 @@ module RavenProjectorTests =
 
     let ``Get Raven Projector`` documentStore = 
 
+        let countingDocKeyPrefix =  "MyCountingDocs/"
+        let countingDocKey (key : Guid) =
+            countingDocKeyPrefix + key.ToString()  
+
         let processValue (value:int) (docObj:CurrentDoc) =
             let (doc, metadata, etag) = docObj
             let isEven = doc.Count % 2 = 0
@@ -179,7 +183,8 @@ module RavenProjectorTests =
 
             (doc, metadata, etag)
 
-        let buildNewDoc (id : Guid) =
+        let buildNewDoc (docKey : string) =
+            let id = Guid.Parse(docKey.Replace(countingDocKeyPrefix, ""))
             let newDoc = new MyCountingDoc()
             newDoc.Id <- id
             let etag = Raven.Abstractions.Data.Etag.Empty
@@ -192,10 +197,11 @@ module RavenProjectorTests =
         let matcher (subscriberEvent : SubscriberEvent) =
             match subscriberEvent.Event with
             | :? (Guid * int) as event ->
-                event |> fst |> Seq.singleton
+                let (guid, _) = event
+                countingDocKey guid |> Seq.singleton
             | _ -> Seq.empty
 
-        let processEvent key doc subscriberEvent = 
+        let processEvent doc subscriberEvent = 
             match subscriberEvent.Event with
             | :? (Guid * int) as event ->
                 let (key, value) = event
@@ -218,13 +224,12 @@ module RavenProjectorTests =
         
         let rnd = new Random()
 
-        let processBatch key (fetcher : IDocumentFetcher) events = async {
+        let processBatch (docKey : string) (fetcher : IDocumentFetcher) events = async {
             let requestId = Guid.NewGuid()
-            let docKey = "MyCountingDocs/" + key.ToString() 
-            let permDocKey = "PermissionDocs/" + key.ToString() 
+            let permDocKey = "PermissionDocs/" + docKey
             let! (doc, metadata, etag) =  
                 fetcher.GetDocument docKey
-                |> Async.map (Option.getOrElseF (fun () -> buildNewDoc key))
+                |> Async.map (Option.getOrElseF (fun () -> buildNewDoc docKey))
                
             let! (permDoc, permMetadata, permEtag) =
                 fetcher.GetDocument permDocKey
@@ -232,7 +237,7 @@ module RavenProjectorTests =
 
             let (doc, metadata, etag) = 
                 events
-                |> Seq.fold (processEvent key) (doc, metadata, etag)
+                |> Seq.fold (processEvent) (doc, metadata, etag)
 
             let (doc, metadata, etag) = beforeWrite (doc, metadata, etag)
 
@@ -258,13 +263,10 @@ module RavenProjectorTests =
             }
         }
 
-        let myProcessor : DocumentProcessor<Guid, MyCountingDoc, SubscriberEvent> = {
-            EventTypes = Seq.singleton typeof<(Guid * int)>
+        let myProcessor : DocumentProcessor<string, SubscriberEvent> = {
             MatchingKeys = matcher
             Process = processBatch
         }
-
-        let processorSet = ProcessorSet.Empty.Add myProcessor
 
         let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
 
@@ -273,7 +275,7 @@ module RavenProjectorTests =
         let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
         let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken,  cache)
 
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue)
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, myProcessor, "tenancy-blue", 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue)
 
         projector
   
@@ -303,7 +305,7 @@ module RavenProjectorTests =
 
     [<Fact>]
     let ``Deal with timeouts gracefully`` () : unit =
-        let config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
+        use config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
         
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 
@@ -339,7 +341,7 @@ module RavenProjectorTests =
 
     [<Fact>]
     let ``Pump many events at Raven`` () : unit =
-        let config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
+        use config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
         
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
 

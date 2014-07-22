@@ -33,7 +33,7 @@ module RavenOperations =
         match cacheEntry with
         | :? ProjectedDocument<obj> as projectedDoc ->
             let (doc, metadata, etag) = projectedDoc
-            cacheHitCounter.Mark()
+            //cacheHitCounter.Mark()
             async { return Some (doc :?> 'TDocument, metadata, etag) }
         | null -> 
             async {
@@ -56,7 +56,7 @@ module RavenOperations =
                 match cacheEntry with
                 | null -> (docKey, docType, None)
                 | :? (obj * RavenJObject * Etag) as value -> 
-                    cacheHitCounter.Mark()
+                    //cacheHitCounter.Mark()
                     let (doc, metadata, etag) = value
                     (docKey, docType, Some (doc, metadata, etag))
                 | a -> failwith <| sprintf "Unexpected %A" a)

@@ -41,8 +41,7 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem when 'TGro
                 workQueue.Enqueue group
                 { Items = List.empty; Processing = List.empty } 
         let value' = { value with Items = item::value.Items }
-        groupItems.Remove group |> ignore
-        groupItems.Add(group, value')
+        groupItems.[group] <- value'
         ()
 
     member x.LastIndex () = lastIndex
