@@ -57,45 +57,32 @@ module Prelude =
 
         task.ContinueWith (continueFunction) |> ignore
 
-        ()
+        task
 
     open System
     open System.Threading
+    open System.Threading.Tasks
 
-    let invokeOnce funcs =
-        let counter = ref 0
-        let invokeOnce' f x =
-            if (Interlocked.CompareExchange (counter, 1, 0) = 0) then
-                f x
-        let (a, b, c) = funcs
-        (invokeOnce' a, invokeOnce' b, invokeOnce' c)
+    // adapted from 
+    // http://stackoverflow.com/questions/18274986/async-catch-doesnt-work-on-operationcanceledexceptions
+    let startCatchCancellation(work, cancellationToken) = 
+        Async.FromContinuations(fun (cont, econt, _) ->
+          // When the child is cancelled, report OperationCancelled
+          // as an ordinary exception to "error continuation" rather
+          // than using "cancellation continuation"
+          let ccont e = econt e
+          // Start the workflow using a provided cancellation token
+          Async.StartWithContinuations( work, cont, econt, ccont, 
+                                        ?cancellationToken=cancellationToken) )
 
-    let runWithTimeout name (timeout : System.TimeSpan) (computation : 'a Async) : 'a Async =
-        let callback (success, error, cancellation) =
-            let (success, error, cancellation) = invokeOnce (success, error, cancellation)
-            let fetchResult = async {
-                let! result = computation
-                success result }
-            let timeoutExpired = async {
-                do! Async.Sleep (int timeout.TotalMilliseconds)
-                let ex = new TimeoutException ("Timeout expired: " + name) :> Exception
-                error ex }
-     
-            Async.StartImmediate fetchResult
-            Async.StartImmediate timeoutExpired
-     
-        Async.FromContinuations callback    
-//    let runWithTimeout name timeout action =
-//        async {
-//            let timeoutSeconds = System.TimeSpan.FromSeconds(float timeout)
-//            taskLog.Error(sprintf "Timeout Seconds %A" timeoutSeconds)
-//            let cts = new System.Threading.CancellationTokenSource(timeoutSeconds)
-//            taskLog.Error(sprintf "About to run %s with cancellation token" name)
-//            let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cts.Token)
-//            // let! result =  runAsyncAsTask name cts.Token action |> Async.AwaitTask
-//            let! result = task |> Async.AwaitTask
-//            return result
-//        }
+    let runWithTimeout<'a> name (timeout : System.TimeSpan) cancellationToken (computation : 'a Async) : 'a Async =
+        let tcs = new TaskCompletionSource<'a>();
+
+        let timeout = new CancellationTokenSource(timeout);
+
+        let combinedCancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellationToken)
+
+        startCatchCancellation(computation, Some combinedCancellation.Token)
 
     let newAgent (name : string) (log : Common.Logging.ILog) f  =
         let agent= Agent.Start(f)

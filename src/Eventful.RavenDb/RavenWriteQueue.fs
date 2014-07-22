@@ -3,6 +3,7 @@
 open Eventful
 open System
 open Metrics
+open System.Threading
 
 type RavenWriteQueue 
     (
@@ -10,6 +11,7 @@ type RavenWriteQueue
         maxBatchSize : int,
         maxQueueSize : int,
         workerCount : int,
+        cancellationToken : CancellationToken,
         cache : System.Runtime.Caching.MemoryCache
     ) =
 
@@ -79,9 +81,10 @@ type RavenWriteQueue
             do! (writeDocs database batch)
     }
 
-    let blah = 
-        for _ in [1..workerCount] do
-            consumer |> Async.StartAsTask |> ignore
+    let startConsumers = 
+        for i in [1..workerCount] do
+            let taskName = sprintf "Write Queue Worker %d" i
+            runAsyncAsTask taskName cancellationToken consumer |> ignore
         ()
     
     member x.Work = queue.Work

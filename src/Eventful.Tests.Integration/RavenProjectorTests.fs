@@ -219,11 +219,6 @@ module RavenProjectorTests =
         let rnd = new Random()
 
         let processBatch key (fetcher : IDocumentFetcher) events = async {
-
-            log.Error("About to sleep")
-            //do! Async.Sleep(1000000)
-            log.Error("Sleep done")
-
             let requestId = Guid.NewGuid()
             let docKey = "MyCountingDocs/" + key.ToString() 
             let permDocKey = "PermissionDocs/" + key.ToString() 
@@ -273,10 +268,12 @@ module RavenProjectorTests =
 
         let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
 
-        let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cache)
-        let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cache)
+        let cancellationToken = Async.DefaultCancellationToken
 
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 1000, writeComplete, Async.DefaultCancellationToken, writeQueue, readQueue)
+        let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
+        let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken,  cache)
+
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, processorSet, "tenancy-blue", 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue)
 
         projector
   

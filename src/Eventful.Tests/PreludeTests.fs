@@ -5,21 +5,30 @@ open FsUnit.Xunit
 open Eventful
 open System
 
+
 module PreludeTests = 
 
     let log = Common.Logging.LogManager.GetLogger("Eventful.Tests.PreludeTests")
 
+    let longTask = async { do!  Async.Sleep(100000) }
+    let action = runWithTimeout "MyName" (TimeSpan.FromMilliseconds(100.0)) Async.DefaultCancellationToken longTask
+
     [<Fact>]
-    let ``blah`` () : unit =
-        let longTask = async { do!  Async.Sleep(100000) }
+    let ``Timeout using runWithTimeout`` () : unit =
+        (fun () -> action |> Async.RunSynchronously) |> should throw typeof<System.OperationCanceledException>
+
+    [<Fact>]
+    let ``Timeout inside runAsyncAsTask`` () : unit =
+        let cancelled = ref false
 
         let action = async {
             try
-                do! runWithTimeout "MyName" (TimeSpan.FromSeconds(3.0)) longTask
-            with | e -> log.Error(e)
-        } 
+                return! action
+            with | e -> 
+                cancelled := true
+        }
 
-        runAsyncAsTask "Blah" Async.DefaultCancellationToken action
+        runAsyncAsTask "Task Name" Async.DefaultCancellationToken action  |> ignore
 
-        System.Threading.Thread.Sleep(10000)
-        //(fun () ->  |> Async.RunSynchronously) |> should throw typeof<System.OperationCanceledException>
+        System.Threading.Thread.Sleep(500)
+        !cancelled |> should equal true

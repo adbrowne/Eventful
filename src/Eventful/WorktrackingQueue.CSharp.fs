@@ -3,6 +3,7 @@
 open System
 open System.Collections.Generic
 open System.Runtime.InteropServices
+open Eventful
 
 type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
     (
@@ -26,24 +27,11 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
                         let task = workAction.Invoke(g,i) 
                         do! task |> Async.AwaitIAsyncResult |> Async.Ignore
                     })
+
     let queue = new Eventful.WorktrackingQueue<'TGroup, 'TItem, 'TItem> (groupingfs, workActionFs, maxItems, workerCount, completeFs)
 
     member this.Add (item:'TItem) =
-        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
-        
-        async {
-            do! queue.Add(item)
-            tcs.SetResult(true)
-        } |> Async.Start
-
-        tcs.Task
+        runAsyncAsTask "Work Tracking Queue Add" Async.DefaultCancellationToken <| queue.Add(item)
 
     member this.AsyncComplete () =
-        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
-
-        async {
-            do! queue.AsyncComplete()
-            tcs.SetResult(true)
-        } |> Async.Start
-
-        tcs.Task
+        runAsyncAsTask "Work Tracking Queue AsyncComplete" Async.DefaultCancellationToken <| queue.AsyncComplete()

@@ -48,19 +48,21 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                     let! work = queue.Consume doWork
 
                     let maxAttempts = 10
-                    let rec loop count = async {
-                        if count < maxAttempts then
-                            try
-                                do! runWithTimeout workerName workTimeout work
-                            with | e ->
-                                //consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
-                                log.Warn(sprintf "Work failed..retrying: %A" workerName)
+                    let rec loop count = 
+                        log.Error("Looping")
+                        async {
+                            if count < maxAttempts then
+                                try
+                                    do! runWithTimeout workerName workTimeout ct work
+                                with | e ->
+                                    if log.IsDebugEnabled then
+                                        log.Debug(sprintf "Work failed..retrying: %A" workerName)
 
-                                return! loop(count + 1)
-                        else
-                            log.Error(sprintf "Work failed permanently: %A" workerName)
-                            ()
-                    }
+                                    return! loop(count + 1)
+                            else
+                                log.Error(sprintf "Work failed permanently: %A" workerName)
+                                ()
+                        }
                     do! loop 0
         }
 
@@ -70,7 +72,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
             | None -> Async.DefaultCancellationToken
             
         for i in [1.._workerCount] do
-            runAsyncAsTask workerName cancellationToken workAsync
+            runAsyncAsTask workerName cancellationToken workAsync |> ignore
 
     let sequenceGrouping a =
         let (item, groups) = grouping a
