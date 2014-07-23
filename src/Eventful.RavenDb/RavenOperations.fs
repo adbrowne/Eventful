@@ -102,9 +102,11 @@ module RavenOperations =
 
     let emptyMetadataForType (documentStore : IDocumentStore) (documentType : Type) = 
         let entityName = documentStore.Conventions.GetTypeTagName(documentType)
+        let clrTypeName = documentStore.Conventions.GetClrTypeName(documentType);
+
         let metadata = new RavenJObject()
         metadata.Add("Raven-Entity-Name", new RavenJValue(entityName))
-        metadata.Add("Raven-Clr-Type", new RavenJValue(documentType.FullName))
+        metadata.Add("Raven-Clr-Type", new RavenJValue(clrTypeName))
         metadata
 
     let emptyMetadata<'T> (documentStore : IDocumentStore) = 

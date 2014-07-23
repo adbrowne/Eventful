@@ -69,23 +69,27 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let processEvent key values = async {
         let cachedValues = values |> Seq.cache
         let maxAttempts = 10
-        let rec loop count = async {
+        let rec loop count ex = async {
             if count < maxAttempts then
                 try
                     let! attempt = tryEvent key cachedValues
                     if not attempt then
-                        return! loop (count + 1)
+                        return! loop (count + 1) None
                     else
                         ()
-                with | e ->
+                with | ex ->
                     //consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
-                    return! loop(count + 1)
+                    return! loop(count + 1) (Some ex)
             else
                 processingExceptions.Mark()
-                consoleLog <| sprintf "Processing failed permanently: %A %A" key values
+                match ex with
+                | Some ex ->
+                    log.ErrorFormat("Processing failed permanently for {0}", ex, [|key :> obj|])
+                | None -> 
+                    log.ErrorFormat("Processing failed permanently - no exception", key)
                 ()
         }
-        do! loop 0
+        do! loop 0 None
     }
 
     let grouper (event : 'TMessage) =
@@ -97,16 +101,16 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     
     let tracker = 
         let t = new LastCompleteItemAgent<EventPosition>(name = databaseName)
-//        async {
-//            let! persistedPosition = getPersistedPosition
-//
-//            match persistedPosition with
-//            | Some pos ->
-//                do! t.Start pos
-//                t.Complete pos
-//            | None -> ()
-//                
-//        } |> Async.RunSynchronously
+        async {
+            let! persistedPosition = getPersistedPosition
+
+            match persistedPosition with
+            | Some pos ->
+                do! t.Start pos
+                t.Complete pos
+            | None -> ()
+                
+        } |> Async.RunSynchronously
 
         t
 
