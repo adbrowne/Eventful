@@ -52,6 +52,9 @@ type MyPermissionDoc = {
 
 type CurrentDoc = (MyCountingDoc * RavenJObject * Etag)
 
+type ConverterHelper () =
+    static member ToFunc<'T> (x : Func<'T>) : Func<'T> = x
+
 module RavenProjectorTests = 
 
     let log = Common.Logging.LogManager.GetLogger("Eventful.Tests.RavenProjectorTests")
@@ -224,15 +227,17 @@ module RavenProjectorTests =
         
         let rnd = new Random()
 
-        let processBatch (docKey : string) (fetcher : IDocumentFetcher) events = async {
+        let processBatch (docKey : string, fetcher : IDocumentFetcher, events) = async {
             let requestId = Guid.NewGuid()
             let permDocKey = "PermissionDocs/" + docKey
             let! (doc, metadata, etag) =  
                 fetcher.GetDocument docKey
+                |> Async.AwaitTask
                 |> Async.map (Option.getOrElseF (fun () -> buildNewDoc docKey))
                
             let! (permDoc, permMetadata, permEtag) =
                 fetcher.GetDocument permDocKey
+                |> Async.AwaitTask
                 |> Async.map (Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, (RavenOperations.emptyMetadata<MyPermissionDoc> documentStore), Etag.Empty)))
 
             let (doc, metadata, etag) = 
@@ -263,9 +268,13 @@ module RavenProjectorTests =
             }
         }
 
+        let processBatchTask a : Func<System.Threading.Tasks.Task<_>> =
+            let c = processBatch a
+            ConverterHelper.ToFunc(fun () -> Async.StartAsTask c) 
+
         let myProcessor : DocumentProcessor<string, SubscriberEvent> = {
             MatchingKeys = matcher
-            Process = processBatch
+            Process = processBatchTask
         }
 
         let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
@@ -371,55 +380,55 @@ module RavenProjectorTests =
                 consoleLog <| sprintf "Insert all time: %A ms" sw.ElapsedMilliseconds
             }
 
-//            yield! seq {
-//                for key in streams do
-//                    yield (fun () -> async {
-//                        use session = documentStore.OpenAsyncSession("tenancy-blue")
-//                        let docKey = "MyCountingDocs/" + (key.ToString())
-//                        let! doc = session.LoadAsync<MyCountingDoc>(docKey) |> Async.AwaitTask
-//
-//                        let! doc = 
-//                            if (doc = null) then 
-//                                let newDoc = new MyCountingDoc()
-//                                newDoc.Id <- key
-//                                async {
-//                                    do! session.StoreAsync(newDoc :> obj, docKey) |> Util.taskToAsync
-//                                    return newDoc
-//                                }
-//                            else async { return doc }
-//                        doc.Foo <- "Bar"
-//                        try
-//                            do! session.SaveChangesAsync() |> Util.taskToAsync
-//                        with 
-//                            | e -> printfn "Failed: %A" docKey
-//                                   raise e
-//                    }) |> runAsyncUntilSuccess
-//            }
+            yield! seq {
+                for key in streams do
+                    yield (fun () -> async {
+                        use session = documentStore.OpenAsyncSession("tenancy-blue")
+                        let docKey = "MyCountingDocs/" + (key.ToString())
+                        let! doc = session.LoadAsync<MyCountingDoc>(docKey) |> Async.AwaitTask
+
+                        let! doc = 
+                            if (doc = null) then 
+                                let newDoc = new MyCountingDoc()
+                                newDoc.Id <- key
+                                async {
+                                    do! session.StoreAsync(newDoc :> obj, docKey) |> Util.taskToAsync
+                                    return newDoc
+                                }
+                            else async { return doc }
+                        doc.Foo <- "Bar"
+                        try
+                            do! session.SaveChangesAsync() |> Util.taskToAsync
+                        with 
+                            | e -> printfn "Failed: %A" docKey
+                                   raise e
+                    }) |> runAsyncUntilSuccess
+            }
         }
         |> Async.Parallel
         |> Async.Ignore
         |> Async.RunSynchronously
 
-//        async {
-//            let! lastComplete = projector.LastComplete()
-//            consoleLog <| sprintf "Final Position: %A" lastComplete
-//            use session = documentStore.OpenAsyncSession("tenancy-blue")
-//
-//            // !itemsComplete |> should equal totalEvents
-//
-//            let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask
-//            let! permDocs = session.Advanced.LoadStartingWithAsync<MyPermissionDoc>("PermissionDocs/",0, 1024) |> Async.AwaitTask
-//            let permDocs = 
-//                permDocs
-//                |> Seq.map (fun doc -> (doc.Id, doc.Writes))
-//                |> Map.ofSeq
-//
-//            for doc in docs do
-//                doc.Count |> should equal 100
-//                doc.Foo |> should equal "Bar"
-//                doc.Value |> should equal -50
-//                doc.Writes |> should equal (permDocs.Item("PermissionDocs/" + doc.Id.ToString()))
-//            ()
-//        } |> Async.RunSynchronously
+        async {
+            let! lastComplete = projector.LastComplete()
+            consoleLog <| sprintf "Final Position: %A" lastComplete
+            use session = documentStore.OpenAsyncSession("tenancy-blue")
+
+            // !itemsComplete |> should equal totalEvents
+
+            let! docs = session.Advanced.LoadStartingWithAsync<MyCountingDoc>("MyCountingDocs/", 0, 1024) |> Async.AwaitTask
+            let! permDocs = session.Advanced.LoadStartingWithAsync<MyPermissionDoc>("PermissionDocs/",0, 1024) |> Async.AwaitTask
+            let permDocs = 
+                permDocs
+                |> Seq.map (fun doc -> (doc.Id, doc.Writes))
+                |> Map.ofSeq
+
+            for doc in docs do
+                doc.Count |> should equal 100
+                doc.Foo |> should equal "Bar"
+                doc.Value |> should equal -50
+                doc.Writes |> should equal (permDocs.Item("PermissionDocs/MyCountingDocs/" + doc.Id.ToString()))
+            ()
+        } |> Async.RunSynchronously
 
         ()

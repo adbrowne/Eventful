@@ -32,33 +32,36 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
     let fetcher = {
         new IDocumentFetcher with
-            member x.GetDocument<'TDocument> key = async {
-                //runWithTimeout "Single Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocument<'TDocument> documentStore cache databaseName key
-                let! result = readQueue.Work databaseName <| Seq.singleton (key, typeof<'TDocument>)
-                let (key, t, result) = Seq.head result
+            member x.GetDocument<'TDocument> key = 
+                async {
+                    let! result = readQueue.Work databaseName <| Seq.singleton (key, typeof<'TDocument>)
+                    let (key, t, result) = Seq.head result
 
-                match result with
-                | Some (doc, metadata, etag) -> 
-                    return (Some (doc :?> 'TDocument, metadata, etag))
-                | None -> 
-                    return None
-            }
-            member x.GetDocuments request = async {
-                return! readQueue.Work databaseName request
-            } 
-                //runWithTimeout "Multi Fetcher" (TimeSpan.FromSeconds(30.0)) <| RavenOperations.getDocuments documentStore cache databaseName request
+                    match result with
+                    | Some (doc, metadata, etag) -> 
+                        return (Some (doc :?> 'TDocument, metadata, etag))
+                    | None -> 
+                        return None 
+                } |> Async.StartAsTask
+            member x.GetDocuments request = 
+                async {
+                    return! readQueue.Work databaseName request 
+                } |> Async.StartAsTask
+
+            member x.GetEmptyMetadata<'TDocument> () =
+                RavenOperations.emptyMetadataForType documentStore typeof<'TDocument>
     }
 
     let positionDocumentKey = "EventProcessingPosition"
 
     let getPersistedPosition = async {
-        let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument positionDocumentKey
+        let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument positionDocumentKey |> Async.AwaitTask
         return persistedLastComplete |> Option.map((fun (doc,_,_) -> doc))
     }
 
     let tryEvent (key : string) events =
         async { 
-            let! writeRequests = documentProcessor.Process key fetcher events
+            let! writeRequests = documentProcessor.Process(key, fetcher, events).Invoke() |> Async.AwaitTask
 
             return! writeQueue.Work databaseName writeRequests
         }

@@ -3,12 +3,14 @@
 open System
 open Raven.Json.Linq
 open Raven.Abstractions.Data
+open System.Threading.Tasks
 
 type ProjectedDocument<'TDocument> = ('TDocument * Raven.Json.Linq.RavenJObject * Raven.Abstractions.Data.Etag)
 
 type IDocumentFetcher =
-    abstract member GetDocument<'TDocument> : string -> Async<ProjectedDocument<'TDocument> option> 
-    abstract member GetDocuments : (string * System.Type) seq -> Async<(string * System.Type * Option<obj * RavenJObject * Etag>) seq>
+    abstract member GetDocument<'TDocument> : string -> Task<ProjectedDocument<'TDocument> option> 
+    abstract member GetDocuments : (string * System.Type) seq -> Task<(string * System.Type * Option<obj * RavenJObject * Etag>) seq>
+    abstract member GetEmptyMetadata<'TDocument> : unit -> RavenJObject
 
 type DocumentWriteRequest = {
     DocumentKey : string
