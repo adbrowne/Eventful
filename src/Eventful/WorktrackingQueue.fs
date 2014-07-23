@@ -19,7 +19,8 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         ?workerCount,
         ?complete : 'TInput -> Async<unit>,
         ?name : string,
-        ?cancellationToken : CancellationToken
+        ?cancellationToken : CancellationToken,
+        ?groupComparer : System.Collections.Generic.IComparer<'TGroup>
     ) =
     let log = Common.Logging.LogManager.GetLogger("Eventful.WorktrackingQueue")
 
@@ -28,7 +29,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let _complete = complete |> Option.getOrElse (fun _ -> async { return () })
     let _name = name |> Option.getOrElse "unnamed"
 
-    let queue = new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name)
+    let queue = 
+        match groupComparer with
+        | Some c -> new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name, c)
+        | None -> new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name)
 
     let doWork (group, items) = async {
          do! workAction group items

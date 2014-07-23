@@ -9,16 +9,22 @@ type GroupEntry<'TItem> = {
     Processing : List<Int64 * 'TItem>
 }
   
-type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem when 'TGroup : comparison> = 
+type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem> = 
   | AddItem of ((unit -> (seq<'TItem * 'TGroup>)) * Async<unit> option * AsyncReplyChannel<unit>)
   | ConsumeWork of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<Async<unit>>)
   | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
-type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem when 'TGroup : comparison> () =
+type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem> 
+    (
+        ?groupComparer : System.Collections.Generic.IComparer<'TGroup>
+    ) =
     // normal .NET dictionary for performance
     // very mutable
-    let groupItems = new System.Collections.Generic.SortedDictionary<'TGroup, GroupEntry<'TItem>>()
+    let groupItems = 
+        match groupComparer with
+        | Some c -> new System.Collections.Generic.SortedDictionary<'TGroup, GroupEntry<'TItem>>(c)
+        | None -> new System.Collections.Generic.SortedDictionary<'TGroup, GroupEntry<'TItem>>()
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
@@ -61,7 +67,12 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem when 'TGro
         groupItems.Add(nextKey, newValues)
         (nextKey, values)
 
-type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>(?maxItems, ?name : string) =
+type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>
+    (
+        ?maxItems, 
+        ?name : string,
+        ?groupComparer : System.Collections.Generic.IComparer<'TGroup>
+    ) =
     let log = Common.Logging.LogManager.GetLogger(typeof<MutableOrderedGroupingBoundedQueue<_,_>>)
 
     let maxItems =
@@ -69,7 +80,10 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         | Some v -> v
         | None -> 10000
     
-    let state = new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>()
+    let state = 
+        match groupComparer with
+        | Some c -> new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>(c)
+        | None -> new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>()
     
     let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, state.GetGroupItemsCount >> float, Metrics.Unit.Items)
     let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, state.GetWorkQueueCount >> float, Metrics.Unit.Items)
