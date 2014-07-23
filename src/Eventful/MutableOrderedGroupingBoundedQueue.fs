@@ -10,7 +10,7 @@ type GroupEntry<'TItem> = {
 }
   
 type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem> = 
-  | AddItem of ((unit -> (seq<'TItem * 'TGroup>)) * Async<unit> option * AsyncReplyChannel<unit>)
+  | AddItem of ((unit -> (seq<'TItem * 'TGroup>)) * Async<unit> option)
   | ConsumeWork of (('TGroup * seq<'TItem> -> Async<unit>) * AsyncReplyChannel<Async<unit>>)
   | GroupComplete of 'TGroup
   | NotifyWhenAllComplete of AsyncReplyChannel<unit>
@@ -130,8 +130,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                         lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, Some "NotifyWhenComplete empty", async { reply.Reply() } )
                     Some(empty itemIndex)
                 | GroupComplete group -> Some(groupComplete group itemIndex))
-            and enqueue (itemsF :(unit -> (seq<'TItem * 'TGroup>)), onComplete, reply:AsyncReplyChannel<unit>) itemIndex = async {
-                reply.Reply()
+            and enqueue (itemsF :(unit -> (seq<'TItem * 'TGroup>)), onComplete) itemIndex = async {
                 
                 try
                     let items = itemsF ()
@@ -197,7 +196,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         theAgent
     
     member this.Add (input:'TInput, group: ('TInput -> (seq<'TItem * 'TGroup>)), ?onComplete : Async<unit>) =
-        dispatcherAgent.PostAndAsyncReply(fun ch -> AddItem ((fun () -> group input), onComplete, ch))
+        dispatcherAgent.Post <| AddItem ((fun () -> group input), onComplete)
+        async { () }
 
     member this.Consume (work:(('TGroup * seq<'TItem>) -> Async<unit>)) =
         dispatcherAgent.PostAndAsyncReply(fun ch -> ConsumeWork(work, ch))

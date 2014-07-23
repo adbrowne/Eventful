@@ -113,7 +113,7 @@ type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
     static member Empty = new MutableLastCompleteTrackingState<'TItem>()
 
 type LastCompleteItemMessage2<'TItem when 'TItem : comparison> = 
-|    Start of ('TItem * AsyncReplyChannel<unit>) 
+|    Start of 'TItem 
 |    Complete of 'TItem
 |    LastComplete of (AsyncReplyChannel<'TItem option>) 
 |    Notify of ('TItem * string option * Async<unit>)
@@ -133,9 +133,7 @@ type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) =
             let rec loop (state : MutableLastCompleteTrackingState<'TItem>) = async {
                 let! msg = agent.Receive()
                 match msg with
-                | Start (item, reply) ->
-                    reply.Reply()
-
+                | Start item ->
                     match state.Start item with
                     | Some state' ->
                         return! loop state'
@@ -172,8 +170,9 @@ type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) =
     member x.LastComplete () : Async<'TItem option> =
         agent.PostAndAsyncReply((fun ch -> LastComplete(ch)))
 
-    member x.Start(item, ?timeout) = 
-      agent.PostAndAsyncReply((fun ch -> Start (item,ch)), ?timeout=timeout)
+    member x.Start(item) = 
+      agent.Post <| Start item
+      async { () }
 
     member x.Complete(item) = 
       agent.Post(Complete item)
