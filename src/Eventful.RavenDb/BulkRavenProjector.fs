@@ -101,14 +101,15 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     
     let tracker = 
         let t = new LastCompleteItemAgent<EventPosition>(name = databaseName)
+
         async {
             let! persistedPosition = getPersistedPosition
 
-            match persistedPosition with
-            | Some pos ->
-                do! t.Start pos
-                t.Complete pos
-            | None -> ()
+            let position = 
+                persistedPosition |> Option.getOrElse EventPosition.Start
+
+            do! t.Start position
+            t.Complete position
                 
         } |> Async.RunSynchronously
 
@@ -131,7 +132,9 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         |> Async.Ignore
 
     let queue = 
-        new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete, name = databaseName + " processing", cancellationToken = cancellationToken, groupComparer = StringComparer.InvariantCultureIgnoreCase, runImmediately = false)
+        let q = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete, name = databaseName + " processing", cancellationToken = cancellationToken, groupComparer = StringComparer.InvariantCultureIgnoreCase)
+        q.StopWork()
+        q
 
     let mutable lastPositionWritten : Option<EventPosition> = None
 
