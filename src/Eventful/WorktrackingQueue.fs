@@ -20,7 +20,8 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         ?complete : 'TInput -> Async<unit>,
         ?name : string,
         ?cancellationToken : CancellationToken,
-        ?groupComparer : System.Collections.Generic.IComparer<'TGroup>
+        ?groupComparer : System.Collections.Generic.IComparer<'TGroup>,
+        ?runImmediately : bool
     ) =
     let log = Common.Logging.LogManager.GetLogger("Eventful.WorktrackingQueue")
 
@@ -38,7 +39,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
          do! workAction group items
     }
 
-    let mutable working = true
+    let mutable working = 
+        match runImmediately with
+        | Some v -> v
+        | None -> true
 
     let workerName = (sprintf "WorktrackingQueue worker %A" name)
     let workTimeout = TimeSpan.FromSeconds(30.0)
