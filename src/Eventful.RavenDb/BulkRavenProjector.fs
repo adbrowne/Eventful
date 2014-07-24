@@ -138,6 +138,10 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
     let mutable lastPositionWritten : Option<EventPosition> = None
 
+    /// fired each time a full queue is detected
+    [<CLIEvent>]
+    member this.QueueFullEvent = queue.QueueFullEvent
+
     member x.LastComplete () = tracker.LastComplete()
 
     member x.StartPersistingPosition () = 

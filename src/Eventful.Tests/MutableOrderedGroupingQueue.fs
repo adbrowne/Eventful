@@ -58,7 +58,7 @@ module MutableOrderedGroupingBoundedQueueTests =
 
         let hasBeenFull = ref false
 
-        queue.FullEvent.Add(fun () -> hasBeenFull := true )
+        queue.QueueFullEvent.Add(fun () -> hasBeenFull := true )
 
         async {
             for i in [1..100] do

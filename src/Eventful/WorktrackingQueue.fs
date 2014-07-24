@@ -85,6 +85,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         let (item, groups) = grouping a
         groups |> Set.toSeq |> Seq.map (fun g -> (item, g))
         
+    /// fired each time a full queue is detected
+    [<CLIEvent>]
+    member this.QueueFullEvent = queue.QueueFullEvent
+
     member this.StopWork () =
         working <- false
 
