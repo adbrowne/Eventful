@@ -196,8 +196,10 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         theAgent
     
     member this.Add (input:'TInput, group: ('TInput -> (seq<'TItem * 'TGroup>)), ?onComplete : Async<unit>) =
-        dispatcherAgent.Post <| AddItem ((fun () -> group input), onComplete)
-        async { () }
+        async {
+            while(state.GetWorkQueueCount() + dispatcherAgent.CurrentQueueLength > maxItems) do
+                do! Async.Sleep(10)
+            dispatcherAgent.Post <| AddItem ((fun () -> group input), onComplete) }
 
     member this.Consume (work:(('TGroup * seq<'TItem>) -> Async<unit>)) =
         dispatcherAgent.PostAndAsyncReply(fun ch -> ConsumeWork(work, ch))

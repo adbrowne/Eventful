@@ -221,22 +221,17 @@ module MutableOrderedGroupingBoundedQueueTests =
         let groupName = "group"
         let itemValue = "item"
 
-        let waitMilliseconds = 200
-
         let producer = 
             async {
-                do! groupingQueue.Add("itemValue",(fun _ -> Seq.singleton (groupName, itemValue)))
-                let stopwatch = System.Diagnostics.Stopwatch.StartNew()
-                do! groupingQueue.Add("itemValue",(fun _ -> Seq.singleton (groupName, itemValue)))
-                stopwatch.ElapsedMilliseconds |> should be (greaterThanOrEqualTo <| int64 waitMilliseconds)
+                for _ in [1..10] do
+                    do! groupingQueue.Add("itemValue",(fun _ -> Seq.singleton (groupName, itemValue)))
             } |> Async.StartAsTask
 
-        async {
-            do! Async.Sleep (waitMilliseconds + 50) // give 50 ms grace
-            do! groupingQueue.Consume((fun _ -> async { return () })) |> Async.Ignore
-        } |> Async.Start
 
-        producer.Wait ()
+        // should not be able to queue all the items
+        // the limit is not hard so we have a length of 1 but 10
+        // items should be far too many 2 will probably get through
+        producer.Wait (200) |> should equal false
 
     [<Fact>]
     let ``Next items from the same group will not be consumed until previous items are complete`` () : unit =
