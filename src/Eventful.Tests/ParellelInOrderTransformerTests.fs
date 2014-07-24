@@ -30,7 +30,7 @@ module ParallelInOrderTransformerTests =
         let transformer = new ParallelInOrderTransformer<int,int>(runItem, 50, 5)
 
         for i in [1..100] do
-            transformer.Process(i, callback)
+            transformer.Process(i, callback) |> Async.RunSynchronously
 
         async {
             while(!received |> List.length < 100) do
@@ -57,7 +57,7 @@ module ParallelInOrderTransformerTests =
         let transformer = new ParallelInOrderTransformer<int,int>(runItem, 50, 5)
 
         for i in [1..100] do
-            transformer.Process(i, callback)
+            transformer.Process(i, callback) |> Async.RunSynchronously
 
         async {
             while(!received |> List.length < 100) do
@@ -65,7 +65,7 @@ module ParallelInOrderTransformerTests =
         } |> (fun f -> Async.RunSynchronously(f, 10000))
 
         for i in [1..100] do
-            transformer.Process(i, callback)
+            transformer.Process(i, callback) |> Async.RunSynchronously
 
         async {
             while(!received |> List.length < 200) do

@@ -3,7 +3,7 @@
 open FSharpx
 
 type internal ParallelInOrderTransformerTests<'TInput, 'TOutput> =
-    | EnqueueMsg of 'TInput * ('TOutput -> Async<unit>) * AsyncReplyChannel<unit>
+    | EnqueueMsg of 'TInput * ('TOutput -> Async<unit>)
     | CompleteMsg of int64 * 'TOutput
 
 type internal ParallelTransformerItemState<'TInput, 'TOutput> = 
@@ -52,6 +52,8 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
             | _ ->
                 ()
 
+    let transformerQueue = ref 0
+
     let transformerAgent = newAgent "ParallelInOrderTransformer" log (fun agent ->
         let runItem (index : int64) input = 
             async { 
@@ -62,9 +64,8 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
         let rec loop (state : ParallelInOrderTransformerState<'TInput,'TOutput>) = 
             agent.Scan(fun msg -> 
             match msg with
-            | EnqueueMsg (input, continuation, reply) -> 
+            | EnqueueMsg (input, continuation) -> 
                 if state.Queue.Count < maxItems then 
-                    reply.Reply()
                     let state' = 
                         if state.RunningItems < workers then
                             runItem state.NextIndex input
@@ -76,6 +77,7 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
                             state.Queue.Add(state.NextIndex, Queued(state.NextIndex, input, continuation))
                             { state with 
                                 NextIndex = state.NextIndex + 1L }
+                    transformerQueue := !transformerQueue + 1
                     Some (async { return! (loop state') })
                 else
                     None
@@ -86,6 +88,8 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
                     | Working (_, _, continuation) ->
                         Complete(index, output, continuation)
                     | _ -> failwith "Got complete entry for item not in working state"
+
+                transformerQueue := !transformerQueue - 1
 
                 state.Queue.Remove index |> ignore
                 state.Queue.Add(index, queueEntry)
@@ -111,5 +115,9 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
 
         loop ParallelInOrderTransformerState<'TInput, 'TOutput>.Zero)
 
-    member x.Process(input: 'TInput, onComplete : 'TOutput -> Async<unit>) : unit =
-        transformerAgent.PostAndAsyncReply(fun ch -> EnqueueMsg(input, onComplete, ch)) |> Async.RunSynchronously
+    member x.Process(input: 'TInput, onComplete : 'TOutput -> Async<unit>) : Async<unit> =
+        async {
+            while((transformerAgent.CurrentQueueLength + !transformerQueue) > maxItems) do
+                do! Async.Sleep(10)
+            transformerAgent.Post <| EnqueueMsg (input, onComplete)
+        }
