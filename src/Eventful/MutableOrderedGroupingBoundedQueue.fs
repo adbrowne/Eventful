@@ -194,10 +194,15 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         theAgent.Error.Add(fun exn -> 
             log.Error("Exception thrown by MutableOrderedGroupingBoundedQueueMessages", exn))
         theAgent
-    
+    let fullEvent = new Event<_>()    
+
+    [<CLIEvent>]
+    member this.FullEvent = fullEvent.Publish
+
     member this.Add (input:'TInput, group: ('TInput -> (seq<'TItem * 'TGroup>)), ?onComplete : Async<unit>) =
         async {
             while(state.GetWorkQueueCount() + dispatcherAgent.CurrentQueueLength > maxItems) do
+                fullEvent.Trigger()
                 do! Async.Sleep(10)
             dispatcherAgent.Post <| AddItem ((fun () -> group input), onComplete) }
 

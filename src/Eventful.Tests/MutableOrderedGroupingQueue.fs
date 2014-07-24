@@ -52,6 +52,24 @@ module MutableOrderedGroupingBoundedQueueTests =
             result |> should equal 2
         } |> Async.Start
 
+    [<Fact>]
+    let ``Fires Event When full`` () : unit = 
+        let queue = new MutableOrderedGroupingBoundedQueue<int, int>(10)
+
+        let hasBeenFull = ref false
+
+        queue.FullEvent.Add(fun () -> hasBeenFull := true )
+
+        async {
+            for i in [1..100] do
+                do! queue.Add(i, (fun _ -> Seq.singleton (i, i)))
+        } |> Async.Start
+
+        async {
+            do! Async.Sleep(100)
+            !hasBeenFull |> should equal true
+        }   
+        |> Async.RunSynchronously
 
     [<Fact>]
     let ``speed test for 1 million items to tracker`` () : unit =
