@@ -20,6 +20,7 @@ module MagicMapperTests =
         | Bar of BarRecord
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``can get id from object`` () : unit =
         let id = Guid.NewGuid()
         let myRecord = { Id = id }        
@@ -27,6 +28,7 @@ module MagicMapperTests =
         result |> should equal id
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``can precompute id getter`` () : unit =
         let id = Guid.NewGuid()
         let myRecord = { Id = id }        
@@ -35,6 +37,7 @@ module MagicMapperTests =
         result |> should equal id
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Will throw where there is no property of the type`` () : unit =
         let id = Guid.NewGuid()
         let myRecord = { Id = id }        
@@ -46,12 +49,14 @@ module MagicMapperTests =
     }
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Will throw where there are duplicate ids`` () : unit =
         let id = Guid.NewGuid()
         let myRecord = { Id = id; Id2 = id }        
         (fun () -> MagicMapper.magicId<int> myRecord |> ignore) |> should throw typeof<System.Exception>
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can wrap object in discriminated union`` () : unit =
         let id = Guid.NewGuid()
         let fooRecord = { FooRecord.Id = id; }        
@@ -61,6 +66,7 @@ module MagicMapperTests =
         result |> should equal (Foo fooRecord)
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Will throw when there is no matching union case`` () : unit =
         let id = Guid.NewGuid()
         let myRecord = { Id = id; Id2 = id }        
@@ -69,6 +75,7 @@ module MagicMapperTests =
         (fun () -> wrapper myRecord |> ignore) |> should throw typeof<System.Exception>
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can unwrap union value`` () : unit =
         let id = Guid.NewGuid()
         let fooRecord = { FooRecord.Id = id; }        

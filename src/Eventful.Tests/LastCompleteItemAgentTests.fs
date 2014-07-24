@@ -21,6 +21,7 @@ module LastCompleteItemAgentTests =
     let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent<_>>)
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can have two callbacks for the one item`` () : unit =  
         let lastCompleteTracker = new LastCompleteItemAgent<int64>(Guid.NewGuid().ToString())
 
@@ -106,6 +107,7 @@ module LastCompleteItemAgentTests =
     | Complete id -> id
 
     [<Property>]
+    [<Trait("category", "unit")>]
     let ``LastComplete is equal to the maximum complete pair for a valid sequence`` () =
         forAll allCompleteOperations (fun (operations : Item list) -> 
             let toValue = function 
@@ -143,6 +145,7 @@ module LastCompleteItemAgentTests =
         xs |> List.fold acc (List.empty, Set.empty) |> fst |> List.rev
 
     [<Property>]
+    [<Trait("category", "unit")>]
     let ``LastComplete ignores items started before their time or completed before started`` (operations : Item list) =
         let filterInvalidItems filtered item =
             match item with

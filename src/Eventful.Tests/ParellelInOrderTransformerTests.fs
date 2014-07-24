@@ -9,6 +9,7 @@ open FsUnit.Xunit
 module ParallelInOrderTransformerTests = 
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Transformer does not reorder operations`` () : unit = 
         let monitor = new obj()
 
@@ -40,6 +41,7 @@ module ParallelInOrderTransformerTests =
         !received |> List.rev |> should equal ([1..100])
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Transformer will keep working even with an empty period`` () : unit = 
         let monitor = new obj()
 

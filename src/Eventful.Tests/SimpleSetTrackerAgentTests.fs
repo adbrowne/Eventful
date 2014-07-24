@@ -27,6 +27,7 @@ type OperationSetComplete<'T when 'T : comparison> (operationSet : Set<'T>, call
 module SimpleSetTrackerAgentTests = 
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``When single item is completed then callback is run`` () : unit =
         let isDone = ref false
         let operationTracker = new OperationSetComplete<int>(Set.singleton 1, async { isDone := true })

@@ -145,6 +145,7 @@ module TeacherTests =
     let newTestSystem = TestSystem.Empty teacherHandlers
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given empty When Add Teacher Then TeacherAddedEvent is produced`` () : unit =
         let teacherId =  { TeacherId.Id = Guid.NewGuid() }
         
@@ -170,6 +171,7 @@ module TeacherTests =
         |> should beSuccessWithEvent expectedEvent
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given Teacher Exists When Add Teacher Then Error`` () : unit =
         let teacherId =  { TeacherId.Id = Guid.NewGuid() }
         
@@ -195,6 +197,7 @@ module TeacherTests =
         result.LastResult |> should containError "Must be the first command"
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``When AddTeacherCommand has no names Then validation errors are returned`` () : unit =
         let teacherId =  { TeacherId.Id = Guid.NewGuid() }
         
@@ -210,6 +213,7 @@ module TeacherTests =
         result.LastResult |> should containError "LastName must not be blank"
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given Existing Teacher When Report added Then teacher report count is incrimented`` () : unit =
         let teacherId =  { TeacherId.Id = Guid.NewGuid() }
         let reportId =  { ReportId.Id = Guid.NewGuid() }

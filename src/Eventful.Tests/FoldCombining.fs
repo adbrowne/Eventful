@@ -126,6 +126,7 @@ module FoldCombining =
         StateBuilder.map2 combine extract orderStateBuilder orderItemStateMap
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can combine stateBuilders`` () : unit = 
         let orderId = OrderId.New()
         let itemId = ItemId.New()
@@ -143,6 +144,7 @@ module FoldCombining =
         |> StateBuilder.toMap
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can create map by id`` () : unit = 
         let orderId = OrderId.New()
         let itemId = ItemId.New()

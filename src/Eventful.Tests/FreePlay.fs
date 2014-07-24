@@ -65,6 +65,7 @@ module Play =
             ["Done"]
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``can run program`` () : unit =
         let toyProgram : FreeProgram<int> = free {
             do! output 1

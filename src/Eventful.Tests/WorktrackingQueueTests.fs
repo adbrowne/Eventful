@@ -11,6 +11,7 @@ open System
 module WorktrackingQueueTests = 
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Grouper throwing exception does not prevent future events`` () : unit = 
         let monitor = new System.Object()
         let itemsReceived = ref Set.empty
@@ -39,6 +40,7 @@ module WorktrackingQueueTests =
         !itemsReceived |> should equal (Set.singleton 1)
 
     [<Fact>]
+    [<Trait("category", "performance")>]
     let ``Test speed of simple items`` () : unit =
         let groupingFunction i = (i, (fst >> Set.singleton) i)
 
@@ -54,6 +56,7 @@ module WorktrackingQueueTests =
         worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Items are received in order`` () : unit =
         let groupingFunction i = (i, (fst >> Set.singleton) i)
 
@@ -94,6 +97,7 @@ module WorktrackingQueueTests =
         errorResult |> should equal ""
         
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Completion function is called when item complete`` () : unit =
         let groupingFunction i = (i, (fst >> Set.singleton) i)
 
@@ -115,6 +119,7 @@ module WorktrackingQueueTests =
         !completedItem |> snd |> should equal "item"
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Completion function is called immediately when an items resuls in 0 groups`` () : unit =
         log4net.Config.XmlConfigurator.Configure()
         let groupingFunction i = (i, Set.empty)
@@ -137,6 +142,7 @@ module WorktrackingQueueTests =
         !completedItem |> snd |> should equal "item"
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can run multiple items`` () : unit =
         let groupingFunction i = (i, (fst >> Set.singleton) i)
 
@@ -164,6 +170,7 @@ module WorktrackingQueueTests =
         worktrackingQueue.AsyncComplete () |> Async.RunSynchronously
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given item split into 2 groups When complete Then Completion function is only called once`` () : unit =
         let groupingFunction i = (i, [1;2] |> Set.ofList)
 
@@ -185,6 +192,7 @@ module WorktrackingQueueTests =
         } |> (fun f -> Async.RunSynchronously(f, 3000))
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given empty queue When complete Then returns immediately`` () : unit =
         let worktrackingQueue = new WorktrackingQueue<unit,string,string>( (fun i -> (i, Set.singleton ())),(fun _ _ -> Async.Sleep(1)), 100000, 10,(fun _ -> Async.Sleep(1)))
         worktrackingQueue.AsyncComplete() |> Async.RunSynchronously

@@ -10,6 +10,7 @@ open Eventful
 
 module BatchingQueueTests =
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can batch up multiple items`` () =
         
         let queue = new BatchingQueue<string, int,int>(1000, 500000)

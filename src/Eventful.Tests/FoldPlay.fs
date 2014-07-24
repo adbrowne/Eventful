@@ -37,15 +37,18 @@ module FoldPlay =
         StateBuilder.Counter<ChildAdded>
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can count children`` () : unit =    
         let result = runState childCounter [{ChildAdded.Id = Guid.NewGuid()}]
         result |> should equal 1
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Types are carried through`` () : unit =    
         childCounter.Types |> should equal [typeof<ChildAdded>]
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Counter will ignore items of other types`` () : unit =    
         let result = runState childCounter [{ChildAdded.Id = Guid.NewGuid()} :> obj; new obj()]
         result |> should equal 1
@@ -55,6 +58,7 @@ module FoldPlay =
         |> (fun x -> x.AddHandler (fun s { ChildAdded.Id = id} -> s |> Set.add id))
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can collect ids`` () : unit =    
         let stateBuilder = StateBuilder.Combine childCounter childIdCollector (fun count set -> (count,set)) id
         let id = Guid.NewGuid()
@@ -62,11 +66,13 @@ module FoldPlay =
         result |> should equal (1, Set.singleton id)
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Combine combines types`` () : unit =    
         let stateBuilder = StateBuilder.Combine childCounter childIdCollector (fun count set -> (count,set)) id
         stateBuilder.Types |> should equal [typeof<ChildAdded>]
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Set builder`` () : unit = 
        let child1Id = Guid.NewGuid()
        let child2Id = Guid.NewGuid()
@@ -75,6 +81,7 @@ module FoldPlay =
        result |> should equal (Set.singleton child2Id)
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Map builder`` () : unit = 
        let child1Id = Guid.NewGuid()
        let child2Id = Guid.NewGuid()
@@ -90,6 +97,7 @@ module FoldPlay =
        result |> should equal (expectedMap)
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can combine map handlers`` () : unit = 
        let child1Id = Guid.NewGuid()
        let child2Id = Guid.NewGuid()
@@ -106,6 +114,7 @@ module FoldPlay =
        result |> should equal (expectedMap)
        
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Last value`` () : unit =
         let stateBuilder = StateBuilder.lastValue<string,string> id ""
 
@@ -114,6 +123,7 @@ module FoldPlay =
         result |> should equal ("second")
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can map message types`` () : unit =
         let stateBuilder = 
             StateBuilder.lastValue<Guid,Guid> id Guid.Empty
@@ -125,6 +135,7 @@ module FoldPlay =
         result |> should equal (child2Id)
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Mapping message types returns outer type`` () : unit =
         let stateBuilder = 
             StateBuilder.lastValue<Guid,Guid> id Guid.Empty
@@ -133,6 +144,7 @@ module FoldPlay =
         stateBuilder.Types |> should equal [typeof<StatusMessage>]
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Combine set and map`` () : unit =
         let id = Guid.NewGuid()
         let owner1Id = Guid.NewGuid()

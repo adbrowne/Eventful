@@ -9,6 +9,7 @@ open FsUnit.Xunit
 
 module MutableOrderedGroupingBoundedQueueTests = 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can process single item`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<int, int>()
         let counter = new CounterAgent()
@@ -33,6 +34,7 @@ module MutableOrderedGroupingBoundedQueueTests =
     open System.Collections.Generic
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can process single item with 2 groups`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<int, int>()
         let counter = new CounterAgent()
@@ -53,6 +55,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.Start
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Fires Event When full`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<int, int>(10)
 
@@ -72,6 +75,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         |> Async.RunSynchronously
 
     [<Fact>]
+    [<Trait("category", "performance")>]
     let ``speed test for 1 million items to tracker`` () : unit =
         let maxValue  = 1000000L
         let items = [1L..maxValue]
@@ -95,6 +99,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         tcs.Task.Wait()
 
     [<Fact>]
+    [<Trait("category", "performance")>]
     let ``speed test for 1 million items to empty agent`` () : unit =
         let maxValue  = 1000000L
         let items = [1L..maxValue]
@@ -118,6 +123,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can calculate correct values`` () : unit = 
         let queue = new MutableOrderedGroupingBoundedQueue<Guid, int>()
         let store = new System.Collections.Generic.Dictionary<Guid, int>()
@@ -178,6 +184,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Test many items across many groups`` () : unit = 
         let myQueue = new MutableOrderedGroupingBoundedQueue<int, int>()
 
@@ -233,6 +240,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Producer will wait for consumers once queues are full`` () : unit = 
         let groupingQueue = new MutableOrderedGroupingBoundedQueue<string,string>(1)
 
@@ -252,6 +260,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         producer.Wait (200) |> should equal false
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Next items from the same group will not be consumed until previous items are complete`` () : unit =
         let groupingQueue = new MutableOrderedGroupingBoundedQueue<string,string>(1000)
 

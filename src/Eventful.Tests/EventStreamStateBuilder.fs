@@ -21,6 +21,7 @@ module EventStreamStateBuilder =
         TestInterpreter.interpret p eventStoreState Map.empty Vector.empty |> snd
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can build state from single event`` () : unit =
         let newMetadata () =
             { 
@@ -42,6 +43,7 @@ module EventStreamStateBuilder =
         ()
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can build state from multiple events`` () : unit =
         let newMetadata () =
             { 

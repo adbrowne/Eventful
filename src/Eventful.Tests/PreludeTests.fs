@@ -14,10 +14,12 @@ module PreludeTests =
     let action = runWithTimeout "MyName" (TimeSpan.FromMilliseconds(100.0)) Async.DefaultCancellationToken longTask
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Timeout using runWithTimeout`` () : unit =
         (fun () -> action |> Async.RunSynchronously) |> should throw typeof<System.OperationCanceledException>
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Timeout inside runAsyncAsTask`` () : unit =
         let cancelled = ref false
 
