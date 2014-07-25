@@ -42,11 +42,11 @@ module BatchOperations =
             return Some (batchResult, docs)
         with    
             | :? System.AggregateException as e -> 
-                log.Error("Write Error", e)
-                log.Error("Write Inner", e.InnerException)
+                log.Debug("Write Error", e)
+                log.Debug("Write Inner", e.InnerException)
                 return None
             | e ->
-                log.Error("Write Error", e)
+                log.Debug("Write Error", e)
                 return None
     }
 
