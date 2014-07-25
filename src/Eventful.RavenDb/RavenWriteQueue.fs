@@ -15,6 +15,8 @@ type RavenWriteQueue
         cache : System.Runtime.Caching.MemoryCache
     ) =
 
+    let log = Common.Logging.LogManager.GetLogger("Eventful.RavenReadQueue")
+
     let batchWriteTracker = Metric.Histogram("RavenWriteQueue Batch Size", Unit.Items)
     let batchWriteTime = Metric.Timer("RavenWriteQueue Timer", Unit.None)
     let batchConflictsMeter = Metric.Meter("RavenWriteQueue Conflicts", Unit.Items)
@@ -76,7 +78,11 @@ type RavenWriteQueue
     let consumer = async {
         while true do
             let! (database, batch) = queue.Consume()
-            do! (writeDocs database batch)
+            try
+                do! (writeDocs database batch)
+            with | e ->
+                if log.IsDebugEnabled then
+                    log.Debug("Exception on write",e)
     }
 
     let startConsumers = 

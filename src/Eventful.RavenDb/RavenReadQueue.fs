@@ -15,6 +15,8 @@ type RavenReadQueue
         cache : System.Runtime.Caching.MemoryCache
     ) =
 
+    let log = Common.Logging.LogManager.GetLogger("Eventful.RavenReadQueue")
+
     let batchReadBatchSizeHistogram = Metric.Histogram("RavenReadQueue Batch Size", Unit.Items)
     let batchReadTimer = Metric.Timer("RavenReadQueue Timer", Unit.None)
 
@@ -54,7 +56,11 @@ type RavenReadQueue
     let consumer = async {
         while true do
             let! (database, batch) = queue.Consume()
-            do! (readDocs database batch)
+            try
+                do! (readDocs database batch)
+            with | e ->
+                if log.IsDebugEnabled then
+                    log.Debug("Exception on read",e)
     }
 
     let startConsumers = 
