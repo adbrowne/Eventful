@@ -184,7 +184,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
-    [<Trait("category", "unit")>]
+    [<Trait("category", "performance")>]
     let ``Test many items across many groups`` () : unit = 
         let myQueue = new MutableOrderedGroupingBoundedQueue<int, int>()
 
