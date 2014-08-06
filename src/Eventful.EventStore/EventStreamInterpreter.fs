@@ -58,7 +58,12 @@ module EventStreamInterpreter =
                     |> Array.ofSeq
 
                 async {
-                    let! writeResult = eventStore.append streamId eventNumber eventDataArray
+                    let esExpectedEvent = 
+                        match eventNumber with
+                        | Any -> -2
+                        | NewStream -> -1
+                        | AggregateVersion x -> x
+                    let! writeResult = eventStore.append streamId esExpectedEvent eventDataArray
                     return! loop (next writeResult) values writes
                 }
             | FreeEventStream (NotYetDone g) ->

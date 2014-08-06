@@ -18,7 +18,7 @@ type EventStoreSystem
         client : Client,
         serializer: ISerializer
     ) =
-     member x.RunCommand (cmd : obj) = 
+    member x.RunCommand (cmd : obj) = 
         async {
             let program = EventfulHandlers.getCommandProgram cmd handlers
             let! result = EventStreamInterpreter.interpret client serializer program 

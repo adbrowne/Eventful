@@ -191,17 +191,17 @@ module StateBuilder =
     let NoState = StateBuilder.Empty ()
 
     let toStreamProgram streamName (stateBuilder:StateBuilder<'TState>) = eventStream {
-        let rec loop nextEventNumber state = eventStream {
-            let! token = readFromStream streamName nextEventNumber
+        let rec loop eventsConsumed state = eventStream {
+            let! token = readFromStream streamName eventsConsumed
             match token with
             | Some token -> 
                 // todo replace with actual type instead of obj
                 let! value = readValue token typeof<obj> 
                 let currentState = state |> Option.getOrElse stateBuilder.InitialState
                 let state' = stateBuilder.Run currentState value
-                return! loop (nextEventNumber + 1) (Some state')
+                return! loop (eventsConsumed + 1) (Some state')
             | None -> 
-                return (nextEventNumber, state) }
+                return (eventsConsumed, state) }
             
         return! loop 0 None
     }

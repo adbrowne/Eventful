@@ -46,9 +46,9 @@ module TestInterpreter =
             
             let expectedValueCorrect =
                 match (expectedValue, streamEvents.Length) with
-                | (-2, _) -> true
-                | (-1, 0) -> true
-                | (x, y) when x = y -> true
+                | (Any, _) -> true
+                | (NewStream, 0) -> true
+                | (AggregateVersion x, y) when x = y -> true
                 | _ -> false
                 
             if expectedValueCorrect then

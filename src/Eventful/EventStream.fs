@@ -7,6 +7,11 @@ type EventMetadata = {
     SourceMessageId : Guid
 }
 
+type ExpectedAggregateVersion =
+    | Any
+    | NewStream
+    | AggregateVersion of int
+
 type WriteResult =
 | WriteSuccess
 | WrongExpectedVersion
@@ -27,7 +32,7 @@ module EventStream =
     type EventStreamLanguage<'N> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
     | ReadValue of EventToken * Type * (obj -> 'N)
-    | WriteToStream of string * int * seq<EventStreamEvent> * (WriteResult -> 'N)
+    | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
 
     let fmap f streamWorker = 

@@ -105,7 +105,7 @@ module AggregateActionBuilder =
             | :? 'TCmd as cmd -> 
                 let id = commandHandler.GetId cmd
                 let stream = sprintf "%s-%s" aggregateType (id.GetId)
-                let! (lastEventId, state) = commandHandler.StateBuilder |> StateBuilder.toStreamProgram stream
+                let! (eventsConsumed, state) = commandHandler.StateBuilder |> StateBuilder.toStreamProgram stream
 
                 let result = choose {
                     let! validated = runValidation commandHandler.Validators cmd state
@@ -124,7 +124,12 @@ module AggregateActionBuilder =
                 | Choice1Of2 events ->
                     for (stream, event, metadata) in events do
                         let eventData = Event (event, metadata)
-                        let! ignored = writeToStream stream lastEventId (Seq.singleton eventData)
+                        let expectedVersion = 
+                            match eventsConsumed with
+                            | 0 -> NewStream
+                            | x -> AggregateVersion x
+
+                        let! ignored = writeToStream stream expectedVersion (Seq.singleton eventData)
                         ()
                 | _ -> ()
 
@@ -162,7 +167,7 @@ module AggregateActionBuilder =
              member this.Handler getStreamName evt stream eventNumber = eventStream {
                 let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
                 let resultingStream = fId (evt :?> 'TLinkEvent) |> getStreamName
-                let! _ = EventStream.writeLink resultingStream -2 stream eventNumber metadata
+                let! _ = EventStream.writeLink resultingStream NewStream stream eventNumber metadata
                 return ()
              }
         }
