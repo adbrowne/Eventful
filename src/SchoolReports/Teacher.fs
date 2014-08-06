@@ -219,6 +219,9 @@ module TeacherTests =
         result.LastResult |> should containError "FirstName must not be blank"
         result.LastResult |> should containError "LastName must not be blank"
 
+    let buildStreamId (aggregateType : IAggregateType) (id : IIdentity) =
+        sprintf "%s-%s" aggregateType.Name id.GetId
+
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Given Existing Teacher When Report added Then teacher report count is incrimented`` () : unit =
@@ -240,7 +243,7 @@ module TeacherTests =
             StateBuilder.Empty 0
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
 
-        let stream = sprintf "%s-%s" (AggregateType.Report.ToString()) ((reportId :> IIdentity).GetId)
+        let stream = buildStreamId AggregateType.Report reportId
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal 1
@@ -263,7 +266,7 @@ module TeacherTests =
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> Some e.Name)
             |> StateBuilder.addHandler (fun s (e:ReportNameChangedEvent) -> Some e.Name)
 
-        let stream = sprintf "%s-%s" (AggregateType.Report.ToString()) ((reportId :> IIdentity).GetId)
+        let stream = buildStreamId AggregateType.Report reportId
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal (Some "Test Report")
