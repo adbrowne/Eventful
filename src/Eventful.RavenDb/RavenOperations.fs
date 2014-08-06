@@ -9,6 +9,9 @@ open Raven.Abstractions.Data
 type GetDocRequest = string * Type 
 type GetDocResponse = string * Type * (obj * RavenJObject * Etag) option
 
+open FSharpx.Option
+open FSharpx
+
 module RavenOperations =
     let log = Common.Logging.LogManager.GetLogger(typeof<BatchWrite>)
 
@@ -83,13 +86,15 @@ module RavenOperations =
         let rawDocMap =
             rawDocs.Results
             |> Raven.Client.Connection.SerializationHelper.ToJsonDocuments
-            |> Seq.collect (function 
-                | null -> Seq.empty
+            |> Seq.choose (function 
+                | null -> None
                 | jsonDoc ->
-                    let docKey = jsonDoc.Key
-                    let docType = fetchTypes |> Map.find docKey
-                    let actualDoc = deserializeToType documentStore docType jsonDoc.DataAsJson
-                    Seq.singleton (docKey, (actualDoc, jsonDoc.Metadata, jsonDoc.Etag)))
+                    maybe {
+                        let docKey = jsonDoc.Key
+                        let! docType = fetchTypes |> Map.tryFind docKey
+                        let actualDoc = deserializeToType documentStore docType jsonDoc.DataAsJson
+                        return (docKey, (actualDoc, jsonDoc.Metadata, jsonDoc.Etag))
+                    })
             |> Map.ofSeq
 
         return 
