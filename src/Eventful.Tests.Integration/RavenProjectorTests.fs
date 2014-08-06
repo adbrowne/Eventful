@@ -117,13 +117,6 @@ module RavenProjectorTests =
                 })
 
         let sw = System.Diagnostics.Stopwatch.StartNew()
-        let sortedNotificationSet = new System.Collections.Generic.SortedSet<Eventful.NotificationItem<int>>()
-        for item in notificationItems do
-            sortedNotificationSet.Add(item) |> ignore
-        sw.Stop()
-        printfn "Time to add 100000 notifications to sorted set %d ms" sw.ElapsedMilliseconds
-
-        let sw = System.Diagnostics.Stopwatch.StartNew()
         let sortedNotificationDictionary = new System.Collections.Generic.SortedDictionary<int,Eventful.NotificationItem<int>>()
         for item in notificationItems do
             if(not <| sortedNotificationDictionary.ContainsKey item.Item) then
