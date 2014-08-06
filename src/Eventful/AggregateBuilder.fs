@@ -105,7 +105,7 @@ module AggregateActionBuilder =
             | :? 'TCmd as cmd -> 
                 let id = commandHandler.GetId cmd
                 let stream = sprintf "%s-%s" aggregateType (id.GetId)
-                let! state = commandHandler.StateBuilder |> StateBuilder.toStreamProgram stream
+                let! (lastEventId, state) = commandHandler.StateBuilder |> StateBuilder.toStreamProgram stream
 
                 let result = choose {
                     let! validated = runValidation commandHandler.Validators cmd state
@@ -123,9 +123,8 @@ module AggregateActionBuilder =
                 match result with
                 | Choice1Of2 events ->
                     for (stream, event, metadata) in events do
-                        // todo should not be zero
                         let eventData = Event (event, metadata)
-                        let! ignored = writeToStream stream -1 (Seq.singleton eventData)
+                        let! ignored = writeToStream stream lastEventId (Seq.singleton eventData)
                         ()
                 | _ -> ()
 

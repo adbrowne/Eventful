@@ -238,7 +238,8 @@ module TeacherTests =
 
         state |> should equal 1
 
-    [<Fact(Skip = "Failing test for future work")>]
+    [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given Report added When Name changed Then State reflects new name`` () : unit =
         let teacherId =  { TeacherId.Id = Guid.NewGuid() }
         let reportId =  { ReportId.Id = Guid.NewGuid() }
@@ -260,12 +261,12 @@ module TeacherTests =
 
         state |> should equal (Some "Test Report")
 
-        let result' = 
+        let result = 
             result.Run 
                 [{
                     ChangeReportNameCommand.ReportId = reportId
                     Name = "New Name" }]
 
-        let state' = result.EvaluateState stream stateBuilder
+        let state = result.EvaluateState stream stateBuilder
 
-        state' |> should equal (Some "New Name")
+        state |> should equal (Some "New Name")

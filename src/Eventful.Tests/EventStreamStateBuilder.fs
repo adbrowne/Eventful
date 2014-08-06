@@ -38,7 +38,7 @@ module EventStreamStateBuilder =
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
         let result = runProgram eventStoreState program
 
-        result |> should equal (Some ["Widget1"])
+        result |> should equal (1, Some ["Widget1"])
 
         ()
 
@@ -62,6 +62,6 @@ module EventStreamStateBuilder =
 
         let result = runProgram eventStoreState program
 
-        result |> should equal (Some ["Widget2";"Widget1"])
+        result |> should equal (2, Some ["Widget2";"Widget1"])
 
         ()

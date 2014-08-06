@@ -200,7 +200,8 @@ module StateBuilder =
                 let currentState = state |> Option.getOrElse stateBuilder.InitialState
                 let state' = stateBuilder.Run currentState value
                 return! loop (nextEventNumber + 1) (Some state')
-            | None -> return state }
+            | None -> 
+                return (nextEventNumber, state) }
             
         return! loop 0 None
     }
