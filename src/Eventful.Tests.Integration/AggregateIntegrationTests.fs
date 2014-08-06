@@ -29,6 +29,12 @@ module AggregateIntegrationTests =
     type AggregateType =
     | Widget
     | WidgetCounter
+    with 
+        interface IAggregateType 
+            with member this.Name with get() = 
+                                           match this with
+                                           | Widget -> "Widget"
+                                           | WidgetCounter -> "WidgetCounter"
 
     type WidgetId = 
         {

@@ -11,6 +11,9 @@ type StreamNameBuilder<'TId> = ('TId -> string)
 
 type EventResult = unit
 
+type IAggregateType =
+    abstract Name : string with get
+
 type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
     abstract member CmdType : Type
     abstract member GetId : obj -> 'TId
@@ -21,7 +24,7 @@ type IEventHandler<'TState,'TEvent,'TId> =
                     // (BuildStreamName) -> Event -> Stream -> EventNumber -> Program
     abstract member Handler : StreamNameBuilder<'TId> -> obj -> string -> int -> EventStreamProgram<EventResult>
 
-type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity> private 
+type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> private 
     (
         aggregateType : 'TAggregateType,
         commandHandlers : list<ICommandHandler<'TState,'TEvent,'TId>>, 
@@ -180,7 +183,7 @@ module AggregateActionBuilder =
     }
 
 module Aggregate = 
-    type AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity> (aggregateType : 'TAggregateType, stateBuilder : StateBuilder<'TState>) = 
+    type AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> (aggregateType : 'TAggregateType, stateBuilder : StateBuilder<'TState>) = 
         member this.Zero() = AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>.Empty
 
         member x.Delay(f : unit -> AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>) = f ()
@@ -193,5 +196,5 @@ module Aggregate =
         member this.Combine (a:AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>,b:AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>) =
             a.Combine b
 
-    let aggregate<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity> aggregateType stateBuilder = 
+    let aggregate<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> aggregateType stateBuilder = 
         new AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, stateBuilder)

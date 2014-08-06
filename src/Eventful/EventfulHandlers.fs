@@ -29,7 +29,7 @@ module EventfulHandlers =
     let empty = new EventfulHandlers(Map.empty, Map.empty)
 
     let addAggregate (aggregateHandlers : AggregateHandlers<'TState, 'TEvents, 'TId, 'TAggregateType>) (eventfulHandlers:EventfulHandlers) =
-        let aggregateTypeString = aggregateHandlers.AggregateType.ToString()
+        let aggregateTypeString = aggregateHandlers.AggregateType.Name
 
         aggregateHandlers.CommandHandlers
         |> Seq.map (fun x -> EventfulHandler(x.CmdType, x.Handler aggregateTypeString))

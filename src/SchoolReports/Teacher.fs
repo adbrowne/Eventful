@@ -11,6 +11,13 @@ type AggregateType =
 | Teacher
 | Report
 | TeacherReport
+    with 
+        interface IAggregateType 
+            with member this.Name with get() = 
+                                           match this with
+                                           | Teacher -> "Teacher"
+                                           | Report -> "Report"
+                                           | TeacherReport -> "TeacherReport"
 
 type TeacherId = 
     {
