@@ -7,7 +7,11 @@ open FSharpx.Option
 open EventStore.ClientAPI
 
 module EventStreamInterpreter = 
-    let interpret<'A> (eventStore : Client) (serializer : ISerializer) prog  : Async<'A> = 
+    let interpret<'A> 
+        (eventStore : Client) 
+        (serializer : ISerializer) 
+        (eventTypeMap : Bimap<string, ComparableType>) 
+        prog  : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * EventMetadata>) : Async<'A> =
             match prog with
             | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
@@ -43,7 +47,7 @@ module EventStreamInterpreter =
                 let toEventData = function
                     | Event (dataObj, metadata) -> 
                         let serializedData = serializer.Serialize(dataObj)
-                        let typeString = dataObj.GetType().FullName
+                        let typeString = eventTypeMap.FindValue(new ComparableType(dataObj.GetType()))
                         let serializedMetadata = serializer.Serialize(metadata)
                         new EventData(System.Guid.NewGuid(), typeString, true, serializedData, serializedMetadata) 
                     | EventLink (destinationStream, destinationEventNumber, metadata) ->

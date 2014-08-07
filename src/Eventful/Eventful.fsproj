@@ -65,6 +65,7 @@
     </Compile>
     <Compile Include="Agent.fs" />
     <Compile Include="Prelude.fs" />
+    <Compile Include="BiMap.fs" />
     <Compile Include="LastCompleteItemAgent.fs" />
     <Compile Include="ParallelInOrderTransformer.fs" />
     <Compile Include="ParellelInOrderTransformer.CSharp.fs" />

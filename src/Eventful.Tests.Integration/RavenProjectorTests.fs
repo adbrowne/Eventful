@@ -416,11 +416,12 @@ module RavenProjectorTests =
                 |> Seq.map (fun doc -> (doc.Id, doc.Writes))
                 |> Map.ofSeq
 
-            for doc in docs do
+            for (doc : MyCountingDoc) in docs do
                 doc.Count |> should equal 100
                 doc.Foo |> should equal "Bar"
                 doc.Value |> should equal -50
                 doc.Writes |> should equal (permDocs.Item("PermissionDocs/MyCountingDocs/" + doc.Id.ToString()))
+                ()
             ()
         } |> Async.RunSynchronously
 

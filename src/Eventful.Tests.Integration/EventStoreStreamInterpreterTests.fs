@@ -22,6 +22,10 @@ module EventStoreStreamInterpreterTests =
     let event = { Name = "Andrew Browne" }
     let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
 
+    let eventNameMapping = 
+        Bimap.Empty
+        |> Bimap.addNew typeof<MyEvent>.Name (new ComparableType(typeof<MyEvent>))
+
     [<Fact>]
     [<Trait("requires", "eventstore")>]
     let ``Write and read Event`` () : unit =
@@ -32,7 +36,7 @@ module EventStoreStreamInterpreterTests =
             do! client.Connect()
 
             let run program =
-                EventStreamInterpreter.interpret client RunningTests.esSerializer program
+                EventStreamInterpreter.interpret client RunningTests.esSerializer eventNameMapping program
 
             let stream = "MyStream-" + (newId())
 
@@ -73,7 +77,7 @@ module EventStoreStreamInterpreterTests =
             do! client.Connect()
 
             let run program =
-                EventStreamInterpreter.interpret client RunningTests.esSerializer program
+                EventStreamInterpreter.interpret client RunningTests.esSerializer eventNameMapping program
 
             let stream = "MyStream-" + (newId())
 
@@ -97,7 +101,7 @@ module EventStoreStreamInterpreterTests =
             do! client.Connect()
 
             let run program =
-                EventStreamInterpreter.interpret client RunningTests.esSerializer program
+                EventStreamInterpreter.interpret client RunningTests.esSerializer eventNameMapping program
 
             let sourceStream = "SourceStream-" + (newId())
             let stream = "MyStream-" + (newId())

@@ -16,12 +16,14 @@ type EventStoreSystem
     ( 
         handlers : EventfulHandlers, 
         client : Client,
-        serializer: ISerializer
+        serializer: ISerializer,
+        eventTypeMap : Bimap<string, ComparableType>
     ) =
+
     member x.RunCommand (cmd : obj) = 
         async {
             let program = EventfulHandlers.getCommandProgram cmd handlers
-            let! result = EventStreamInterpreter.interpret client serializer program 
+            let! result = EventStreamInterpreter.interpret client serializer eventTypeMap program 
             return result
         }
 
@@ -88,7 +90,11 @@ module AggregateIntegrationTests =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate widgetHandlers
 
-    let newSystem client = new EventStoreSystem(handlers, client, RunningTests.esSerializer)
+    let typeMappings : Bimap<string, ComparableType> =
+        Bimap<string, ComparableType>.Empty
+        |> Bimap.addNew (typeof<WidgetCreatedEvent>.Name) (new ComparableType(typeof<WidgetCreatedEvent>))
+
+    let newSystem client = new EventStoreSystem(handlers, client, RunningTests.esSerializer, typeMappings)
 
     [<Fact>]
     let ``Can run command`` () : unit =
