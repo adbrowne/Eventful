@@ -2,27 +2,32 @@
 
 open System
 open Eventful.EventStream
+open FSharpx.Collections
 
-type EventfulHandler<'T> = EventfulHandler of Type * (obj ->  EventStreamProgram<'T>)
+                                            // Source StreamId, Source Event Number, Event -> Program
+type EventfulEventHandler<'T> = EventfulEventHandler of Type * (string -> int -> obj -> EventStreamProgram<'T>)
+type EventfulCommandHandler<'T> = EventfulCommandHandler of Type * (obj -> EventStreamProgram<'T>)
 
 type MyEventResult = unit
 
 type EventfulHandlers
     (
-        commandHandlers : Map<string, EventfulHandler<CommandResult>>, 
-        eventHandlers : Map<string, EventfulHandler<MyEventResult>>
+        commandHandlers : Map<string, EventfulCommandHandler<CommandResult>>, 
+        eventHandlers : Map<string, EventfulEventHandler<MyEventResult> list>
     ) =
     member x.CommandHandlers = commandHandlers
     member x.EventHandlers = eventHandlers
     member x.AddCommandHandler = function
-        | EventfulHandler(cmdType,_) as handler -> 
+        | EventfulCommandHandler(cmdType,_) as handler -> 
             let cmdTypeFullName = cmdType.FullName
             let commandHandlers' = commandHandlers |> Map.add cmdTypeFullName handler
             new EventfulHandlers(commandHandlers', eventHandlers)
-    member x.AddEventHandler (eventType:Type) handler =
-        let evtName = eventType.Name
-        let eventHandlers' = eventHandlers |> Map.add evtName handler
-        new EventfulHandlers(commandHandlers, eventHandlers')
+    member x.AddEventHandler = function
+        | EventfulEventHandler(eventType,_) as handler -> 
+            let evtName = eventType.Name
+            let eventHandlers' = 
+                eventHandlers |> Map.insertWith List.append evtName [handler]
+            new EventfulHandlers(commandHandlers, eventHandlers')
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventfulHandlers = 
@@ -31,9 +36,17 @@ module EventfulHandlers =
     let addAggregate (aggregateHandlers : AggregateHandlers<'TState, 'TEvents, 'TId, 'TAggregateType>) (eventfulHandlers:EventfulHandlers) =
         let aggregateTypeString = aggregateHandlers.AggregateType.Name
 
-        aggregateHandlers.CommandHandlers
-        |> Seq.map (fun x -> EventfulHandler(x.CmdType, x.Handler aggregateTypeString))
-        |> Seq.fold (fun (s:EventfulHandlers) h -> s.AddCommandHandler h) eventfulHandlers
+        let withCommandHandlers = 
+            aggregateHandlers.CommandHandlers
+            |> Seq.map (fun x -> EventfulCommandHandler(x.CmdType, x.Handler aggregateTypeString))
+            |> Seq.fold (fun (s:EventfulHandlers) h -> s.AddCommandHandler h) eventfulHandlers
+
+        let withEventHandlers = 
+            aggregateHandlers.EventHandlers
+            |> Seq.map (fun x -> EventfulEventHandler(x.EventType, x.Handler aggregateTypeString))
+            |> Seq.fold (fun (s:EventfulHandlers) h -> s.AddEventHandler h) withCommandHandlers
+
+        withEventHandlers
 
     let getCommandProgram (cmd:obj) (eventfulHandlers:EventfulHandlers) =
         let cmdType = cmd.GetType()
@@ -43,7 +56,7 @@ module EventfulHandlers =
             eventfulHandlers.CommandHandlers
             |> Map.tryFind cmdTypeFullName
             |> function
-            | Some (EventfulHandler(_, handler)) -> handler
+            | Some (EventfulCommandHandler(_, handler)) -> handler
             | None -> failwith <| sprintf "Could not find handler for %A" cmdType
 
         handler cmd

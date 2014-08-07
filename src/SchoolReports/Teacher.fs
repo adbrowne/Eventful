@@ -122,6 +122,18 @@ module Report =
                                   Name = x.Name }
 
                 yield buildSimpleCmdHandler StateBuilder.NoState changeName
+
+                // create report for each teacher when they are added
+                let createTeacherReport (evt : TeacherAddedEvent) =
+                    seq {
+                        yield Added {
+                            ReportId = { Id = evt.TeacherId.Id } 
+                            TeacherId = evt.TeacherId; 
+                            Name = "Custom teacher report"
+                        }
+                    }
+
+                yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) StateBuilder.NoState createTeacherReport
             }
 
 type TeacherReportEvents =
@@ -221,6 +233,30 @@ module TeacherTests =
 
     let buildStreamId (aggregateType : IAggregateType) (id : IIdentity) =
         sprintf "%s-%s" aggregateType.Name id.GetId
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Given TeacherAddedEvent When run Then Report is created`` () : unit =
+        let teacherId =  { TeacherId.Id = Guid.NewGuid() }
+        
+        let command : AddTeacherCommand = {
+            TeacherId = teacherId
+            FirstName = "Andrew"
+            LastName = "Browne"
+        }
+
+        let result = 
+            newTestSystem
+            |> TestSystem.runCommand command
+
+        let stateBuilder = 
+            StateBuilder.Empty None
+            |> StateBuilder.addHandler (fun _ (evt : ReportAddedEvent) -> Some evt.Name)
+
+        let stream = buildStreamId AggregateType.Report { Id = teacherId.Id }
+
+        let reportName = result.EvaluateState stream stateBuilder
+        reportName |> should equal (Some "Custom teacher report")
 
     [<Fact>]
     [<Trait("category", "unit")>]

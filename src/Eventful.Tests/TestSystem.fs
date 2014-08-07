@@ -14,6 +14,9 @@ type TestSystem
         allEvents : TestEventStore 
     ) =
 
+    let interpret prog (testEventStore : TestEventStore) =
+        TestInterpreter.interpret  prog testEventStore Map.empty Vector.empty
+
     member x.RunCommand (cmd : obj) =    
         let cmdType = cmd.GetType()
         let cmdTypeFullName = cmd.GetType().FullName
@@ -22,13 +25,14 @@ type TestSystem
             handlers.CommandHandlers
             |> Map.tryFind cmdTypeFullName
             |> function
-            | Some (EventfulHandler(_, handler)) -> handler
+            | Some (EventfulCommandHandler(_, handler)) -> handler
             | None -> failwith <| sprintf "Could not find handler for %A" cmdType
 
-        let program = handler cmd
-        let (allEvents', result) = TestInterpreter.interpret program allEvents Map.empty Vector.empty
+        let (allEvents, result) = TestEventStore.runCommand interpret cmd handler allEvents
 
-        new TestSystem(handlers, result, allEvents')
+        let allEvents = TestEventStore.processPendingEvents interpret handlers allEvents
+
+        new TestSystem(handlers, result, allEvents)
 
     member x.Handlers = handlers
 
