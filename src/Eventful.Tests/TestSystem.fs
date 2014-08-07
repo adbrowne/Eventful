@@ -65,7 +65,7 @@ type TestSystem
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 
     static member Empty handlers =
-        new TestSystem(handlers, Choice1Of2 (EventPosition.Start, List.empty), TestEventStore.empty)
+        new TestSystem(handlers, Choice1Of2 List.empty, TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 

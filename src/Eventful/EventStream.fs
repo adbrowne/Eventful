@@ -42,7 +42,6 @@ module EventStream =
     | GetEventTypeMap of unit * (EventTypeMap -> 'N)
     | ReadValue of EventToken * Type * (obj -> 'N)
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent> * (WriteResult -> 'N)
-    | ReadEventPosition of string * int * (EventPosition -> 'N)
     | NotYetDone of (unit -> 'N)
 
     let fmap f streamWorker = 
@@ -55,8 +54,6 @@ module EventStream =
             ReadValue (eventToken, eventType, readValue >> f)
         | WriteToStream (stream, expectedVersion, events, next) -> 
             WriteToStream (stream, expectedVersion, events, (next >> f))
-        | ReadEventPosition (stream, eventNumber, next) -> 
-            ReadEventPosition (stream, eventNumber, (next >> f))
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
 
@@ -77,8 +74,6 @@ module EventStream =
         ReadValue(eventToken, eventType, id) |> liftF
     let writeToStream stream number events = 
         WriteToStream(stream, number, events, id) |> liftF
-    let readEventPosition stream number =
-        ReadEventPosition (stream, number, id) |> liftF
 
     let rec bind f v =
         match v with

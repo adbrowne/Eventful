@@ -6,7 +6,7 @@ open FSharpx.Collections
 
 open Eventful.EventStream
 
-type CommandResult = Choice<EventPosition * list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
+type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
 type StreamNameBuilder<'TId> = ('TId -> string)
 
 type EventResult = unit
@@ -143,10 +143,9 @@ module AggregateActionBuilder =
                                 ()
 
                             let lastEvent  = (stream, eventsConsumed + (List.length events))
+                            let lastEventNumber = (eventsConsumed + (List.length events) - 1)
 
-                            let! lastEventPosition = readEventPosition stream (eventsConsumed + (List.length events))
-
-                            return Choice1Of2 (lastEventPosition, events)
+                            return Choice1Of2 events
                         }
                     | Choice2Of2 x ->
                         eventStream { return Choice2Of2 x }

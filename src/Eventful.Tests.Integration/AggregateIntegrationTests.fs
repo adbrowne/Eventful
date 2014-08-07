@@ -131,10 +131,10 @@ module AggregateIntegrationTests =
             }
 
             match cmdResult with
-            | Choice1Of2 (lastPosition, [(streamName, event, metadata)]) ->
+            | Choice1Of2 ([(streamName, event, metadata)]) ->
                 streamName |> should equal expectedStreamName
                 event |> should equal expectedEvent
-                do! waitFor (fun () -> system.LastEventProcessed >= lastPosition)
+                //do! waitFor (fun () -> system.LastEventProcessed >= lastPosition)
                 return ()
             | x ->
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)

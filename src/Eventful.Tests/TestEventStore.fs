@@ -25,8 +25,12 @@ module TestEventStore =
             | None -> Vector.empty
 
         let eventPosition = nextPosition store.Position
+        let eventNumber = streamEvents.Length
         let streamEvents' = streamEvents |> Vector.conj (eventPosition, streamEvent)
-        { store with Events = store.Events |> Map.add stream streamEvents'; Position = eventPosition }
+        { store with 
+            Events = store.Events |> Map.add stream streamEvents'; 
+            Position = eventPosition 
+            AllEventsStream = store.AllEventsStream |> Queue.conj (stream, eventNumber, streamEvent)}
 
     let runHandlerForEvent interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
         let program = evtHandler eventStream eventNumber evt

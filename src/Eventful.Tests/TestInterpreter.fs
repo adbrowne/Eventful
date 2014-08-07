@@ -33,7 +33,6 @@ module TestInterpreter =
                             (token, evt)
                         | EventLink _ -> failwith "todo"
                 }
-
             match readEvent with
             | Some (eventToken, evt) -> 
                 let next = f (Some eventToken)
@@ -46,11 +45,6 @@ module TestInterpreter =
             let eventObj = values.[token]
             let next = g eventObj
             interpret next eventStore eventTypeMap values writes
-        | FreeEventStream (ReadEventPosition (streamId, eventNumber, next)) ->
-            let stream = eventStore.Events.Item streamId
-            let (position, _) = stream |> Vector.nth eventNumber
-
-            interpret (next position) eventStore eventTypeMap values writes
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
             let streamEvents = 
                 eventStore.Events 
