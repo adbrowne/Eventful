@@ -4,22 +4,29 @@ open FSharpx.Collections
 open Eventful
 
 type TestEventStore = {
-    Events : Map<string,Vector<EventStreamEvent>>
+    Position : EventPosition
+    Events : Map<string,Vector<EventPosition * EventStreamEvent>>
     AllEventsStream : Queue<string * int * EventStreamEvent>
 }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestEventStore =
-    let empty : TestEventStore = { Events = Map.empty; AllEventsStream = Queue.empty }
+    let nextPosition (position : EventPosition) = 
+        {
+            Commit = position.Commit + 1L
+            Prepare = position.Commit + 1L
+        }
+    let empty : TestEventStore = { Position = EventPosition.Start; Events = Map.empty; AllEventsStream = Queue.empty }
 
-    let addEvent (stream, evt, eventType, metadata) (store : TestEventStore) =
+    let addEvent stream (streamEvent: EventStreamEvent) (store : TestEventStore) =
         let streamEvents = 
             match store.Events |> Map.tryFind stream with
             | Some events -> events
             | None -> Vector.empty
 
-        let streamEvents' = streamEvents |> Vector.conj (Event { Body = evt; EventType = eventType; Metadata = metadata })
-        { store with Events = store.Events |> Map.add stream streamEvents' }
+        let eventPosition = nextPosition store.Position
+        let streamEvents' = streamEvents |> Vector.conj (eventPosition, streamEvent)
+        { store with Events = store.Events |> Map.add stream streamEvents'; Position = eventPosition }
 
     let runHandlerForEvent interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
         let program = evtHandler eventStream eventNumber evt

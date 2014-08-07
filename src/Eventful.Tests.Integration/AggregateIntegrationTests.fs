@@ -19,12 +19,16 @@ type EventStoreSystem
         serializer: ISerializer
     ) =
 
+    let mutable lastEventProcessed : EventPosition = EventPosition.Start
+
     member x.RunCommand (cmd : obj) = 
         async {
             let program = EventfulHandlers.getCommandProgram cmd handlers
-            let! result = EventStreamInterpreter.interpret client serializer handlers.EventTypeMap program 
+            let! result = EventStreamInterpreter.interpret client serializer handlers.EventTypeMap program
             return result
         }
+
+    member x.LastEventProcessed = lastEventProcessed
 
 module AggregateIntegrationTests = 
     type AggregateType =
@@ -92,6 +96,14 @@ module AggregateIntegrationTests =
 
     let newSystem client = new EventStoreSystem(handlers, client, RunningTests.esSerializer)
 
+    let waitFor f : Async<unit> =
+        let timeout = DateTime.UtcNow.AddSeconds(20.0).Ticks
+
+        async {
+            while (f() || DateTime.UtcNow.Ticks > timeout) do
+                do! Async.Sleep(100)
+        }
+
     [<Fact>]
     [<Trait("requires", "eventstore")>]
     let ``Can run command`` () : unit =
@@ -119,11 +131,12 @@ module AggregateIntegrationTests =
             }
 
             match cmdResult with
-            | Choice1Of2 [(streamName, event, metadata)] ->
+            | Choice1Of2 (lastPosition, [(streamName, event, metadata)]) ->
                 streamName |> should equal expectedStreamName
-                event |> should equal expectedEvent 
+                event |> should equal expectedEvent
+                do! waitFor (fun () -> system.LastEventProcessed >= lastPosition)
+                return ()
             | x ->
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)
 
-            return ()
         } |> Async.RunSynchronously

@@ -53,19 +53,19 @@ type TestSystem
 
         streamEvents
         |> Vector.map (function
-            | Event { Body = obj } ->
+            | (position, Event { Body = obj }) ->
                 obj
-            | EventLink (streamId, eventNumber, _) ->
+            | (position, EventLink (streamId, eventNumber, _)) ->
                 allEvents.Events
                 |> Map.find streamId
                 |> Vector.nth eventNumber
                 |> (function
-                        | Event { Body = obj } -> obj
+                        | (_, Event { Body = obj }) -> obj
                         | _ -> failwith ("found link to a link")))
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 
     static member Empty handlers =
-        new TestSystem(handlers, Choice1Of2 List.empty, TestEventStore.empty)
+        new TestSystem(handlers, Choice1Of2 (EventPosition.Start, List.empty), TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 

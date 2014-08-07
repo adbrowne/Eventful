@@ -74,6 +74,7 @@
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="WorktrackingQueue.CSharp.fs" />
     <Compile Include="MagicMapper.fs" />
+    <Compile Include="EventPosition.fs" />
     <Compile Include="EventStream.fs" />
     <Compile Include="StateFolding.fs" />
     <Compile Include="Identity.fs" />
@@ -81,7 +82,6 @@
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventProcessingConfiguration.fs" />
     <Compile Include="EventfulHandlers.fs" />
-    <Compile Include="EventPosition.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>

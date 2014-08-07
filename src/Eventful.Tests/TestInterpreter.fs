@@ -20,7 +20,7 @@ module TestInterpreter =
         | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
             let readEvent = maybe {
                     let! streamEvents = eventStore.Events |> Map.tryFind stream
-                    let! eventStreamData = streamEvents |> Vector.tryNth eventNumber
+                    let! (position, eventStreamData) = streamEvents |> Vector.tryNth eventNumber
                     return
                         match eventStreamData with
                         | Event { Body = evt; EventType = eventType; Metadata = metadata } -> 
@@ -46,11 +46,17 @@ module TestInterpreter =
             let eventObj = values.[token]
             let next = g eventObj
             interpret next eventStore eventTypeMap values writes
+        | FreeEventStream (ReadEventPosition (streamId, eventNumber, next)) ->
+            let stream = eventStore.Events.Item streamId
+            let (position, _) = stream |> Vector.nth eventNumber
+
+            interpret (next position) eventStore eventTypeMap values writes
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
             let streamEvents = 
                 eventStore.Events 
                 |> Map.tryFind stream 
                 |> FSharpx.Option.getOrElse Vector.empty
+                |> Vector.map snd
             
             let expectedValueCorrect =
                 match (expectedValue, streamEvents.Length) with
@@ -73,10 +79,8 @@ module TestInterpreter =
                     Seq.zip (Seq.initInfinite ((+) startingEventNumber)) streamEvents'
 
                 let eventStore' = 
-                    { eventStore with 
-                        Events = eventStore.Events |> Map.add stream streamEvents' 
-                        AllEventsStream = numberedEvents |> Seq.fold addEventToQueue eventStore.AllEventsStream
-                    }
+                    streamEvents' |> Vector.fold (fun s e -> s |> TestEventStore.addEvent stream e) eventStore
+
                 interpret (next WriteSuccess) eventStore' eventTypeMap values writes
             else
                 interpret (next WrongExpectedVersion) eventStore eventTypeMap values writes

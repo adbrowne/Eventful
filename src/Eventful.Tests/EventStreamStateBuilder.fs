@@ -33,7 +33,7 @@ module EventStreamStateBuilder =
  
         let eventStoreState = 
             TestEventStore.empty       
-            |> TestEventStore.addEvent (streamName, { Name = "Widget1" }, "WidgetAddedEvent", newMetadata())
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1" }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
 
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
         let result = runProgram eventStoreState program
@@ -55,8 +55,8 @@ module EventStreamStateBuilder =
  
         let eventStoreState = 
             TestEventStore.empty       
-            |> TestEventStore.addEvent (streamName, { Name = "Widget1" }, "WidgetAddedEvent", newMetadata())
-            |> TestEventStore.addEvent (streamName, { Name = "Widget2" }, "WidgetAddedEvent", newMetadata())
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1" }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget2" }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
 
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
 

@@ -6,7 +6,7 @@ open FSharpx.Collections
 
 open Eventful.EventStream
 
-type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
+type CommandResult = Choice<EventPosition * list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
 type StreamNameBuilder<'TId> = ('TId -> string)
 
 type EventResult = unit
@@ -127,20 +127,29 @@ module AggregateActionBuilder =
                         |> List.ofSeq
                 }
 
-                match result with
-                | Choice1Of2 events ->
-                    for (stream, event, metadata) in events do
-                        let! eventData = getEventStreamEvent event metadata
-                        let expectedVersion = 
-                            match eventsConsumed with
-                            | 0 -> NewStream
-                            | x -> AggregateVersion x
+                return! 
+                    match result with
+                    | Choice1Of2 events -> 
+                        eventStream {
+                            for (stream, event, metadata) in events do
+                                let! eventData = getEventStreamEvent event metadata
+                                let expectedVersion = 
+                                    match eventsConsumed with
+                                    | 0 -> NewStream
+                                    | x -> AggregateVersion x
 
-                        let! ignored = writeToStream stream expectedVersion (Seq.singleton eventData)
-                        ()
-                | _ -> ()
+                                let! ignored = writeToStream stream expectedVersion (Seq.singleton eventData)
+                                
+                                ()
 
-                return result
+                            let lastEvent  = (stream, eventsConsumed + (List.length events))
+
+                            let! lastEventPosition = readEventPosition stream (eventsConsumed + (List.length events))
+
+                            return Choice1Of2 (lastEventPosition, events)
+                        }
+                    | Choice2Of2 x ->
+                        eventStream { return Choice2Of2 x }
             | _ -> return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
         }
         

@@ -22,7 +22,7 @@ module TestHelpers =
                 match a with
                 | :? CommandResult as result -> 
                     match result with
-                    | Choice1Of2 events ->
+                    | Choice1Of2 (lastPosition, events) ->
                         events |> List.exists matches
                     | _ -> false
                 | _ -> false)

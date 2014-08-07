@@ -46,6 +46,14 @@ module EventStreamInterpreter =
                 let dataObj = serializer.DeserializeObj(data) token.EventType
                 let next = g dataObj
                 loop next  values writes
+            | FreeEventStream (ReadEventPosition (streamId, eventNumber, next)) -> async{
+                    let! result = eventStore.readEvent streamId eventNumber
+                    let position = result.Event.Value.OriginalPosition.Value
+                    return! loop( next {
+                        Commit = position.CommitPosition
+                        Prepare = position.PreparePosition
+                    }) values writes
+                }
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->
                 let toEventData = function
                     | Event { Body = dataObj; EventType = typeString; Metadata = metadata} -> 
