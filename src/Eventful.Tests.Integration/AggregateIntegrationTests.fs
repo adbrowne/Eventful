@@ -16,14 +16,13 @@ type EventStoreSystem
     ( 
         handlers : EventfulHandlers, 
         client : Client,
-        serializer: ISerializer,
-        eventTypeMap : Bimap<string, ComparableType>
+        serializer: ISerializer
     ) =
 
     member x.RunCommand (cmd : obj) = 
         async {
             let program = EventfulHandlers.getCommandProgram cmd handlers
-            let! result = EventStreamInterpreter.interpret client serializer eventTypeMap program 
+            let! result = EventStreamInterpreter.interpret client serializer handlers.EventTypeMap program 
             return result
         }
 
@@ -89,14 +88,12 @@ module AggregateIntegrationTests =
     let handlers =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate widgetHandlers
+        |> EventfulHandlers.addAggregate widgetCounterAggregate
 
-    let typeMappings : Bimap<string, ComparableType> =
-        Bimap<string, ComparableType>.Empty
-        |> Bimap.addNew (typeof<WidgetCreatedEvent>.Name) (new ComparableType(typeof<WidgetCreatedEvent>))
-
-    let newSystem client = new EventStoreSystem(handlers, client, RunningTests.esSerializer, typeMappings)
+    let newSystem client = new EventStoreSystem(handlers, client, RunningTests.esSerializer)
 
     [<Fact>]
+    [<Trait("requires", "eventstore")>]
     let ``Can run command`` () : unit =
         async {
             let! connection = RunningTests.getConnection()
@@ -107,12 +104,26 @@ module AggregateIntegrationTests =
             let system = newSystem client
 
             let widgetId = { WidgetId.Id = Guid.NewGuid() }
-            let! ignored = 
+            let! cmdResult = 
                 system.RunCommand
                     { 
                         CreateWidgetCommand.WidgetId = widgetId; 
                         Name = "Mine"
                     }
+
+            let expectedStreamName = sprintf "Widget-%s" (widgetId.Id.ToString("N"))
+
+            let expectedEvent = {
+                WidgetCreatedEvent.WidgetId = widgetId
+                Name = "Mine"
+            }
+
+            match cmdResult with
+            | Choice1Of2 [(streamName, event, metadata)] ->
+                streamName |> should equal expectedStreamName
+                event |> should equal expectedEvent 
+            | x ->
+                Assert.True(false, sprintf "Expected one success event instead of %A" x)
 
             return ()
         } |> Async.RunSynchronously
