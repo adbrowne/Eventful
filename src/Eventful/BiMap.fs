@@ -23,10 +23,14 @@ type Bimap<'Key, 'Value when 'Key : comparison and 'Value : comparison>
     /// throws if the key or value exist
     member this.AddNew(key,value) =
         if map.ContainsKey key then
-            failwith <| sprintf "Key already exists: %A" key
+            let existingValue = map.Item key
+            if(existingValue <> value) then
+                failwith <| sprintf "Key already exists: %A" key
 
         if inverseMap.ContainsKey value then
-            failwith <| sprintf "Value already exists: %A" value
+            let existingKey = inverseMap.Item value
+            if(existingKey <> key) then
+                failwith <| sprintf "Value already exists: %A" value
 
         new Bimap<'Key,'Value>(map.Add(key, value), inverseMap.Add(value, key))
 

@@ -14,6 +14,9 @@ module EventStreamInterpreter =
         prog  : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * EventMetadata>) : Async<'A> =
             match prog with
+            | FreeEventStream (GetEventTypeMap ((), f)) ->
+                let next = f eventTypeMap
+                loop next values writes
             | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
                 async {
                     let! event = eventStore.readEvent stream eventNumber
@@ -45,9 +48,8 @@ module EventStreamInterpreter =
                 loop next  values writes
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->
                 let toEventData = function
-                    | Event (dataObj, metadata) -> 
+                    | Event { Body = dataObj; EventType = typeString; Metadata = metadata} -> 
                         let serializedData = serializer.Serialize(dataObj)
-                        let typeString = eventTypeMap.FindValue(new ComparableType(dataObj.GetType()))
                         let serializedMetadata = serializer.Serialize(metadata)
                         new EventData(System.Guid.NewGuid(), typeString, true, serializedData, serializedMetadata) 
                     | EventLink (destinationStream, destinationEventNumber, metadata) ->

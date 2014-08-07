@@ -18,7 +18,7 @@ module EventStreamStateBuilder =
         |> StateBuilder.addHandler (fun s (e:WidgetAddedEvent) -> e.Name::s)
 
     let runProgram eventStoreState p = 
-        TestInterpreter.interpret p eventStoreState Map.empty Vector.empty |> snd
+        TestInterpreter.interpret p eventStoreState Bimap.Empty Map.empty Vector.empty |> snd
 
     [<Fact>]
     [<Trait("category", "unit")>]
@@ -33,7 +33,7 @@ module EventStreamStateBuilder =
  
         let eventStoreState = 
             TestEventStore.empty       
-            |> TestEventStore.addEvent (streamName, { Name = "Widget1" }, newMetadata())
+            |> TestEventStore.addEvent (streamName, { Name = "Widget1" }, "WidgetAddedEvent", newMetadata())
 
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
         let result = runProgram eventStoreState program
@@ -55,8 +55,8 @@ module EventStreamStateBuilder =
  
         let eventStoreState = 
             TestEventStore.empty       
-            |> TestEventStore.addEvent (streamName, { Name = "Widget1" }, newMetadata())
-            |> TestEventStore.addEvent (streamName, { Name = "Widget2" }, newMetadata())
+            |> TestEventStore.addEvent (streamName, { Name = "Widget1" }, "WidgetAddedEvent", newMetadata())
+            |> TestEventStore.addEvent (streamName, { Name = "Widget2" }, "WidgetAddedEvent", newMetadata())
 
         let program = stateBuilder |> StateBuilder.toStreamProgram streamName
 

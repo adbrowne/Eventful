@@ -7,20 +7,28 @@ open FSharpx.Collections
 open FSharpx.Option
 
 module TestInterpreter =
-    let rec interpret prog (eventStore : TestEventStore) (values : Map<EventToken,obj>) (writes : Vector<string * int * EventStreamEvent>)= 
+    let rec interpret 
+        prog 
+        (eventStore : TestEventStore) 
+        (eventTypeMap : Bimap<string, ComparableType>)
+        (values : Map<EventToken,obj>) 
+        (writes : Vector<string * int * EventStreamEvent>)= 
         match prog with
+        | FreeEventStream (GetEventTypeMap ((), f)) ->
+            let next = f eventTypeMap
+            interpret next eventStore eventTypeMap values writes
         | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
             let readEvent = maybe {
                     let! streamEvents = eventStore.Events |> Map.tryFind stream
                     let! eventStreamData = streamEvents |> Vector.tryNth eventNumber
                     return
                         match eventStreamData with
-                        | Event (evt, _) -> 
+                        | Event { Body = evt; EventType = eventType; Metadata = metadata } -> 
                             let token = 
                                 {
                                     Stream = stream
                                     Number = eventNumber
-                                    EventType = evt.GetType().Name
+                                    EventType = eventType
                                 }
                             (token, evt)
                         | EventLink _ -> failwith "todo"
@@ -30,14 +38,14 @@ module TestInterpreter =
             | Some (eventToken, evt) -> 
                 let next = f (Some eventToken)
                 let values' = values |> Map.add eventToken evt
-                interpret next eventStore values' writes
+                interpret next eventStore eventTypeMap values' writes
             | None ->
                 let next = f None
-                interpret next eventStore values writes
+                interpret next eventStore eventTypeMap values writes
         | FreeEventStream (ReadValue (token, eventType, g)) ->
             let eventObj = values.[token]
             let next = g eventObj
-            interpret next eventStore values writes
+            interpret next eventStore eventTypeMap values writes
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
             let streamEvents = 
                 eventStore.Events 
@@ -69,11 +77,11 @@ module TestInterpreter =
                         Events = eventStore.Events |> Map.add stream streamEvents' 
                         AllEventsStream = numberedEvents |> Seq.fold addEventToQueue eventStore.AllEventsStream
                     }
-                interpret (next WriteSuccess) eventStore' values writes
+                interpret (next WriteSuccess) eventStore' eventTypeMap values writes
             else
-                interpret (next WrongExpectedVersion) eventStore values writes
+                interpret (next WrongExpectedVersion) eventStore eventTypeMap values writes
         | FreeEventStream (NotYetDone g) ->
             let next = g ()
-            interpret next eventStore values writes
+            interpret next eventStore eventTypeMap values writes
         | Pure result ->
             (eventStore,result)

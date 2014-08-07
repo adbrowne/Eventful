@@ -18,8 +18,16 @@ type WriteResult =
 | WriteCancelled
 | WriteError of System.Exception
 
+type EventStreamEventData = {
+    Body : obj
+    EventType : string
+    Metadata : EventMetadata
+}
+
+type EventTypeMap = Bimap<string, ComparableType>
+
 type EventStreamEvent = 
-| Event of (obj * EventMetadata)
+| Event of EventStreamEventData
 | EventLink of (string * int * EventMetadata)
 
 module EventStream =
@@ -31,6 +39,7 @@ module EventStream =
 
     type EventStreamLanguage<'N> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
+    | GetEventTypeMap of unit * (EventTypeMap -> 'N)
     | ReadValue of EventToken * Type * (obj -> 'N)
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
@@ -39,6 +48,8 @@ module EventStream =
         match streamWorker with
         | ReadFromStream (stream, number, streamRead) -> 
             ReadFromStream (stream, number, (streamRead >> f))
+        | GetEventTypeMap (eventTypeMap,next) -> 
+            GetEventTypeMap (eventTypeMap, next >> f)
         | ReadValue (eventToken, eventType, readValue) -> 
             ReadValue (eventToken, eventType, readValue >> f)
         | WriteToStream (stream, expectedVersion, events, next) -> 
@@ -57,6 +68,8 @@ module EventStream =
 
     let readFromStream stream number = 
         ReadFromStream (stream, number, id) |> liftF
+    let getEventTypeMap unit =
+        GetEventTypeMap ((), id) |> liftF
     let readValue eventToken eventType = 
         ReadValue(eventToken, eventType, id) |> liftF
     let writeToStream stream number events = 
@@ -112,3 +125,9 @@ module EventStream =
     let writeLink stream expectedVersion linkStream linkEventNumber metadata =
         let writes : seq<EventStreamEvent> = Seq.singleton (EventStreamEvent.EventLink(linkStream, linkEventNumber, metadata))
         writeToStream stream expectedVersion writes
+
+    let getEventStreamEvent evt metadata = eventStream {
+        let! eventTypeMap = getEventTypeMap ()
+        let eventType = eventTypeMap.FindValue (new ComparableType(evt.GetType()))
+        return EventStreamEvent.Event { Body = evt :> obj; EventType = eventType; Metadata = metadata }
+    }

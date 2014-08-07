@@ -73,5 +73,12 @@ module MagicMapper =
                 failwith <| sprintf "Not a union type value %A" (value.GetType())
         ) 
     
+    let getSingleUnionCaseParameterTypes<'TUnion> () =
+        let cases = FSharpType.GetUnionCases(typeof<'TUnion>)
+        cases
+        |> Seq.map (fun case -> (case, case.GetFields()))
+        |> Seq.filter (fun (_, fields) -> fields |> Seq.length = 1)
+        |> Seq.map (fun (case, fields) -> fields |> Seq.head |> (fun x -> x.PropertyType))
+        
     let inline getGuidId (arg:^a) =    
        (^a : (member Id : Guid) arg).ToString("N")

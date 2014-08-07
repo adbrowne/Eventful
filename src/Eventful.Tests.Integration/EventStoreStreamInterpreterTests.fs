@@ -42,7 +42,8 @@ module EventStoreStreamInterpreterTests =
 
             let! writeResult = 
                 eventStream {
-                    let writes : seq<EventStreamEvent> = Seq.singleton (EventStreamEvent.Event (event :> obj, metadata))
+                    let! eventToWrite = getEventStreamEvent event metadata
+                    let writes : seq<EventStreamEvent> = Seq.singleton eventToWrite
                     let! ignore = writeToStream stream NewStream writes
                     return "Write Complete"
                 } |> run
@@ -84,7 +85,8 @@ module EventStoreStreamInterpreterTests =
             let wrongExpectedVersion = AggregateVersion 10
             let! writeResult = 
                 eventStream {
-                    let writes : seq<EventStreamEvent> = Seq.singleton (EventStreamEvent.Event(event :> obj, metadata))
+                    let! eventToWrite = getEventStreamEvent event metadata
+                    let writes : seq<EventStreamEvent> = Seq.singleton eventToWrite
                     return! writeToStream stream wrongExpectedVersion writes
                 } |> run
 
@@ -108,7 +110,8 @@ module EventStoreStreamInterpreterTests =
 
             let! writeLink = 
                 eventStream {
-                    let writes = Seq.singleton (EventStreamEvent.Event(event :> obj, metadata))
+                    let! eventToWrite = getEventStreamEvent event metadata
+                    let writes = Seq.singleton eventToWrite
                     let! ignore = writeToStream sourceStream NewStream writes
                     let! ignore = EventStream.writeLink stream NewStream sourceStream 0 metadata
                     return ()

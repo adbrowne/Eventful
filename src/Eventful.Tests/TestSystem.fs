@@ -11,11 +11,11 @@ type TestSystem
     (
         handlers : EventfulHandlers, 
         lastResult : CommandResult, 
-        allEvents : TestEventStore 
+        allEvents : TestEventStore
     ) =
 
     let interpret prog (testEventStore : TestEventStore) =
-        TestInterpreter.interpret  prog testEventStore Map.empty Vector.empty
+        TestInterpreter.interpret  prog testEventStore handlers.EventTypeMap Map.empty Vector.empty
 
     member x.RunCommand (cmd : obj) =    
         let cmdType = cmd.GetType()
@@ -53,14 +53,14 @@ type TestSystem
 
         streamEvents
         |> Vector.map (function
-            | Event (obj, _) ->
+            | Event { Body = obj } ->
                 obj
             | EventLink (streamId, eventNumber, _) ->
                 allEvents.Events
                 |> Map.find streamId
                 |> Vector.nth eventNumber
                 |> (function
-                        | Event (obj, _) -> obj
+                        | Event { Body = obj } -> obj
                         | _ -> failwith ("found link to a link")))
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 

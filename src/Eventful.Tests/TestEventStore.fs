@@ -12,13 +12,13 @@ type TestEventStore = {
 module TestEventStore =
     let empty : TestEventStore = { Events = Map.empty; AllEventsStream = Queue.empty }
 
-    let addEvent (stream, event, metadata) (store : TestEventStore) =
+    let addEvent (stream, evt, eventType, metadata) (store : TestEventStore) =
         let streamEvents = 
             match store.Events |> Map.tryFind stream with
             | Some events -> events
             | None -> Vector.empty
 
-        let streamEvents' = streamEvents |> Vector.conj (Event (event, metadata))
+        let streamEvents' = streamEvents |> Vector.conj (Event { Body = evt; EventType = eventType; Metadata = metadata })
         { store with Events = store.Events |> Map.add stream streamEvents' }
 
     let runHandlerForEvent interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
@@ -28,7 +28,7 @@ module TestEventStore =
 
     let runEventHandlers interpreter (handlers : EventfulHandlers) (testEventStore : TestEventStore) (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
-        | Event (evt, metadata) ->
+        | Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             let handlers = 
                 handlers.EventHandlers
                 |> Map.tryFind (evt.GetType().Name)

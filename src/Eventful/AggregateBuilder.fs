@@ -130,7 +130,7 @@ module AggregateActionBuilder =
                 match result with
                 | Choice1Of2 events ->
                     for (stream, event, metadata) in events do
-                        let eventData = Event (event, metadata)
+                        let! eventData = getEventStreamEvent event metadata
                         let expectedVersion = 
                             match eventsConsumed with
                             | 0 -> NewStream
@@ -190,12 +190,15 @@ module AggregateActionBuilder =
                 let resultingStream = getStreamName aggregateType (fId (evt :?> 'TOnEvent))
 
                 let! (eventsConsumed, state) = stateBuilder |> StateBuilder.toStreamProgram resultingStream
+                let! eventTypeMap = getEventTypeMap()
 
                 let resultingEvents = 
                     runEvent (evt :?> 'TOnEvent)
                     |> Seq.map (fun x -> 
                         let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
-                        Event(unwrapper x, metadata))
+                        let event = unwrapper x
+                        let eventType = eventTypeMap.FindValue (new ComparableType(event.GetType()))
+                        Event { Body = event; EventType = eventType; Metadata = metadata })
 
                 let! _ = EventStream.writeToStream resultingStream NewStream resultingEvents
                 return ()
