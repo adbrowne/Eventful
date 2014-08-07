@@ -24,7 +24,7 @@ module EventStoreStreamInterpreterTests =
 
     [<Fact>]
     [<Trait("requires", "eventstore")>]
-    let ``Basic commands and events`` () : unit =
+    let ``Write and read Event`` () : unit =
         async {
             let! connection = RunningTests.getConnection()
             let client = new Client(connection)
@@ -89,7 +89,7 @@ module EventStoreStreamInterpreterTests =
 
     [<Fact>]
     [<Trait("requires", "eventstore")>]
-    let ``Can create link`` () : unit =
+    let ``Create a link`` () : unit =
         async {
             let! connection = RunningTests.getConnection()
             let client = new Client(connection)
