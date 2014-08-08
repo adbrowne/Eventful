@@ -205,10 +205,21 @@ module StateBuilder =
         return! loop 0 None
     }
 
+type INamedStateBuilder =
+    abstract Name : string
+    abstract Apply : obj -> obj -> obj
+    abstract InitialState : obj
+
 type NamedStateBuilder<'TState>(name : string, builder: StateBuilder<'TState>) =
     member x.Name = name
     member x.Builder = builder
 
+    interface INamedStateBuilder with
+        member x.Name = name
+        member x.Apply state message = 
+            let typedState = state :?> 'TState
+            builder.Run typedState message :> obj
+        member x.InitialState = builder.InitialState :> obj
 
 module NamedStateBuilder =
     let withName (name : string) (builder : StateBuilder<'TState>) : NamedStateBuilder<'TState> =
@@ -216,3 +227,31 @@ module NamedStateBuilder =
 
     let nullStateBuilder = 
         StateBuilder.Empty () |> withName "$Empty"
+
+type CombinedStateBuilderState = Map<string,obj>
+
+type CombinedStateBuilder internal (children : list<INamedStateBuilder>) =
+    member x.AddChild c =
+        new CombinedStateBuilder(c::children)
+
+    member x.Run inputStates e =
+        let runChildState (item: obj) (s:CombinedStateBuilderState) (childBuilder : INamedStateBuilder) =
+            let childKey = childBuilder.Name
+            let currentState = inputStates |> Map.tryFind childKey |> Option.getOrElse childBuilder.InitialState
+            let newState = childBuilder.Apply currentState item
+            s |> Map.add childKey newState
+            
+        children |> List.fold (runChildState e) Map.empty
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module CombinedStateBuilder =
+    let empty = new CombinedStateBuilder(List.empty)
+
+    let add child (s:CombinedStateBuilder) =
+        s.AddChild(child)
+
+    let run inputStates item (s:CombinedStateBuilder) =
+        s.Run inputStates item
+
+    let getValue (builder:NamedStateBuilder<'TState>) (state : CombinedStateBuilderState) =
+        (state |> Map.find builder.Name) :?> 'TState

@@ -86,6 +86,7 @@
     <Compile Include="MagicMapper.fs" />
     <Compile Include="FoldPlay.fs" />
     <Compile Include="FoldCombining.fs" />
+    <Compile Include="CombinedStateBuilderTests.fs" />
     <Compile Include="EventStreamStateBuilder.fs" />
     <Compile Include="FreePlay.fs" />
   </ItemGroup>
