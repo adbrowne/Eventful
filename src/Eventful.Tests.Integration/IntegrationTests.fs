@@ -1,4 +1,6 @@
 ﻿namespace Eventful.Tests.Integration
 
+open Eventful
+
 module IntegrationTests =
-    let log = Common.Logging.LogManager.GetLogger("Eventful.IntegrationTests")
+    let log = createLogger "Eventful.IntegrationTests"

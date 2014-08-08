@@ -1,5 +1,33 @@
 ﻿namespace Eventful
 
+type Logger internal (name : string) =
+    let logger = Common.Logging.LogManager.GetLogger(name)
+    member this.Debug (msg : Lazy<string>) : unit = 
+        if (logger.IsDebugEnabled) then
+            let message = msg.Force()
+            logger.Debug(message)
+
+    member this.DebugWithException (msg : Lazy<string * System.Exception>) : unit = 
+        if (logger.IsDebugEnabled) then
+            let message = msg.Force()
+            let (message, exn) = msg.Force()
+            logger.Debug(message, exn)
+
+    member this.Warn (msg : Lazy<string>) : unit = 
+        if (logger.IsWarnEnabled) then
+            let message = msg.Force()
+            logger.Warn(message)
+
+    member this.Error (msg : Lazy<string>) : unit = 
+        if (logger.IsErrorEnabled) then
+            let message = msg.Force()
+            logger.Error(message)
+
+    member this.ErrorWithException (msg : Lazy<string * System.Exception>) : unit = 
+        if (logger.IsErrorEnabled) then
+            let (message, exn) = msg.Force()
+            logger.Error(message, exn)
+
 [<AutoOpen>]
 module Prelude =
     let applyTuple2 func (a,b) = func a b
@@ -19,6 +47,9 @@ module Prelude =
     let tupleFst7 (a,b,c,d,e,f,g) = (a,(b,c,d,e,f,g))
     let tupleFst8 (a,b,c,d,e,f,g,i) = (a,(b,c,d,e,f,g,i))
     let tupleFst9 (a,b,c,d,e,f,g,i,j) = (a,(b,c,d,e,f,g,i,j))
+
+    let createLogger name =
+        new Logger(name)
 
     let rec runAsyncUntilSuccess task = async {
         try
@@ -52,7 +83,7 @@ module Prelude =
         | :? 'T as y -> compare (f x) (f y)
         | _ -> invalidArg "yobj" "cannot compare values of different types"
 
-    let taskLog = Common.Logging.LogManager.GetLogger("Eventful.Task")
+    let taskLog = createLogger "Eventful.Task"
 
     let runAsyncAsTask (name : string) cancellationToken action = 
         let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cancellationToken)
@@ -84,9 +115,9 @@ module Prelude =
 
         startCatchCancellation(computation, Some combinedCancellation.Token)
 
-    let newAgent (name : string) (log : Common.Logging.ILog) f  =
+    let newAgent (name : string) (log : Logger) f  =
         let agent= Agent.Start(f)
-        agent.Error.Add(fun e -> log.Error(sprintf "Exception thrown by %A" name, e))
+        agent.Error.Add(fun e -> log.ErrorWithException <| lazy(sprintf "Exception thrown by %A" name, e))
         agent
 
 open System

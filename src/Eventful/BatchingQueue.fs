@@ -66,7 +66,7 @@ type BatchingQueue<'TKey,'T,'U when 'TKey : equality>
         maxQueueSize : int
     ) =
 
-    let log = Common.Logging.LogManager.GetLogger("Eventful.BatchingQueue")
+    let log = createLogger "Eventful.BatchingQueue"
 
     let agent = newAgent "BatchingQueue" log (fun agent -> 
         let rec empty state = agent.Scan((fun msg -> 

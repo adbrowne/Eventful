@@ -23,7 +23,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         ?groupComparer : System.Collections.Generic.IComparer<'TGroup>,
         ?runImmediately : bool
     ) =
-    let log = Common.Logging.LogManager.GetLogger("Eventful.WorktrackingQueue")
+    let log = createLogger "Eventful.WorktrackingQueue"
 
     let _maxItems = maxItems |> Option.getOrElse 1000
     let _workerCount = workerCount |> Option.getOrElse 1
@@ -62,12 +62,11 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                                 try
                                     do! runWithTimeout workerName workTimeout ct work
                                 with | e ->
-                                    if log.IsDebugEnabled then
-                                        log.Debug(sprintf "Work failed..retrying: %A" workerName)
+                                    log.Debug <| lazy (sprintf "Work failed..retrying: %A" workerName)
 
                                     return! loop(count + 1)
                             else
-                                log.Error(sprintf "Work failed permanently: %A" workerName)
+                                log.Error <| lazy (sprintf "Work failed permanently: %A" workerName)
                                 ()
                         }
                     do! loop 0

@@ -6,6 +6,8 @@ open Raven.Json.Linq
 open Raven.Client
 open Raven.Abstractions.Data
 
+open Eventful
+
 type GetDocRequest = string * Type 
 type GetDocResponse = string * Type * (obj * RavenJObject * Etag) option
 
@@ -13,7 +15,7 @@ open FSharpx.Option
 open FSharpx
 
 module RavenOperations =
-    let log = Common.Logging.LogManager.GetLogger(typeof<BatchWrite>)
+    let log = createLogger "Eventful.Raven.RavenOperations"
 
     let cacheHitCounter = Metrics.Metric.Meter("RavenOperations Cache Hit", Metrics.Unit.Items)
 

@@ -28,7 +28,7 @@ with
         }
 
 type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutput>, ?maxItems : int, ?workers : int) =
-    let log = Common.Logging.LogManager.GetLogger("Eventful.ParallelInOrderTransformer")
+    let log = createLogger <| sprintf "Eventful.ParallelInOrderTransformer<%s,%s>" typeof<'TInput>.Name typeof<'TOutput>.Name
 
     let maxItems = 
         match maxItems with

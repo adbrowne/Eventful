@@ -73,7 +73,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         ?name : string,
         ?groupComparer : System.Collections.Generic.IComparer<'TGroup>
     ) =
-    let log = Common.Logging.LogManager.GetLogger(typeof<MutableOrderedGroupingBoundedQueue<_,_>>)
+    let log = createLogger <| sprintf "MutableOrderedGroupingBoundedQueue<%s,%s>" typeof<'TGroup>.Name typeof<'TItem>.Name
 
     let maxItems =
         match maxItems with
@@ -157,7 +157,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
 
                     return! (nextMessage nextIndex) 
                 with | e -> 
-                    log.Error("Exception thrown enqueueing item", e)
+                    log.ErrorWithException <| lazy("Exception thrown enqueueing item", e)
                     return! nextMessage itemIndex
                 }
             and groupComplete group itemIndex = async {
@@ -192,7 +192,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
             }
             empty 0L )
         theAgent.Error.Add(fun exn -> 
-            log.Error("Exception thrown by MutableOrderedGroupingBoundedQueueMessages", exn))
+            log.ErrorWithException <| lazy("Exception thrown by MutableOrderedGroupingBoundedQueueMessages", exn))
         theAgent
 
     let queueFullEvent = new Event<_>()    

@@ -8,7 +8,7 @@ open Raven.Json.Linq
 type BatchWrite = seq<ProcessAction>
 
 module BatchOperations =
-    let log = Common.Logging.LogManager.GetLogger(typeof<BatchWrite>)
+    let log = createLogger "Eventful.Raven.BatchOperations"
     let buildPutCommand (documentStore : Raven.Client.IDocumentStore) (writeRequest:DocumentWriteRequest) =
         let cmd = new PutCommandData()
         cmd.Document <- RavenJObject.FromObject(writeRequest.Document, documentStore.Conventions.CreateSerializer())
@@ -42,11 +42,11 @@ module BatchOperations =
             return Some (batchResult, docs)
         with    
             | :? System.AggregateException as e -> 
-                log.Debug("Write Error", e)
-                log.Debug("Write Inner", e.InnerException)
+                log.DebugWithException <| lazy("Write Error", e :> System.Exception)
+                log.DebugWithException <| lazy("Write Inner", e.InnerException)
                 return None
             | e ->
-                log.Debug("Write Error", e)
+                log.DebugWithException <| lazy("Write Error", e)
                 return None
     }
 
@@ -61,8 +61,8 @@ module BatchOperations =
                     | _ -> ()
         with    
             | :? System.AggregateException as e -> 
-                log.Error("Write Error", e)
-                log.Error("Write Inner", e.InnerException)
+                log.DebugWithException <| lazy("Write Error", e :> System.Exception)
+                log.DebugWithException <| lazy("Write Inner", e.InnerException)
             | e ->
-                log.Error("Write Error", e)
+                log.DebugWithException <| lazy("Write Error", e)
     }

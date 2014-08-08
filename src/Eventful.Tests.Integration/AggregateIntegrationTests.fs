@@ -23,7 +23,7 @@ type EventStoreSystem
     let toGesPosition position = new EventStore.ClientAPI.Position(position.Commit, position.Prepare)
     let toEventfulPosition (position : Position) = { Commit = position.CommitPosition; Prepare = position.PreparePosition }
 
-    let log = Common.Logging.LogManager.GetLogger("Eventful.EventStoreSystem")
+    let log = createLogger "Eventful.EventStoreSystem"
 
     let mutable lastEventProcessed : EventPosition = EventPosition.Start
     let mutable onCompleteCallbacks : List<EventPosition * string * int * EventStreamEventData -> unit> = List.empty
@@ -33,7 +33,7 @@ type EventStoreSystem
 
     let updatePosition _ = async {
         let! lastComplete = completeTracker.LastComplete()
-        log.Debug (fun _ -> sprintf "Updating position %A" lastComplete)
+        log.Debug <| lazy ( sprintf "Updating position %A" lastComplete )
         match lastComplete with
         | Some position ->
             ProcessingTracker.setPosition client position |> Async.RunSynchronously
@@ -72,7 +72,7 @@ type EventStoreSystem
         let! nullablePosition = match position with
                                 | Some position -> async { return  Nullable(position) }
                                 | None -> 
-                                    log.Debug (fun () -> "No event position found. Starting from current head.")
+                                    log.Debug <| lazy("No event position found. Starting from current head.")
                                     async {
                                         let! nextPosition = client.getNextPosition ()
                                         return Nullable(nextPosition) }
@@ -82,7 +82,7 @@ type EventStoreSystem
         subscription <- client.subscribe position x.EventAppeared (fun () -> ()) }
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
-        log.Debug (fun () -> sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition)
+        log.Debug <| lazy(sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition)
 
         match handlers.EventTypeMap|> Bimap.tryFind event.Event.EventType with
         | Some (eventType) ->
@@ -204,8 +204,7 @@ module AggregateIntegrationTests =
         streamPositionMap := Map.empty
         let newEvent (position, streamId, eventNumber, a:EventStreamEventData) =
             streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
-            let message : Action<Common.Logging.FormatMessageHandler> = new Action<Common.Logging.FormatMessageHandler>(fun x -> x.Invoke(sprintf "Received event %s" a.EventType, [||]) |> ignore)
-            IntegrationTests.log.Error message
+            IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
 
         async {
             let! connection = RunningTests.getConnection()
@@ -243,8 +242,6 @@ module AggregateIntegrationTests =
 
                 let countsEventProgram = eventCounterStateBuilder |> StateBuilder.toStreamProgram counterStream
                 let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
-//                EventStreamInterpreter.interpret RunningTests.esSerializer eventCounterStateBuilder 
-//                let! count = client.readStreamForward counterStream EventStore.ClientAPI.StreamPosition.Start |> FSharp.Control.AsyncSeq.foldAsync (fun s _ -> async { return s + 1 }) 0
 
                 count |> should equal (Some 1)
                 return ()

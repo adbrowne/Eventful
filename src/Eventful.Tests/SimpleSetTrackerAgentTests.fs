@@ -5,7 +5,7 @@ open Xunit
 open FsUnit.Xunit
 
 type OperationSetComplete<'T when 'T : comparison> (operationSet : Set<'T>, callback : Async<unit>) =
-    let log = Common.Logging.LogManager.GetLogger("Eventful.OperationSetComplete")
+    let log = createLogger "Eventful.OperationSetComplete"
 
     let agent = newAgent "OperationSetComplete" log (fun agent ->
         let rec loop state = async {

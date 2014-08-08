@@ -57,7 +57,7 @@ type ConverterHelper () =
 
 module RavenProjectorTests = 
 
-    let log = Common.Logging.LogManager.GetLogger("Eventful.Tests.RavenProjectorTests")
+    let log = createLogger "Eventful.Tests.RavenProjectorTests"
 
     let buildDocumentStore () =
         let documentStore = new Raven.Client.Document.DocumentStore()

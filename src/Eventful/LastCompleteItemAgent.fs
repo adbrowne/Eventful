@@ -119,14 +119,14 @@ type LastCompleteItemMessage2<'TItem when 'TItem : comparison> =
 |    Notify of ('TItem * string option * Async<unit>)
 
 type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) = 
-    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent<_>>)
+    let log = createLogger <| sprintf "Eventful.LastCompleteItemAgent<%s>" typeof<'TItem>.Name
 
     let runCallbacks callbacks = async {
          for callback in callbacks do
             try
                 do! callback
             with | e ->
-                log.Error("Exception in notification callback", e) }
+                log.ErrorWithException <| lazy("Exception in notification callback", e) }
 
     let agent =
         let theAgent = Agent.Start(fun agent ->
@@ -138,7 +138,7 @@ type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) =
                     | Some state' ->
                         return! loop state'
                     | None ->
-                        log.Error(sprintf "Item added out of order: %A" item)
+                        log.Error <| lazy(sprintf "Item added out of order: %A" item)
                         return! loop state
                 | Complete item ->
                     match state.Complete item with
@@ -149,7 +149,7 @@ type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) =
 
                         return! loop state'
                     | None ->
-                        log.Error(sprintf "Item completed before started: %A" item)
+                        log.Error <| lazy(sprintf "Item completed before started: %A" item)
                         return! loop state
                 | LastComplete reply ->
                     reply.Reply(state.LastComplete)
@@ -164,7 +164,7 @@ type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) =
             loop MutableLastCompleteTrackingState<'TItem>.Empty
         )
         theAgent.Error.Add(fun exn -> 
-            log.Error("Exception thrown by LastCompleteItemAgent", exn))
+            log.ErrorWithException <| lazy("Exception thrown by LastCompleteItemAgent", exn))
         theAgent
 
     member x.LastComplete () : Async<'TItem option> =

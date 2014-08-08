@@ -25,7 +25,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         writeQueue : RavenWriteQueue,
         readQueue : RavenReadQueue
     ) =
-    let log = Common.Logging.LogManager.GetLogger(typeof<BulkRavenProjector<_>>)
+    let log = createLogger "Eventful.Raven.BulkRavenProjector"
 
     let completeItemsTracker = Metric.Meter(sprintf "EventsComplete %s" databaseName, Unit.Items)
     let processingExceptions = Metric.Meter(sprintf "ProcessingExceptions %s" databaseName, Unit.Items)
@@ -84,9 +84,9 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                 processingExceptions.Mark()
                 match ex with
                 | Some ex ->
-                    log.ErrorFormat("Processing failed permanently for {0}", ex, [|key :> obj|])
+                    log.ErrorWithException <| lazy(sprintf "Processing failed permanently for %A" key, ex)
                 | None -> 
-                    log.ErrorFormat("Processing failed permanently - no exception", key)
+                    log.Error <| lazy(sprintf "Processing failed permanently - no exception key: %A" key)
                 ()
         }
         do! loop 0 None
