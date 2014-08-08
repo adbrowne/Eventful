@@ -72,6 +72,9 @@ open Eventful.EventStream
 open Eventful.Validation
 
 module AggregateActionBuilder =
+
+    let log = createLogger "Eventful.AggregateActionBuilder"
+
     let simpleHandler<'TId, 'TState,'TCmd,'TEvent when 'TId :> IIdentity> stateBuilder (f : 'TCmd -> 'TEvent) =
         {
             GetId = MagicMapper.magicId<'TId>
@@ -136,9 +139,11 @@ module AggregateActionBuilder =
                                 let expectedVersion = 
                                     match eventsConsumed with
                                     | 0 -> NewStream
-                                    | x -> AggregateVersion x
+                                    | x -> AggregateVersion (x - 1)
 
-                                let! ignored = writeToStream stream expectedVersion (Seq.singleton eventData)
+                                let! writeResult = writeToStream stream expectedVersion (Seq.singleton eventData)
+
+                                log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
                                 
                                 ()
 

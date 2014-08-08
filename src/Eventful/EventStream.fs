@@ -8,9 +8,9 @@ type EventMetadata = {
 }
 
 type ExpectedAggregateVersion =
-    | Any
-    | NewStream
-    | AggregateVersion of int
+| Any
+| NewStream
+| AggregateVersion of int
 
 type WriteResult =
 | WriteSuccess

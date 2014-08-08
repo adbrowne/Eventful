@@ -52,10 +52,11 @@ module TestInterpreter =
                 |> FSharpx.Option.getOrElse Vector.empty
                 |> Vector.map snd
             
+            let lastStreamEventIndex = streamEvents.Length - 1
             let expectedValueCorrect =
-                match (expectedValue, streamEvents.Length) with
+                match (expectedValue, lastStreamEventIndex) with
                 | (Any, _) -> true
-                | (NewStream, 0) -> true
+                | (NewStream, -1) -> true
                 | (AggregateVersion x, y) when x = y -> true
                 | _ -> false
                 
