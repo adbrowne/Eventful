@@ -41,7 +41,7 @@ module TestInterpreter =
             | None ->
                 let next = f None
                 interpret next eventStore eventTypeMap values writes
-        | FreeEventStream (ReadValue (token, eventType, g)) ->
+        | FreeEventStream (ReadValue (token, g)) ->
             let eventObj = values.[token]
             let next = g eventObj
             interpret next eventStore eventTypeMap values writes

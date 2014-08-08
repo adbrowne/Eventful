@@ -26,7 +26,7 @@ type EventStoreSystem
     let log = Common.Logging.LogManager.GetLogger("Eventful.EventStoreSystem")
 
     let mutable lastEventProcessed : EventPosition = EventPosition.Start
-    let mutable eventCallbacks : List<EventPosition * string * int * EventStreamEventData -> unit> = List.empty
+    let mutable onCompleteCallbacks : List<EventPosition * string * int * EventStreamEventData -> unit> = List.empty
     let mutable timer : System.Threading.Timer = null
     let mutable subscription : EventStoreAllCatchUpSubscription = null
     let completeTracker = new LastCompleteItemAgent<EventPosition>()
@@ -62,8 +62,10 @@ type EventStoreSystem
         | _ ->
             async { () }
 
-    member x.AddEventCallback callback = 
-        eventCallbacks <- callback::eventCallbacks
+    member x.AddOnCompleteEvent callback = 
+        onCompleteCallbacks <- callback::onCompleteCallbacks
+
+    member x.RunStreamProgram program = interpreter program
 
     member x.Start () =  async {
         let! position = ProcessingTracker.readPosition client |> Async.map (Option.map toGesPosition)
@@ -93,12 +95,12 @@ type EventStoreSystem
                 let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
                 let eventStreamEvent = EventStreamEvent.Event eventData
 
-                for callback in eventCallbacks do
-                    callback (position, event.Event.EventStreamId, event.Event.EventNumber, eventData)
-
                 do! runEventHandlers handlers (event.Event.EventStreamId, event.Event.EventNumber, eventStreamEvent)
 
                 completeTracker.Complete position
+
+                for callback in onCompleteCallbacks do
+                    callback (position, event.Event.EventStreamId, event.Event.EventNumber, eventData)
             }
         | None -> 
             async {
@@ -188,9 +190,13 @@ module AggregateIntegrationTests =
         let timeout = DateTime.UtcNow.AddSeconds(20.0).Ticks
 
         async {
-            while (not (f()) || DateTime.UtcNow.Ticks > timeout) do
+            while (not (f()) && DateTime.UtcNow.Ticks < timeout) do
                 do! Async.Sleep(100)
         }
+
+    let eventCounterStateBuilder =
+        StateBuilder.Empty 0
+        |> StateBuilder.addHandler (fun s (e : WidgetCreatedEvent) -> s + 1)
 
     [<Fact>]
     [<Trait("requires", "eventstore")>]
@@ -209,7 +215,7 @@ module AggregateIntegrationTests =
 
             let system = newSystem client
 
-            system.AddEventCallback newEvent
+            system.AddOnCompleteEvent newEvent
 
             do! system.Start()
 
@@ -234,9 +240,13 @@ module AggregateIntegrationTests =
                 event |> should equal expectedEvent
                 do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 0)
                 let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
-                let! count = client.readStreamForward counterStream EventStore.ClientAPI.StreamPosition.Start |> FSharp.Control.AsyncSeq.foldAsync (fun s _ -> async { return s + 1 }) 0
 
-                count |> should equal 1
+                let countsEventProgram = eventCounterStateBuilder |> StateBuilder.toStreamProgram counterStream
+                let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
+//                EventStreamInterpreter.interpret RunningTests.esSerializer eventCounterStateBuilder 
+//                let! count = client.readStreamForward counterStream EventStore.ClientAPI.StreamPosition.Start |> FSharp.Control.AsyncSeq.foldAsync (fun s _ -> async { return s + 1 }) 0
+
+                count |> should equal (Some 1)
                 return ()
             | x ->
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)

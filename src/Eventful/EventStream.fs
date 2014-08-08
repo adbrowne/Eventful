@@ -40,7 +40,7 @@ module EventStream =
     type EventStreamLanguage<'N> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
     | GetEventTypeMap of unit * (EventTypeMap -> 'N)
-    | ReadValue of EventToken * Type * (obj -> 'N)
+    | ReadValue of EventToken * (obj -> 'N)
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
 
@@ -50,8 +50,8 @@ module EventStream =
             ReadFromStream (stream, number, (streamRead >> f))
         | GetEventTypeMap (eventTypeMap,next) -> 
             GetEventTypeMap (eventTypeMap, next >> f)
-        | ReadValue (eventToken, eventType, readValue) -> 
-            ReadValue (eventToken, eventType, readValue >> f)
+        | ReadValue (eventToken, readValue) -> 
+            ReadValue (eventToken, readValue >> f)
         | WriteToStream (stream, expectedVersion, events, next) -> 
             WriteToStream (stream, expectedVersion, events, (next >> f))
         | NotYetDone (delay) ->
@@ -70,8 +70,8 @@ module EventStream =
         ReadFromStream (stream, number, id) |> liftF
     let getEventTypeMap unit =
         GetEventTypeMap ((), id) |> liftF
-    let readValue eventToken eventType = 
-        ReadValue(eventToken, eventType, id) |> liftF
+    let readValue eventToken = 
+        ReadValue(eventToken, id) |> liftF
     let writeToStream stream number events = 
         WriteToStream(stream, number, events, id) |> liftF
 

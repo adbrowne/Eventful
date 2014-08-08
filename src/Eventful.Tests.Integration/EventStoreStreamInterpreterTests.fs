@@ -57,7 +57,7 @@ module EventStoreStreamInterpreterTests =
                         match item with
                         | Some x -> 
                             eventStream { 
-                                let! objValue = readValue x typeof<MyEvent>
+                                let! objValue = readValue x
                                 let value = objValue :?> MyEvent
                                 return Some value.Name
                             }
@@ -124,7 +124,7 @@ module EventStoreStreamInterpreterTests =
                         match item with
                         | Some x -> 
                             eventStream { 
-                                let! objValue = readValue x typeof<MyEvent>
+                                let! objValue = readValue x
                                 let value = objValue :?> MyEvent
                                 return Some value.Name
                             }

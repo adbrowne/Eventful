@@ -41,9 +41,10 @@ module EventStreamInterpreter =
                         let next = f None
                         return! loop next values writes
                 }
-            | FreeEventStream (ReadValue (token, eventType, g)) ->
+            | FreeEventStream (ReadValue (token, g)) ->
                 let (data, metadata) = values.[token]
-                let dataObj = serializer.DeserializeObj(data) token.EventType
+                let typeName = (eventTypeMap.Find token.EventType).RealType.FullName
+                let dataObj = serializer.DeserializeObj(data) typeName
                 let next = g dataObj
                 loop next  values writes
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->

@@ -195,8 +195,7 @@ module StateBuilder =
             let! token = readFromStream streamName eventsConsumed
             match token with
             | Some token -> 
-                // todo replace with actual type instead of obj
-                let! value = readValue token typeof<obj> 
+                let! value = readValue token
                 let currentState = state |> Option.getOrElse stateBuilder.InitialState
                 let state' = stateBuilder.Run currentState value
                 return! loop (eventsConsumed + 1) (Some state')
