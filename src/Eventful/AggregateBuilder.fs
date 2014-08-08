@@ -23,7 +23,7 @@ type ICommandHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> =
 type IEventHandler<'TState,'TEvent,'TId> =
     abstract member EventType : Type
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
-    abstract member Handler : string -> string -> int -> obj -> EventStreamProgram<EventResult>
+    abstract member Handler : string -> string -> int -> EventStreamEventData -> EventStreamProgram<EventResult>
 
 type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> private 
     (
@@ -179,10 +179,10 @@ module AggregateActionBuilder =
     let getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TState when 'TId :> IIdentity> (fId : 'TLinkEvent -> 'TId) = {
         new IEventHandler<'TState,'TEvent,'TId> with 
              member this.EventType = typeof<'TLinkEvent>
-             member this.Handler aggregateType sourceStream sourceEventNumber evt = eventStream {
+             member this.Handler aggregateType sourceStream sourceEventNumber (evt : EventStreamEventData) = eventStream {
                 let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
 
-                let resultingStream = getStreamName aggregateType (fId (evt :?> 'TLinkEvent))
+                let resultingStream = getStreamName aggregateType (fId (evt.Body :?> 'TLinkEvent))
 
                 // todo: should not be new stream
                 let! _ = EventStream.writeLink resultingStream NewStream sourceStream sourceEventNumber metadata
@@ -195,13 +195,14 @@ module AggregateActionBuilder =
             member this.EventType = typeof<'TOnEvent>
             member this.Handler aggregateType sourceStream sourceEventNumber evt = eventStream {
                 let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
-                let resultingStream = getStreamName aggregateType (fId (evt :?> 'TOnEvent))
+                let typedEvent = evt.Body :?> 'TOnEvent
+                let resultingStream = getStreamName aggregateType (fId typedEvent)
 
                 let! (eventsConsumed, state) = stateBuilder |> StateBuilder.toStreamProgram resultingStream
                 let! eventTypeMap = getEventTypeMap()
 
                 let resultingEvents = 
-                    runEvent (evt :?> 'TOnEvent)
+                    runEvent typedEvent
                     |> Seq.map (fun x -> 
                         let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
                         let event = unwrapper x

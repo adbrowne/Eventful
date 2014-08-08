@@ -5,7 +5,7 @@ open Eventful.EventStream
 open FSharpx.Collections
 
                                             // Source StreamId, Source Event Number, Event -> Program
-type EventfulEventHandler<'T> = EventfulEventHandler of Type * (string -> int -> obj -> EventStreamProgram<'T>)
+type EventfulEventHandler<'T> = EventfulEventHandler of Type * (string -> int -> EventStreamEventData -> EventStreamProgram<'T>)
 type EventfulCommandHandler<'T> = EventfulCommandHandler of Type * (obj -> EventStreamProgram<'T>)
 
 type MyEventResult = unit

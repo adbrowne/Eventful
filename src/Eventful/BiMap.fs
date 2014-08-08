@@ -14,6 +14,9 @@ type Bimap<'Key, 'Value when 'Key : comparison and 'Value : comparison>
     static member Empty
         with get () = empty
 
+    member this.TryFind key =
+        Map.tryFind key map
+
     member this.Find key =
         Map.find key map
 
@@ -41,6 +44,12 @@ module Bimap =
     [<CompiledName("Find")>]
     let inline find key (bimap : Bimap<'Key, 'T>) : 'T =
         bimap.Find key
+
+    /// Lookup an element in the map, raising KeyNotFoundException
+    /// if no binding exists in the map.
+    [<CompiledName("TryFind")>]
+    let inline tryFind key (bimap : Bimap<'Key, 'T>) : 'T option =
+        bimap.TryFind key
 
     /// Lookup a value in the map, raising KeyNotFoundException
     /// if no binding exists in the map.

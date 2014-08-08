@@ -47,7 +47,7 @@ module TestEventStore =
                 | Some handlers -> handlers
                 | None -> []
 
-            handlers |> Seq.fold (runHandlerForEvent interpreter (eventStream, eventNumber, evt)) testEventStore
+            handlers |> Seq.fold (runHandlerForEvent interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
         | _ -> testEventStore
 
     let rec processPendingEvents interpreter (handlers : EventfulHandlers) (testEventStore : TestEventStore) =

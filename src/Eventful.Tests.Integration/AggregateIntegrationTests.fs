@@ -4,6 +4,7 @@ open Xunit
 open System
 open EventStore.ClientAPI
 open FsUnit.Xunit
+open FSharpx
 open Eventful
 open Eventful.EventStream
 open Eventful.EventStore
@@ -14,12 +15,97 @@ open FSharpx.Option
 
 type EventStoreSystem 
     ( 
-        handlers : EventfulHandlers, 
+        handlers : EventfulHandlers,
         client : Client,
         serializer: ISerializer
     ) =
 
+    let toGesPosition position = new EventStore.ClientAPI.Position(position.Commit, position.Prepare)
+    let toEventfulPosition (position : Position) = { Commit = position.CommitPosition; Prepare = position.PreparePosition }
+
+    let log = Common.Logging.LogManager.GetLogger("Eventful.EventStoreSystem")
+
     let mutable lastEventProcessed : EventPosition = EventPosition.Start
+    let mutable eventCallbacks : List<EventPosition * string * int * EventStreamEventData -> unit> = List.empty
+    let mutable timer : System.Threading.Timer = null
+    let mutable subscription : EventStoreAllCatchUpSubscription = null
+    let completeTracker = new LastCompleteItemAgent<EventPosition>()
+
+    let updatePosition _ = async {
+        let! lastComplete = completeTracker.LastComplete()
+        log.Debug (fun _ -> sprintf "Updating position %A" lastComplete)
+        match lastComplete with
+        | Some position ->
+            ProcessingTracker.setPosition client position |> Async.RunSynchronously
+        | None -> () }
+
+    let interpreter program = EventStreamInterpreter.interpret client serializer handlers.EventTypeMap program
+
+    let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
+        async {
+            let program = evtHandler eventStream eventNumber evt
+            return! interpreter program
+        }
+
+    let runEventHandlers (handlers : EventfulHandlers) (eventStream, eventNumber, eventStreamEvent) =
+        match eventStreamEvent with
+        | EventStreamEvent.Event { Body = evt; EventType = eventType; Metadata = metadata } ->
+            async {
+                do! 
+                    handlers.EventHandlers
+                    |> Map.tryFind (evt.GetType().Name)
+                    |> Option.getOrElse []
+                    |> Seq.map (fun h -> runHandlerForEvent (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata }) h)
+                    |> Async.Parallel
+                    |> Async.Ignore
+            }
+        | _ ->
+            async { () }
+
+    member x.AddEventCallback callback = 
+        eventCallbacks <- callback::eventCallbacks
+
+    member x.Start () =  async {
+        let! position = ProcessingTracker.readPosition client |> Async.map (Option.map toGesPosition)
+        let! nullablePosition = match position with
+                                | Some position -> async { return  Nullable(position) }
+                                | None -> 
+                                    log.Debug (fun () -> "No event position found. Starting from current head.")
+                                    async {
+                                        let! nextPosition = client.getNextPosition ()
+                                        return Nullable(nextPosition) }
+
+        let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
+        timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
+        subscription <- client.subscribe position x.EventAppeared (fun () -> ()) }
+
+    member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
+        log.Debug (fun () -> sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition)
+
+        match handlers.EventTypeMap|> Bimap.tryFind event.Event.EventType with
+        | Some (eventType) ->
+            async {
+                let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
+                do! completeTracker.Start position
+                let evt = serializer.DeserializeObj (event.Event.Data) eventType.RealType.FullName
+
+                let metadata = { MessageId = Guid.NewGuid(); SourceMessageId = Guid.NewGuid() } 
+                let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
+                let eventStreamEvent = EventStreamEvent.Event eventData
+
+                for callback in eventCallbacks do
+                    callback (position, event.Event.EventStreamId, event.Event.EventNumber, eventData)
+
+                do! runEventHandlers handlers (event.Event.EventStreamId, event.Event.EventNumber, eventStreamEvent)
+
+                completeTracker.Complete position
+            }
+        | None -> 
+            async {
+                let position = event.OriginalPosition.Value |> toEventfulPosition
+                do! completeTracker.Start position
+                completeTracker.Complete position
+            }
 
     member x.RunCommand (cmd : obj) = 
         async {
@@ -107,6 +193,13 @@ module AggregateIntegrationTests =
     [<Fact>]
     [<Trait("requires", "eventstore")>]
     let ``Can run command`` () : unit =
+        let streamPositionMap : Map<string, int> ref = ref Map.empty
+
+        let newEvent (position, streamId, eventNumber, a:EventStreamEventData) =
+            streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
+            let message : Action<Common.Logging.FormatMessageHandler> = new Action<Common.Logging.FormatMessageHandler>(fun x -> x.Invoke(sprintf "Received event %s" a.EventType, [||]) |> ignore)
+            IntegrationTests.log.Debug message
+
         async {
             let! connection = RunningTests.getConnection()
             let client = new Client(connection)
@@ -114,6 +207,10 @@ module AggregateIntegrationTests =
             do! client.Connect()
 
             let system = newSystem client
+
+            system.AddEventCallback newEvent
+
+            do! system.Start()
 
             let widgetId = { WidgetId.Id = Guid.NewGuid() }
             let! cmdResult = 
@@ -139,4 +236,5 @@ module AggregateIntegrationTests =
             | x ->
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)
 
+            do! Async.Sleep(10000)
         } |> Async.RunSynchronously
