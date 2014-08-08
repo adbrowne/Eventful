@@ -182,23 +182,24 @@ module AggregateIntegrationTests =
 
     let newSystem client = new EventStoreSystem(handlers, client, RunningTests.esSerializer)
 
+    let streamPositionMap : Map<string, int> ref = ref Map.empty
+
     let waitFor f : Async<unit> =
         let timeout = DateTime.UtcNow.AddSeconds(20.0).Ticks
 
         async {
-            while (f() || DateTime.UtcNow.Ticks > timeout) do
+            while (not (f()) || DateTime.UtcNow.Ticks > timeout) do
                 do! Async.Sleep(100)
         }
 
     [<Fact>]
     [<Trait("requires", "eventstore")>]
     let ``Can run command`` () : unit =
-        let streamPositionMap : Map<string, int> ref = ref Map.empty
-
+        streamPositionMap := Map.empty
         let newEvent (position, streamId, eventNumber, a:EventStreamEventData) =
             streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
             let message : Action<Common.Logging.FormatMessageHandler> = new Action<Common.Logging.FormatMessageHandler>(fun x -> x.Invoke(sprintf "Received event %s" a.EventType, [||]) |> ignore)
-            IntegrationTests.log.Debug message
+            IntegrationTests.log.Error message
 
         async {
             let! connection = RunningTests.getConnection()
@@ -231,10 +232,13 @@ module AggregateIntegrationTests =
             | Choice1Of2 ([(streamName, event, metadata)]) ->
                 streamName |> should equal expectedStreamName
                 event |> should equal expectedEvent
-                //do! waitFor (fun () -> system.LastEventProcessed >= lastPosition)
+                do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 0)
+                let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
+                let! count = client.readStreamForward counterStream EventStore.ClientAPI.StreamPosition.Start |> FSharp.Control.AsyncSeq.foldAsync (fun s _ -> async { return s + 1 }) 0
+
+                count |> should equal 1
                 return ()
             | x ->
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)
 
-            do! Async.Sleep(10000)
         } |> Async.RunSynchronously
