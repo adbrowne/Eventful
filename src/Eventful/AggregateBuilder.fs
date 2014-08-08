@@ -29,26 +29,23 @@ type AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdent
     (
         aggregateType : 'TAggregateType,
         commandHandlers : list<ICommandHandler<'TState,'TEvent,'TId>>, 
-        eventHandlers : list<IEventHandler<'TState,'TEvent,'TId>>,
-        stateBuilder : StateBuilder<'TState>
+        eventHandlers : list<IEventHandler<'TState,'TEvent,'TId>>
     ) =
     member x.CommandHandlers = commandHandlers
     member x.BuildStreamId (id:'TId) = sprintf "%s-%s" (aggregateType.ToString()) (id.GetId)
     member x.EventHandlers = eventHandlers
     member x.AggregateType = aggregateType
-    member x.StateBuilder = stateBuilder
     member x.AddCommandHandler handler = 
-        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, handler::commandHandlers, eventHandlers, stateBuilder)
+        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, handler::commandHandlers, eventHandlers)
     member x.AddEventHandler handler = 
-        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, commandHandlers, handler::eventHandlers, stateBuilder)
+        new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, commandHandlers, handler::eventHandlers)
     member x.Combine (y:AggregateHandlers<_,_,_,_>) =
         new AggregateHandlers<_,_,_,_>(
             aggregateType,
             List.append commandHandlers y.CommandHandlers, 
-            List.append eventHandlers y.EventHandlers, 
-            stateBuilder)
+            List.append eventHandlers y.EventHandlers)
 
-    static member Empty aggregateType stateBuilder = new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, List.empty, List.empty, stateBuilder)
+    static member Empty aggregateType = new AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, List.empty, List.empty)
     
 type IHandler<'TState,'TEvent,'TId when 'TId :> IIdentity> = 
     abstract member add : AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType> -> AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>
@@ -63,7 +60,7 @@ type Validator<'TCmd,'TState> =
 
 type CommandHandler<'TCmd, 'TState, 'TId, 'TEvent when 'TId :> IIdentity> = {
     GetId : 'TCmd -> 'TId
-    StateBuilder : StateBuilder<'TState>
+    StateBuilder : NamedStateBuilder<'TState>
     Validators : Validator<'TCmd,'TState> list
     Handler : 'TCmd -> seq<'TEvent>
 }
@@ -115,7 +112,7 @@ module AggregateActionBuilder =
             | :? 'TCmd as cmd -> 
                 let id = commandHandler.GetId cmd
                 let stream = getStreamName aggregateType id
-                let! (eventsConsumed, state) = commandHandler.StateBuilder |> StateBuilder.toStreamProgram stream
+                let! (eventsConsumed, state) = commandHandler.StateBuilder.Builder |> StateBuilder.toStreamProgram stream
 
                 let result = choose {
                     let! validated = runValidation commandHandler.Validators cmd state
@@ -234,18 +231,18 @@ module AggregateActionBuilder =
     }
 
 module Aggregate = 
-    type AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> (aggregateType : 'TAggregateType, stateBuilder : StateBuilder<'TState>) = 
+    type AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> (aggregateType : 'TAggregateType) = 
         member this.Zero() = AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>.Empty
 
         member x.Delay(f : unit -> AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>) = f ()
 
         member this.Yield(x:IHandler<'TState,'TEvent,'TId>) :  AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType> =
-            let empty = AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>.Empty aggregateType stateBuilder
+            let empty = AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>.Empty aggregateType
             let result = x.add empty
             result
 
         member this.Combine (a:AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>,b:AggregateHandlers<'TState,'TEvent,'TId, 'TAggregateType>) =
             a.Combine b
 
-    let aggregate<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> aggregateType stateBuilder = 
-        new AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType, stateBuilder)
+    let aggregate<'TState,'TEvent,'TId, 'TAggregateType when 'TId :> IIdentity and 'TAggregateType :> IAggregateType> aggregateType = 
+        new AggregateBuilder<'TState,'TEvent,'TId, 'TAggregateType>(aggregateType)

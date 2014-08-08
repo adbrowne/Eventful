@@ -59,17 +59,18 @@ module Teacher =
     let stateBuilder = 
         StateBuilder.Empty { TeacherState.TeacherId = { TeacherId.Id = Guid.NewGuid() }}
         |> StateBuilder.addHandler (fun s (e:TeacherAddedEvent) -> { s with TeacherId = e.TeacherId })
+        |> NamedStateBuilder.withName "TeacherId"
 
     let handlers = 
         aggregate<TeacherState,TeacherEvents,TeacherId,AggregateType> 
-            AggregateType.Teacher stateBuilder
+            AggregateType.Teacher
             {
                let addTeacher (cmd : AddTeacherCommand) =
                    Added { 
                        TeacherId = cmd.TeacherId
                        FirstName = cmd.FirstName
                        LastName = cmd.LastName 
-               } 
+               }
 
                yield addTeacher
                      |> simpleHandler stateBuilder
@@ -108,20 +109,20 @@ type ReportEvents =
 module Report =
     let handlers =
         aggregate<unit,ReportEvents,ReportId,AggregateType> 
-            AggregateType.Report (StateBuilder.Empty ())
+            AggregateType.Report
             {
                 let addReport (x : AddReportCommand) =
                    Added { ReportId = x.ReportId
                            TeacherId = x.TeacherId
                            Name = x.Name } 
 
-                yield buildSimpleCmdHandler StateBuilder.NoState addReport
+                yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder addReport
 
                 let changeName (x : ChangeReportNameCommand) =
                     NameChanged { ReportId = x.ReportId
                                   Name = x.Name }
 
-                yield buildSimpleCmdHandler StateBuilder.NoState changeName
+                yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder changeName
 
                 // create report for each teacher when they are added
                 let createTeacherReport (evt : TeacherAddedEvent) =
@@ -143,7 +144,7 @@ type TeacherReportEvents =
 module TeacherReport =
     let handlers =
         aggregate<unit,TeacherReportEvents,TeacherId, AggregateType> 
-            AggregateType.TeacherReport (StateBuilder.Empty ())
+            AggregateType.TeacherReport
             {
                 yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
                 yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded

@@ -47,11 +47,9 @@ module AggregateIntegrationTests =
     type WidgetCounterEvents =
     | Counted of WidgetCreatedEvent
 
-    let stateBuilder = StateBuilder.Empty ()
-
     let widgetHandlers = 
         aggregate<unit,WidgetEvents,WidgetId,AggregateType> 
-            AggregateType.Widget stateBuilder
+            AggregateType.Widget
             {
                let addWidget (cmd : CreateWidgetCommand) =
                    Created { 
@@ -60,13 +58,13 @@ module AggregateIntegrationTests =
                } 
 
                yield addWidget
-                     |> simpleHandler stateBuilder
+                     |> simpleHandler NamedStateBuilder.nullStateBuilder
                      |> buildCmd
             }
 
     let widgetCounterAggregate =
         aggregate<unit,WidgetCounterEvents,WidgetId,AggregateType>
-            AggregateType.WidgetCounter stateBuilder
+            AggregateType.WidgetCounter
             {
                 let getId (evt : WidgetCreatedEvent) = evt.WidgetId
                 yield linkEvent getId WidgetCounterEvents.Counted

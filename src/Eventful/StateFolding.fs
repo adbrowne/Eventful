@@ -204,3 +204,15 @@ module StateBuilder =
             
         return! loop 0 None
     }
+
+type NamedStateBuilder<'TState>(name : string, builder: StateBuilder<'TState>) =
+    member x.Name = name
+    member x.Builder = builder
+
+
+module NamedStateBuilder =
+    let withName (name : string) (builder : StateBuilder<'TState>) : NamedStateBuilder<'TState> =
+        new NamedStateBuilder<_>(name, builder)
+
+    let nullStateBuilder = 
+        StateBuilder.Empty () |> withName "$Empty"
