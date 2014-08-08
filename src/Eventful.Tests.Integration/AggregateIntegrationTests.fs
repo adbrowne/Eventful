@@ -144,3 +144,53 @@ module AggregateIntegrationTests =
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)
 
         } |> Async.RunSynchronously
+
+    [<Fact>]
+    [<Trait("requires", "eventstore")>]
+    let ``Can run many command`` () : unit =
+        streamPositionMap := Map.empty
+        let newEvent (position, streamId, eventNumber, a:EventStreamEventData) =
+            streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
+            IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
+
+        async {
+            let! connection = RunningTests.getConnection()
+            let client = new Client(connection)
+
+            do! client.Connect()
+
+            let system = newSystem client
+
+            system.AddOnCompleteEvent newEvent
+
+            do! system.Start()
+
+            let widgetId = { WidgetId.Id = Guid.NewGuid() }
+
+            for _ in [1..1000] do
+                let! cmdResult = 
+                    system.RunCommand
+                        { 
+                            CreateWidgetCommand.WidgetId = widgetId; 
+                            Name = "Mine"
+                        }
+
+                IntegrationTests.log.Debug <| lazy (sprintf "%A" cmdResult)
+                ()
+
+            let expectedStreamName = sprintf "Widget-%s" (widgetId.Id.ToString("N"))
+
+            let expectedEvent = {
+                WidgetCreatedEvent.WidgetId = widgetId
+                Name = "Mine"
+            }
+
+            do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 999)
+            let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
+
+            let countsEventProgram = eventCounterStateBuilder |> StateBuilder.toStreamProgram counterStream
+            let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
+
+            count |> should equal (Some 1)
+
+        } |> Async.RunSynchronously
