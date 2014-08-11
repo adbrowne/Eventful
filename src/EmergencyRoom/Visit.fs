@@ -146,26 +146,26 @@ module Visit =
             WaitingTime = None
         }
 
+    let ensureDocumentExistsWithId doc (evt : VisitEvents) =
+        match (doc, evt) with
+        | None, Triaged { VisitId = visitId } 
+        | None, Registered { VisitId = visitId } 
+        | None, PickedUp { VisitId = visitId } 
+        | None, Discharged { VisitId = visitId } -> 
+            VisitDocument.NewDoc visitId
+        | Some doc, _ -> doc 
+
     let visitDocumentBuilder = 
         StateBuilder<VisitDocument option>.Empty None
-        |> StateBuilder.addHandler (fun doc (evt : VisitEvents) ->
-            let docWithId = 
-                match (doc, evt) with
-                | None, Triaged { VisitId = visitId } 
-                | None, Registered { VisitId = visitId } 
-                | None, PickedUp { VisitId = visitId } 
-                | None, Discharged { VisitId = visitId } -> 
-                    VisitDocument.NewDoc visitId
-                | Some doc, _ -> doc
-
-            match evt with
-            | Registered evtDetails ->
-                Some { docWithId with 
-                        PatientId = Some evtDetails.PatientId; 
-                        Registered = Some evtDetails.RegistrationTime } 
-            | PickedUp { PickupTime = pickupTime } ->
-                Some { docWithId with
-                        PickedUp = Some pickupTime;
-                        WaitingTime = Some (pickupTime - docWithId.Registered.Value) }
-            | _ -> Some docWithId
-        )
+        |> StateBuilder.addHandler (fun doc (evt : PatientTriagedEvent) ->
+            doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId) |> Some)
+        |> StateBuilder.addHandler (fun doc (evt : PatientRegisteredEvent) ->
+            let doc = doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId)
+            Some { doc with 
+                    PatientId = Some evt.PatientId; 
+                    Registered = Some evt.RegistrationTime } )
+        |> StateBuilder.addHandler (fun doc (evt : PatientPickedUpEvent) ->
+            let doc = doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId)
+            Some { doc with
+                    PickedUp = Some evt.PickupTime;
+                    WaitingTime = Some (evt.PickupTime - doc.Registered.Value) } )
