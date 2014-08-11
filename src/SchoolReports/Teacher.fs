@@ -53,9 +53,8 @@ module Teacher =
     let getStreamName () (id:TeacherId) =
         sprintf "Teacher-%s" (id.Id.ToString("N"))
 
-    let handlers = 
-        aggregate<TeacherEvents,TeacherId> 
-            {
+    let cmdHandlers = 
+        seq {
                let addTeacher (cmd : AddTeacherCommand) =
                    Added { 
                        TeacherId = cmd.TeacherId
@@ -70,7 +69,8 @@ module Teacher =
                      |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
                      |> buildCmd
             }
-            |> toAggregateDefinition getStreamName getStreamName
+    let handlers =
+        toAggregateDefinition getStreamName getStreamName cmdHandlers Seq.empty
 
 type AddReportCommand = {
     ReportId : ReportId
@@ -102,35 +102,39 @@ module Report =
     let getStreamName () (id:ReportId) =
         sprintf "Report-%s" (id.Id.ToString("N"))
 
-    let handlers =
-        aggregate<ReportEvents,ReportId> 
-            {
-                let addReport (x : AddReportCommand) =
-                   Added { ReportId = x.ReportId
-                           TeacherId = x.TeacherId
-                           Name = x.Name } 
+    let cmdHandlers =
+        seq {
+            let addReport (x : AddReportCommand) =
+               Added { ReportId = x.ReportId
+                       TeacherId = x.TeacherId
+                       Name = x.Name } 
 
-                yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder addReport
+            yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder addReport
 
-                let changeName (x : ChangeReportNameCommand) =
-                    NameChanged { ReportId = x.ReportId
-                                  Name = x.Name }
+            let changeName (x : ChangeReportNameCommand) =
+                NameChanged { ReportId = x.ReportId
+                              Name = x.Name }
 
-                yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder changeName
+            yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder changeName
+        }
 
-                // create report for each teacher when they are added
-                let createTeacherReport (evt : TeacherAddedEvent) =
-                    seq {
-                        yield Added {
-                            ReportId = { Id = evt.TeacherId.Id } 
-                            TeacherId = evt.TeacherId; 
-                            Name = "Custom teacher report"
-                        }
+    let evtHandlers =
+        seq {
+            // create report for each teacher when they are added
+            let createTeacherReport (evt : TeacherAddedEvent) =
+                seq {
+                    yield Added {
+                        ReportId = { Id = evt.TeacherId.Id } 
+                        TeacherId = evt.TeacherId; 
+                        Name = "Custom teacher report"
                     }
+                }
 
-                yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) NamedStateBuilder.nullStateBuilder createTeacherReport
-            }
-            |> toAggregateDefinition getStreamName getStreamName
+            yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) NamedStateBuilder.nullStateBuilder createTeacherReport
+        }
+
+    let handlers =
+        toAggregateDefinition getStreamName getStreamName cmdHandlers evtHandlers
 
 type TeacherReportEvents =
     | TeacherAdded of TeacherAddedEvent
@@ -140,13 +144,13 @@ module TeacherReport =
     let getStreamName () (id:TeacherId) =
         sprintf "TeacherReport-%s" (id.Id.ToString("N"))
 
+    let evtHandlers =
+        seq {
+            yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
+            yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
+        }
     let handlers =
-        aggregate<TeacherReportEvents,TeacherId> 
-            {
-                yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
-                yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
-            }
-            |> toAggregateDefinition getStreamName getStreamName
+        toAggregateDefinition getStreamName getStreamName Seq.empty evtHandlers
 
 open Xunit
 open FsUnit.Xunit

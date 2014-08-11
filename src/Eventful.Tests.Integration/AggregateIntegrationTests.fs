@@ -42,9 +42,8 @@ module AggregateIntegrationTests =
     let getStreamName typeName () (id:WidgetId) =
         sprintf "%s-%s" typeName (id.Id.ToString("N"))
         
-    let widgetHandlers = 
-        aggregate<WidgetEvents,WidgetId> 
-            {
+    let widgetCmdHandlers = 
+        seq {
                let addWidget (cmd : CreateWidgetCommand) =
                    Created { 
                        WidgetId = cmd.WidgetId
@@ -55,15 +54,16 @@ module AggregateIntegrationTests =
                      |> simpleHandler NamedStateBuilder.nullStateBuilder
                      |> buildCmd
             }
-        |> toAggregateDefinition (getStreamName "Widget") (getStreamName "Widget")
 
-    let widgetCounterAggregate =
-        aggregate<WidgetCounterEvents,WidgetId>
-            {
+    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getStreamName "Widget") widgetCmdHandlers Seq.empty
+
+    let widgetCounterEventHandlers =
+        seq {
                 let getId (evt : WidgetCreatedEvent) = evt.WidgetId
                 yield linkEvent getId WidgetCounterEvents.Counted
             }
-        |> toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter")
+
+    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter") Seq.empty widgetCounterEventHandlers
 
     let handlers =
         EventfulHandlers.empty

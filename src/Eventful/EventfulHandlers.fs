@@ -39,7 +39,7 @@ type EventfulHandlers<'TCommandContext, 'TEventContext>
 module EventfulHandlers = 
     let empty<'TCommandContext, 'TEventContext> = new EventfulHandlers<'TCommandContext, 'TEventContext>(Map.empty, Map.empty, Bimap.Empty)
 
-    let addCommandHandlers config (commandHandlers : ICommandHandler<_,_> list) eventfulHandlers =
+    let addCommandHandlers config (commandHandlers : ICommandHandler<_,_,_> list) eventfulHandlers =
         commandHandlers
         |> Seq.map (fun x -> EventfulCommandHandler(x.CmdType, x.Handler config))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext>) h -> s.AddCommandHandler h) eventfulHandlers
