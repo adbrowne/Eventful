@@ -16,15 +16,11 @@ type TeacherId =
     {
         Id : Guid
     } 
-    interface IIdentity with
-        member this.GetId = MagicMapper.getGuidId this
 
 type ReportId = 
     {
         Id : Guid
     }
-    interface IIdentity with
-        member this.GetId = MagicMapper.getGuidId this
 
 type TeacherAddedEvent = {
     TeacherId : TeacherId

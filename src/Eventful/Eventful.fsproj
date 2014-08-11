@@ -77,7 +77,6 @@
     <Compile Include="EventPosition.fs" />
     <Compile Include="EventStream.fs" />
     <Compile Include="StateFolding.fs" />
-    <Compile Include="Identity.fs" />
     <Compile Include="Validation.fs" />
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventProcessingConfiguration.fs" />

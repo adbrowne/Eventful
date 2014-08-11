@@ -22,8 +22,6 @@ module AggregateIntegrationTests =
         {
             Id : Guid
         } 
-        interface IIdentity with
-            member this.GetId = MagicMapper.getGuidId this
 
     type CreateWidgetCommand = {
         WidgetId : WidgetId
