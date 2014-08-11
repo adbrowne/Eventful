@@ -62,7 +62,7 @@ module Teacher =
         |> NamedStateBuilder.withName "TeacherId"
 
     let handlers = 
-        aggregate<TeacherState,TeacherEvents,TeacherId,AggregateType> 
+        aggregate<TeacherEvents,TeacherId,AggregateType> 
             AggregateType.Teacher
             {
                let addTeacher (cmd : AddTeacherCommand) =
@@ -108,7 +108,7 @@ type ReportEvents =
 
 module Report =
     let handlers =
-        aggregate<unit,ReportEvents,ReportId,AggregateType> 
+        aggregate<ReportEvents,ReportId,AggregateType> 
             AggregateType.Report
             {
                 let addReport (x : AddReportCommand) =
@@ -134,7 +134,7 @@ module Report =
                         }
                     }
 
-                yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) StateBuilder.NoState createTeacherReport
+                yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) NamedStateBuilder.nullStateBuilder createTeacherReport
             }
 
 type TeacherReportEvents =
@@ -143,7 +143,7 @@ type TeacherReportEvents =
 
 module TeacherReport =
     let handlers =
-        aggregate<unit,TeacherReportEvents,TeacherId, AggregateType> 
+        aggregate<TeacherReportEvents,TeacherId, AggregateType> 
             AggregateType.TeacherReport
             {
                 yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded

@@ -260,3 +260,18 @@ module CombinedStateBuilder =
 
     let getValue (builder:NamedStateBuilder<'TState>) (state : CombinedStateBuilderState) =
         (state |> Map.find builder.Name) :?> 'TState
+
+    let toStreamProgram streamName (stateBuilder:CombinedStateBuilder) = eventStream {
+        let rec loop eventsConsumed state = eventStream {
+            let! token = readFromStream streamName eventsConsumed
+            match token with
+            | Some token -> 
+                let! value = readValue token
+                let currentState = state |> Option.getOrElse Map.empty
+                let state' = stateBuilder.Run currentState value
+                return! loop (eventsConsumed + 1) (Some state')
+            | None -> 
+                return (eventsConsumed, state) }
+            
+        return! loop 0 None
+    }

@@ -48,7 +48,7 @@ module AggregateIntegrationTests =
     | Counted of WidgetCreatedEvent
 
     let widgetHandlers = 
-        aggregate<unit,WidgetEvents,WidgetId,AggregateType> 
+        aggregate<WidgetEvents,WidgetId,AggregateType> 
             AggregateType.Widget
             {
                let addWidget (cmd : CreateWidgetCommand) =
@@ -63,7 +63,7 @@ module AggregateIntegrationTests =
             }
 
     let widgetCounterAggregate =
-        aggregate<unit,WidgetCounterEvents,WidgetId,AggregateType>
+        aggregate<WidgetCounterEvents,WidgetId,AggregateType>
             AggregateType.WidgetCounter
             {
                 let getId (evt : WidgetCreatedEvent) = evt.WidgetId
