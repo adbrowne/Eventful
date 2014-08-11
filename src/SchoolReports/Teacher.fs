@@ -61,6 +61,9 @@ module Teacher =
         |> StateBuilder.addHandler (fun s (e:TeacherAddedEvent) -> { s with TeacherId = e.TeacherId })
         |> NamedStateBuilder.withName "TeacherId"
 
+    let getStreamName () (at:AggregateType) (id:TeacherId) =
+        sprintf "%s-%s" (at :> IAggregateType).Name (id.Id.ToString("N"))
+
     let handlers = 
         aggregate<TeacherEvents,TeacherId,AggregateType> 
             AggregateType.Teacher
@@ -79,6 +82,8 @@ module Teacher =
                      |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
                      |> buildCmd
             }
+            |> toAggregateDefinition getStreamName getStreamName
+
 
 type AddReportCommand = {
     ReportId : ReportId
@@ -107,6 +112,9 @@ type ReportEvents =
     | NameChanged of ReportNameChangedEvent
 
 module Report =
+    let getStreamName () (at:AggregateType) (id:ReportId) =
+        sprintf "%s-%s" (at :> IAggregateType).Name (id.Id.ToString("N"))
+
     let handlers =
         aggregate<ReportEvents,ReportId,AggregateType> 
             AggregateType.Report
@@ -136,12 +144,16 @@ module Report =
 
                 yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) NamedStateBuilder.nullStateBuilder createTeacherReport
             }
+            |> toAggregateDefinition getStreamName getStreamName
 
 type TeacherReportEvents =
     | TeacherAdded of TeacherAddedEvent
     | ReportAdded of ReportAddedEvent
 
 module TeacherReport =
+    let getStreamName () (at:AggregateType) (id:TeacherId) =
+        sprintf "%s-%s" (at :> IAggregateType).Name (id.Id.ToString("N"))
+
     let handlers =
         aggregate<TeacherReportEvents,TeacherId, AggregateType> 
             AggregateType.TeacherReport
@@ -149,6 +161,7 @@ module TeacherReport =
                 yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
                 yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
             }
+            |> toAggregateDefinition getStreamName getStreamName
 
 open Xunit
 open FsUnit.Xunit

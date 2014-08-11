@@ -39,12 +39,12 @@ type EventfulHandlers
 module EventfulHandlers = 
     let empty = new EventfulHandlers(Map.empty, Map.empty, Bimap.Empty)
 
-    let addCommandHandlers config aggregateTypeString (commandHandlers : ICommandHandler<_,_,_> list) eventfulHandlers =
+    let addCommandHandlers config aggregateTypeString (commandHandlers : ICommandHandler<_,_> list) eventfulHandlers =
         commandHandlers
         |> Seq.map (fun x -> EventfulCommandHandler(x.CmdType, x.Handler config aggregateTypeString))
         |> Seq.fold (fun (s:EventfulHandlers) h -> s.AddCommandHandler h) eventfulHandlers
 
-    let addEventHandlers config aggregateTypeString (eventHandlers : IEventHandler<_,_,_> list) eventfulHandlers =
+    let addEventHandlers config aggregateTypeString (eventHandlers : IEventHandler<_,_> list) eventfulHandlers =
         eventHandlers
         |> Seq.map (fun x -> EventfulEventHandler(x.EventType, x.Handler config aggregateTypeString))
         |> Seq.fold (fun (s:EventfulHandlers) h -> s.AddEventHandler h) eventfulHandlers
@@ -53,27 +53,12 @@ module EventfulHandlers =
         types
         |> Seq.fold (fun (x : EventfulHandlers) y -> x.AddEventMapping y) eventfulHandlers
 
-    let addAggregate (aggregateHandlers : AggregateHandlers<'TState, 'TEvents, 'TId, 'TAggregateType>) (eventfulHandlers:EventfulHandlers) =
-        let aggregateTypeString = aggregateHandlers.AggregateType.Name
-
-        let commandStateBuilders = 
-            aggregateHandlers.CommandHandlers |> Seq.map (fun x -> x.StateBuilder)
-        let eventStateBuilders =
-            aggregateHandlers.EventHandlers |> Seq.map (fun x -> x.StateBuilder)
-
-        let combinedAggregateStateBuilder = 
-            commandStateBuilders
-            |> Seq.append eventStateBuilders
-            |> Seq.fold (fun a b -> CombinedStateBuilder.add b a) CombinedStateBuilder.empty
-
-        let config = {
-            StateBuilder = combinedAggregateStateBuilder
-            AggregateType = aggregateTypeString
-        }
+    let addAggregate (aggregateDefinition : AggregateDefinition<'TEvents, 'TId, 'TAggregateType, 'TCommandContext, 'TEventContext, 'TAggregateId>) (eventfulHandlers:EventfulHandlers) =
+        let config = aggregateDefinition.Configuration
 
         eventfulHandlers
-        |> addCommandHandlers config aggregateTypeString aggregateHandlers.CommandHandlers
-        |> addEventHandlers config aggregateTypeString aggregateHandlers.EventHandlers
+        |> addCommandHandlers config config.AggregateType aggregateDefinition.Handlers.CommandHandlers
+        |> addEventHandlers config config.AggregateType aggregateDefinition.Handlers.EventHandlers
         |> addEventMappings (MagicMapper.getSingleUnionCaseParameterTypes<'TEvents>())
 
     let getCommandProgram (cmd:obj) (eventfulHandlers:EventfulHandlers) =
