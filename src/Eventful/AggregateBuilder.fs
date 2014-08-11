@@ -251,22 +251,6 @@ type AggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext> = {
 }
 
 module Aggregate = 
-    type AggregateBuilder<'TEvent,'TId, 'TCommandContext, 'TEventContext> () = 
-        member this.Zero() = AggregateHandlers<'TEvent,'TId, 'TCommandContext, 'TEventContext>.Empty
-
-        member x.Delay(f : unit -> AggregateHandlers<'TEvent,'TId, 'TCommandContext, 'TEventContext>) = f ()
-
-        member this.Yield(x:IHandler<'TEvent,'TId,'TCommandContext,'TEventContext>) :  AggregateHandlers<'TEvent,'TId, 'TCommandContext, 'TEventContext> =
-            let empty = AggregateHandlers<'TEvent,'TId, 'TCommandContext, 'TEventContext>.Empty 
-            let result = x.add empty
-            result
-
-        member this.Combine (a:AggregateHandlers<'TEvent,'TId, 'TCommandContext, 'TEventContext>,b:AggregateHandlers<'TEvent,'TId, 'TCommandContext, 'TEventContext>) =
-            a.Combine b
-
-    let aggregate<'TEvent,'TId, 'TCommandContext, 'TEventContext> =
-        new AggregateBuilder<'TEvent,'TId, 'TCommandContext, 'TEventContext>()
-
     let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext>
         (getCommandStreamName : 'TCommandContext -> 'TId -> string)
         (getEventStreamName : 'TEventContext -> 'TId -> string) 
