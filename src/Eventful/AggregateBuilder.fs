@@ -16,8 +16,8 @@ type AggregateConfiguration<'TCommandContext, 'TEventContext, 'TAggregateId> = {
     // for commands and events
     StateBuilder : CombinedStateBuilder
 
-    GetCommandStreamName : 'TAggregateId -> string
-    GetEventStreamName : 'TAggregateId -> string
+    GetCommandStreamName : 'TCommandContext -> 'TAggregateId -> string
+    GetEventStreamName : 'TEventContext -> 'TAggregateId -> string
 }
 
 type ICommandHandler<'TEvent,'TId> =
@@ -25,13 +25,13 @@ type ICommandHandler<'TEvent,'TId> =
     abstract member AddStateBuilder : CombinedStateBuilder -> CombinedStateBuilder
     abstract member GetId : obj -> 'TId
                     // AggregateType -> Cmd -> Source Stream -> EventNumber -> Program
-    abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId> -> obj -> EventStreamProgram<CommandResult>
+    abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId> -> 'TCommandContext -> obj -> EventStreamProgram<CommandResult>
 
 type IEventHandler<'TEvent,'TId> =
     abstract member AddStateBuilder : CombinedStateBuilder -> CombinedStateBuilder
     abstract member EventType : Type
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
-    abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId> -> string -> int -> EventStreamEventData -> EventStreamProgram<EventResult>
+    abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId> -> 'TEventContext -> string -> int -> EventStreamEventData -> EventStreamProgram<EventResult>
 
 type AggregateHandlers<'TEvent,'TId> private 
     (
@@ -124,13 +124,13 @@ module AggregateActionBuilder =
             return (eventsConsumed, childState)
         }
 
-    let handleCommand (commandHandler:CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) (aggregateConfiguration : AggregateConfiguration<_,_,_>) (cmd : obj) =
+    let handleCommand (commandHandler:CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) (aggregateConfiguration : AggregateConfiguration<_,_,_>) commandContext (cmd : obj) =
         let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
         eventStream {
             match cmd with
             | :? 'TCmd as cmd -> 
                 let id = commandHandler.GetId cmd
-                let stream = aggregateConfiguration.GetCommandStreamName id
+                let stream = aggregateConfiguration.GetCommandStreamName commandContext id
                 
                 let! (eventsConsumed, commandState) = getChildState aggregateConfiguration.StateBuilder commandHandler.StateBuilder stream
 
@@ -179,7 +179,7 @@ module AggregateActionBuilder =
              member this.GetId cmd = untypedGetId sb cmd
              member this.CmdType = typeof<'TCmd>
              member this.AddStateBuilder aggregateStateBuilder = aggregateStateBuilder |> CombinedStateBuilder.add sb.StateBuilder
-             member this.Handler aggregateConfig cmd = handleCommand sb aggregateConfig cmd
+             member this.Handler aggregateConfig commandContext cmd = handleCommand sb aggregateConfig commandContext cmd
         }
 
     let buildCmd<'TId,'TCmd,'TState,'TEvent> (sb : CommandHandler<'TCmd, 'TState, 'TId, 'TEvent>) : IHandler<'TEvent,'TId> = {
@@ -203,10 +203,10 @@ module AggregateActionBuilder =
         new IEventHandler<'TEvent,'TId> with 
              member this.EventType = typeof<'TLinkEvent>
              member this.AddStateBuilder aggregateStateBuilder = aggregateStateBuilder
-             member this.Handler aggregateConfig sourceStream sourceEventNumber (evt : EventStreamEventData) = eventStream {
+             member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData) = eventStream {
                 let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
 
-                let resultingStream = aggregateConfig.GetEventStreamName (fId (evt.Body :?> 'TLinkEvent))
+                let resultingStream = aggregateConfig.GetEventStreamName eventContext (fId (evt.Body :?> 'TLinkEvent))
 
                 // todo: should not be new stream
                 let! _ = EventStream.writeLink resultingStream NewStream sourceStream sourceEventNumber metadata
@@ -218,10 +218,10 @@ module AggregateActionBuilder =
         new IEventHandler<'TEvent,'TId> with 
             member this.EventType = typeof<'TOnEvent>
             member this.AddStateBuilder aggregateStateBuilder = aggregateStateBuilder |> CombinedStateBuilder.add stateBuilder
-            member this.Handler aggregateConfig sourceStream sourceEventNumber evt = eventStream {
+            member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber evt = eventStream {
                 let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
                 let typedEvent = evt.Body :?> 'TOnEvent
-                let resultingStream = aggregateConfig.GetEventStreamName (fId typedEvent)
+                let resultingStream = aggregateConfig.GetEventStreamName eventContext (fId typedEvent)
 
                 let! (eventsConsumed, state) = getChildState aggregateConfig.StateBuilder stateBuilder resultingStream
 
@@ -277,8 +277,8 @@ module Aggregate =
         new AggregateBuilder<'TEvent,'TId>()
 
     let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext>
-        (getCommandStreamName : 'TId -> string)
-        (getEventStreamName : 'TId -> string) 
+        (getCommandStreamName : 'TCommandContext -> 'TId -> string)
+        (getEventStreamName : 'TEventContext -> 'TId -> string) 
         (handlers : AggregateHandlers<'TEvents,'TId>) = 
 
             let commandStateBuilders = 

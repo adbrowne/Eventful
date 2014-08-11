@@ -50,7 +50,7 @@ module Teacher =
         |> StateBuilder.addHandler (fun s (e:TeacherAddedEvent) -> { s with TeacherId = e.TeacherId })
         |> NamedStateBuilder.withName "TeacherId"
 
-    let getStreamName (id:TeacherId) =
+    let getStreamName () (id:TeacherId) =
         sprintf "Teacher-%s" (id.Id.ToString("N"))
 
     let handlers = 
@@ -99,7 +99,7 @@ type ReportEvents =
     | NameChanged of ReportNameChangedEvent
 
 module Report =
-    let getStreamName (id:ReportId) =
+    let getStreamName () (id:ReportId) =
         sprintf "Report-%s" (id.Id.ToString("N"))
 
     let handlers =
@@ -137,7 +137,7 @@ type TeacherReportEvents =
     | ReportAdded of ReportAddedEvent
 
 module TeacherReport =
-    let getStreamName (id:TeacherId) =
+    let getStreamName () (id:TeacherId) =
         sprintf "TeacherReport-%s" (id.Id.ToString("N"))
 
     let handlers =
@@ -155,7 +155,7 @@ open Eventful.Testing.TestHelpers
 
 module TeacherTests = 
     let teacherHandlers =
-        EventfulHandlers.empty
+        EventfulHandlers.empty<unit,unit>
         |> EventfulHandlers.addAggregate Teacher.handlers
         |> EventfulHandlers.addAggregate Report.handlers 
         |> EventfulHandlers.addAggregate TeacherReport.handlers 
@@ -249,7 +249,7 @@ module TeacherTests =
             StateBuilder.Empty None
             |> StateBuilder.addHandler (fun _ (evt : ReportAddedEvent) -> Some evt.Name)
 
-        let stream = Report.getStreamName { Id = teacherId.Id }
+        let stream = Report.getStreamName () { Id = teacherId.Id }
 
         let reportName = result.EvaluateState stream stateBuilder
         reportName |> should equal (Some "Custom teacher report")
@@ -275,7 +275,7 @@ module TeacherTests =
             StateBuilder.Empty 0
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
 
-        let stream = Report.getStreamName reportId
+        let stream = Report.getStreamName () reportId
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal 1
@@ -298,7 +298,7 @@ module TeacherTests =
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> Some e.Name)
             |> StateBuilder.addHandler (fun s (e:ReportNameChangedEvent) -> Some e.Name)
 
-        let stream = Report.getStreamName reportId
+        let stream = Report.getStreamName () reportId
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal (Some "Test Report")

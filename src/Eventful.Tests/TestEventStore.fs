@@ -32,12 +32,12 @@ module TestEventStore =
             Position = eventPosition 
             AllEventsStream = store.AllEventsStream |> Queue.conj (stream, eventNumber, streamEvent)}
 
-    let runHandlerForEvent interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
-        let program = evtHandler eventStream eventNumber evt
+    let runHandlerForEvent (context: 'TEventContext) interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
+        let program = evtHandler context eventStream eventNumber evt
         interpreter program testEventStore
         |> fst
 
-    let runEventHandlers interpreter (handlers : EventfulHandlers) (testEventStore : TestEventStore) (eventStream, eventNumber, eventStreamEvent) =
+    let runEventHandlers (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext>) (testEventStore : TestEventStore) (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
         | Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             let handlers = 
@@ -47,15 +47,15 @@ module TestEventStore =
                 | Some handlers -> handlers
                 | None -> []
 
-            handlers |> Seq.fold (runHandlerForEvent interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
+            handlers |> Seq.fold (runHandlerForEvent context interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
         | _ -> testEventStore
 
-    let rec processPendingEvents interpreter (handlers : EventfulHandlers) (testEventStore : TestEventStore) =
+    let rec processPendingEvents (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext>) (testEventStore : TestEventStore) =
         match testEventStore.AllEventsStream with
         | Queue.Nil -> testEventStore
         | Queue.Cons (x, xs) ->
-            let next = runEventHandlers interpreter handlers { testEventStore with AllEventsStream = xs } x
-            processPendingEvents interpreter handlers next
+            let next = runEventHandlers context interpreter handlers { testEventStore with AllEventsStream = xs } x
+            processPendingEvents context interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =
         let program = handler cmd

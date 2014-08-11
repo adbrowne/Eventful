@@ -39,7 +39,7 @@ module AggregateIntegrationTests =
     type WidgetCounterEvents =
     | Counted of WidgetCreatedEvent
 
-    let getStreamName typeName (id:WidgetId) =
+    let getStreamName typeName () (id:WidgetId) =
         sprintf "%s-%s" typeName (id.Id.ToString("N"))
         
     let widgetHandlers = 
@@ -70,7 +70,7 @@ module AggregateIntegrationTests =
         |> EventfulHandlers.addAggregate widgetHandlers
         |> EventfulHandlers.addAggregate widgetCounterAggregate
 
-    let newSystem client = new EventStoreSystem(handlers, client, RunningTests.esSerializer)
+    let newSystem client = new EventStoreSystem<unit,unit>(handlers, client, RunningTests.esSerializer, ())
 
     let streamPositionMap : Map<string, int> ref = ref Map.empty
 
@@ -109,6 +109,7 @@ module AggregateIntegrationTests =
             let widgetId = { WidgetId.Id = Guid.NewGuid() }
             let! cmdResult = 
                 system.RunCommand
+                    ()
                     { 
                         CreateWidgetCommand.WidgetId = widgetId; 
                         Name = "Mine"
@@ -163,6 +164,7 @@ module AggregateIntegrationTests =
             for _ in [1..1000] do
                 let! cmdResult = 
                     system.RunCommand
+                        ()
                         { 
                             CreateWidgetCommand.WidgetId = widgetId; 
                             Name = "Mine"

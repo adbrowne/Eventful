@@ -9,7 +9,7 @@ open Eventful.EventStream
 
 type TestSystem
     (
-        handlers : EventfulHandlers, 
+        handlers : EventfulHandlers<unit,unit>, 
         lastResult : CommandResult, 
         allEvents : TestEventStore
     ) =
@@ -25,12 +25,12 @@ type TestSystem
             handlers.CommandHandlers
             |> Map.tryFind cmdTypeFullName
             |> function
-            | Some (EventfulCommandHandler(_, handler)) -> handler
+            | Some (EventfulCommandHandler(_, handler)) -> handler ()
             | None -> failwith <| sprintf "Could not find handler for %A" cmdType
 
         let (allEvents, result) = TestEventStore.runCommand interpret cmd handler allEvents
 
-        let allEvents = TestEventStore.processPendingEvents interpret handlers allEvents
+        let allEvents = TestEventStore.processPendingEvents () interpret handlers allEvents
 
         new TestSystem(handlers, result, allEvents)
 

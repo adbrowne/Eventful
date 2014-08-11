@@ -6,11 +6,12 @@ open EventStore.ClientAPI
 open System
 open FSharpx
 
-type EventStoreSystem 
+type EventStoreSystem<'TCommandContext, 'TEventContext> 
     ( 
-        handlers : EventfulHandlers,
+        handlers : EventfulHandlers<'TCommandContext, 'TEventContext>,
         client : Client,
-        serializer: ISerializer
+        serializer: ISerializer,
+        eventContext : 'TEventContext
     ) =
 
     let toGesPosition position = new EventStore.ClientAPI.Position(position.Commit, position.Prepare)
@@ -36,11 +37,11 @@ type EventStoreSystem
 
     let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
         async {
-            let program = evtHandler eventStream eventNumber evt
+            let program = evtHandler eventContext eventStream eventNumber evt
             return! interpreter program
         }
 
-    let runEventHandlers (handlers : EventfulHandlers) (eventStream, eventNumber, eventStreamEvent) =
+    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext>) (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
         | EventStreamEvent.Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             async {
@@ -102,9 +103,9 @@ type EventStoreSystem
                 completeTracker.Complete position
             }
 
-    member x.RunCommand (cmd : obj) = 
+    member x.RunCommand (context:'TCommandContext) (cmd : obj) = 
         async {
-            let program = EventfulHandlers.getCommandProgram cmd handlers
+            let program = EventfulHandlers.getCommandProgram context cmd handlers
             let! result = EventStreamInterpreter.interpret client serializer handlers.EventTypeMap program
             return result
         }
