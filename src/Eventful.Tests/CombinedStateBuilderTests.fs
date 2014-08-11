@@ -16,20 +16,19 @@ module CombinedStateBuilderTests =
         items
         |> List.fold builder.Run Map.empty
 
+    let countEventsBuilder = 
+        StateBuilder.Empty 0
+        |> StateBuilder.addHandler (fun s (e: Event1) -> s + 1)
+        |> NamedStateBuilder.withName "Count"
+
+    let lastIdBuilder = 
+        StateBuilder.Empty None
+        |> StateBuilder.addHandler (fun _ (e: Event1) -> Some e.Id)
+        |> NamedStateBuilder.withName "Last Id"
+
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Can combine two named state builders with different names`` () =
-        let countEventsBuilder = 
-            StateBuilder.Empty 0
-            |> StateBuilder.addHandler (fun s (e: Event1) -> s + 1)
-            |> NamedStateBuilder.withName "Count"
-
-
-        let lastIdBuilder = 
-            StateBuilder.Empty None
-            |> StateBuilder.addHandler (fun _ (e: Event1) -> Some e.Id)
-            |> NamedStateBuilder.withName "Last Id"
-
         let combinedStateBuilder = 
             CombinedStateBuilder.empty
             |> CombinedStateBuilder.add countEventsBuilder
@@ -43,3 +42,31 @@ module CombinedStateBuilderTests =
 
         lastId |> should equal (Some id)
         count |> should equal 1
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Given state builder When combined with itself Then returns original statebuilder`` () =
+        let single = 
+            CombinedStateBuilder.empty
+            |> CombinedStateBuilder.add countEventsBuilder
+
+        let combined =
+            single
+            |> CombinedStateBuilder.add countEventsBuilder
+
+        combined |> should equal single
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Given two state builders with same name When combined Then exception thrown`` () =
+        let countEventsBuilder2 = 
+            StateBuilder.Empty 0
+            |> NamedStateBuilder.withName countEventsBuilder.Name
+
+        let combineWithSameName () =
+            CombinedStateBuilder.empty
+            |> CombinedStateBuilder.add countEventsBuilder
+            |> CombinedStateBuilder.add countEventsBuilder2
+            |> ignore
+
+        combineWithSameName |> should throw typeof<System.Exception>

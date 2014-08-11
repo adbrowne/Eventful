@@ -230,22 +230,27 @@ module NamedStateBuilder =
 
 type CombinedStateBuilderState = Map<string,obj>
 
-type CombinedStateBuilder internal (children : list<INamedStateBuilder>) =
-    member x.AddChild c =
-        new CombinedStateBuilder(c::children)
+type CombinedStateBuilder internal (children : Map<string, INamedStateBuilder>) =
+    member x.AddChild (c : INamedStateBuilder) =
+        match children |> Map.tryFind c.Name with
+        | Some n when n = c ->
+            x // we are adding the same item twice - this is fine just return ourselves
+        | Some n ->
+            failwith "Cannot combine different NamedStateBuilders with the same name"
+        | None ->
+            new CombinedStateBuilder(children |> Map.add c.Name c)
 
     member x.Run inputStates e =
-        let runChildState (item: obj) (s:CombinedStateBuilderState) (childBuilder : INamedStateBuilder) =
-            let childKey = childBuilder.Name
+        let runChildState (item: obj) (s:CombinedStateBuilderState) (childKey : string) (childBuilder : INamedStateBuilder) =
             let currentState = inputStates |> Map.tryFind childKey |> Option.getOrElse childBuilder.InitialState
             let newState = childBuilder.Apply currentState item
             s |> Map.add childKey newState
             
-        children |> List.fold (runChildState e) Map.empty
+        children |> Map.fold (runChildState e) Map.empty
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module CombinedStateBuilder =
-    let empty = new CombinedStateBuilder(List.empty)
+    let empty = new CombinedStateBuilder(Map.empty)
 
     let add child (s:CombinedStateBuilder) =
         s.AddChild(child)
