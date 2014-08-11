@@ -43,8 +43,7 @@ module AggregateIntegrationTests =
         sprintf "%s-%s" typeName (id.Id.ToString("N"))
         
     let widgetHandlers = 
-        aggregate<WidgetEvents,WidgetId,AggregateType> 
-            AggregateType.Widget
+        aggregate<WidgetEvents,WidgetId> 
             {
                let addWidget (cmd : CreateWidgetCommand) =
                    Created { 
@@ -59,8 +58,7 @@ module AggregateIntegrationTests =
         |> toAggregateDefinition (getStreamName "Widget") (getStreamName "Widget")
 
     let widgetCounterAggregate =
-        aggregate<WidgetCounterEvents,WidgetId,AggregateType>
-            AggregateType.WidgetCounter
+        aggregate<WidgetCounterEvents,WidgetId>
             {
                 let getId (evt : WidgetCreatedEvent) = evt.WidgetId
                 yield linkEvent getId WidgetCounterEvents.Counted

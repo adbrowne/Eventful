@@ -273,7 +273,7 @@ module Aggregate =
         member this.Combine (a:AggregateHandlers<'TEvent,'TId>,b:AggregateHandlers<'TEvent,'TId>) =
             a.Combine b
 
-    let aggregate<'TEvent,'TId, 'TAggregateType> aggregateType =
+    let aggregate<'TEvent,'TId> =
         new AggregateBuilder<'TEvent,'TId>()
 
     let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext>

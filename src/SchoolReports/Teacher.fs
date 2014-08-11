@@ -54,8 +54,7 @@ module Teacher =
         sprintf "Teacher-%s" (id.Id.ToString("N"))
 
     let handlers = 
-        aggregate<TeacherEvents,TeacherId,AggregateType> 
-            AggregateType.Teacher
+        aggregate<TeacherEvents,TeacherId> 
             {
                let addTeacher (cmd : AddTeacherCommand) =
                    Added { 
@@ -104,8 +103,7 @@ module Report =
         sprintf "Report-%s" (id.Id.ToString("N"))
 
     let handlers =
-        aggregate<ReportEvents,ReportId,AggregateType> 
-            AggregateType.Report
+        aggregate<ReportEvents,ReportId> 
             {
                 let addReport (x : AddReportCommand) =
                    Added { ReportId = x.ReportId
@@ -143,8 +141,7 @@ module TeacherReport =
         sprintf "TeacherReport-%s" (id.Id.ToString("N"))
 
     let handlers =
-        aggregate<TeacherReportEvents,TeacherId, AggregateType> 
-            AggregateType.TeacherReport
+        aggregate<TeacherReportEvents,TeacherId> 
             {
                 yield linkEvent (fun (x:TeacherAddedEvent) -> x.TeacherId) TeacherReportEvents.TeacherAdded
                 yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
