@@ -11,13 +11,6 @@ type AggregateType =
 | Teacher
 | Report
 | TeacherReport
-    with 
-        interface IAggregateType 
-            with member this.Name with get() = 
-                                           match this with
-                                           | Teacher -> "Teacher"
-                                           | Report -> "Report"
-                                           | TeacherReport -> "TeacherReport"
 
 type TeacherId = 
     {
@@ -61,8 +54,8 @@ module Teacher =
         |> StateBuilder.addHandler (fun s (e:TeacherAddedEvent) -> { s with TeacherId = e.TeacherId })
         |> NamedStateBuilder.withName "TeacherId"
 
-    let getStreamName () (at:AggregateType) (id:TeacherId) =
-        sprintf "%s-%s" (at :> IAggregateType).Name (id.Id.ToString("N"))
+    let getStreamName (id:TeacherId) =
+        sprintf "Teacher-%s" (id.Id.ToString("N"))
 
     let handlers = 
         aggregate<TeacherEvents,TeacherId,AggregateType> 
@@ -83,7 +76,6 @@ module Teacher =
                      |> buildCmd
             }
             |> toAggregateDefinition getStreamName getStreamName
-
 
 type AddReportCommand = {
     ReportId : ReportId
@@ -112,8 +104,8 @@ type ReportEvents =
     | NameChanged of ReportNameChangedEvent
 
 module Report =
-    let getStreamName () (at:AggregateType) (id:ReportId) =
-        sprintf "%s-%s" (at :> IAggregateType).Name (id.Id.ToString("N"))
+    let getStreamName (id:ReportId) =
+        sprintf "Report-%s" (id.Id.ToString("N"))
 
     let handlers =
         aggregate<ReportEvents,ReportId,AggregateType> 
@@ -151,8 +143,8 @@ type TeacherReportEvents =
     | ReportAdded of ReportAddedEvent
 
 module TeacherReport =
-    let getStreamName () (at:AggregateType) (id:TeacherId) =
-        sprintf "%s-%s" (at :> IAggregateType).Name (id.Id.ToString("N"))
+    let getStreamName (id:TeacherId) =
+        sprintf "TeacherReport-%s" (id.Id.ToString("N"))
 
     let handlers =
         aggregate<TeacherReportEvents,TeacherId, AggregateType> 
@@ -245,9 +237,6 @@ module TeacherTests =
         result.LastResult |> should containError "FirstName must not be blank"
         result.LastResult |> should containError "LastName must not be blank"
 
-    let buildStreamId (aggregateType : IAggregateType) (id : IIdentity) =
-        sprintf "%s-%s" aggregateType.Name id.GetId
-
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Given TeacherAddedEvent When run Then Report is created`` () : unit =
@@ -267,7 +256,7 @@ module TeacherTests =
             StateBuilder.Empty None
             |> StateBuilder.addHandler (fun _ (evt : ReportAddedEvent) -> Some evt.Name)
 
-        let stream = buildStreamId AggregateType.Report { Id = teacherId.Id }
+        let stream = Report.getStreamName { Id = teacherId.Id }
 
         let reportName = result.EvaluateState stream stateBuilder
         reportName |> should equal (Some "Custom teacher report")
@@ -293,7 +282,7 @@ module TeacherTests =
             StateBuilder.Empty 0
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
 
-        let stream = buildStreamId AggregateType.Report reportId
+        let stream = Report.getStreamName reportId
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal 1
@@ -316,7 +305,7 @@ module TeacherTests =
             |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> Some e.Name)
             |> StateBuilder.addHandler (fun s (e:ReportNameChangedEvent) -> Some e.Name)
 
-        let stream = buildStreamId AggregateType.Report reportId
+        let stream = Report.getStreamName reportId
         let state = result.EvaluateState stream stateBuilder
 
         state |> should equal (Some "Test Report")
