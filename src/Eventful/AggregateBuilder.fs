@@ -127,55 +127,70 @@ module AggregateActionBuilder =
             return (eventsConsumed, childState)
         }
 
-    let handleCommand (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent>) (aggregateConfiguration : AggregateConfiguration<_,_,_>) (commandContext : 'TCommandContext) (cmd : obj) =
+    let runCommand stream combinedStateBuilder commandStateBuilder f = 
         let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
+
         eventStream {
-            match cmd with
-            | :? 'TCmd as cmd -> 
-                let id = commandHandler.GetId commandContext cmd
-                let stream = aggregateConfiguration.GetCommandStreamName commandContext id
-                
-                let! (eventsConsumed, commandState) = getChildState aggregateConfiguration.StateBuilder commandHandler.StateBuilder stream
+            let! (eventsConsumed, commandState) = getChildState combinedStateBuilder commandStateBuilder stream
 
-                let result = choose {
-                    let! validated = runValidation commandHandler.Validators cmd commandState
+            let result = 
+                f commandState
+                |> Choice.map (fun r ->
+                    r
+                    |> Seq.map unwrapper
+                    |> Seq.map (fun evt -> 
+                                    let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
+                                    (stream, evt, metadata))
+                    |> List.ofSeq)
 
-                    let result = commandHandler.Handler commandContext validated
-                    return
-                        result 
-                        |> Seq.map unwrapper
-                        |> Seq.map (fun evt -> 
-                                        let metadata = { SourceMessageId = (Guid.NewGuid()); MessageId = (Guid.NewGuid()) }
-                                        (stream, evt, metadata))
-                        |> List.ofSeq
-                }
+            return! 
+                match result with
+                | Choice1Of2 events -> 
+                    eventStream {
+                        for (stream, event, metadata) in events do
+                            let! eventData = getEventStreamEvent event metadata
+                            let expectedVersion = 
+                                match eventsConsumed with
+                                | 0 -> NewStream
+                                | x -> AggregateVersion (x - 1)
 
-                return! 
-                    match result with
-                    | Choice1Of2 events -> 
-                        eventStream {
-                            for (stream, event, metadata) in events do
-                                let! eventData = getEventStreamEvent event metadata
-                                let expectedVersion = 
-                                    match eventsConsumed with
-                                    | 0 -> NewStream
-                                    | x -> AggregateVersion (x - 1)
+                            let! writeResult = writeToStream stream expectedVersion (Seq.singleton eventData)
 
-                                let! writeResult = writeToStream stream expectedVersion (Seq.singleton eventData)
+                            log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
+                            
+                            ()
 
-                                log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
-                                
-                                ()
+                        let lastEvent  = (stream, eventsConsumed + (List.length events))
+                        let lastEventNumber = (eventsConsumed + (List.length events) - 1)
 
-                            let lastEvent  = (stream, eventsConsumed + (List.length events))
-                            let lastEventNumber = (eventsConsumed + (List.length events) - 1)
-
-                            return Choice1Of2 events
-                        }
-                    | Choice2Of2 x ->
-                        eventStream { return Choice2Of2 x }
-            | _ -> return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
+                        return Choice1Of2 events
+                    }
+                | Choice2Of2 x ->
+                    eventStream { return Choice2Of2 x }
         }
+
+    let handleCommand 
+        (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent>) 
+        (aggregateConfiguration : AggregateConfiguration<_,_,_>) 
+        (commandContext : 'TCommandContext) 
+        (cmd : obj) =
+        let processCommand cmd commandState =
+            choose {
+                let! validated = runValidation commandHandler.Validators cmd commandState
+
+                let result = commandHandler.Handler commandContext validated
+                return result 
+            }
+
+        match cmd with
+        | :? 'TCmd as cmd -> 
+            let id = commandHandler.GetId commandContext cmd
+            let stream = aggregateConfiguration.GetCommandStreamName commandContext id
+            runCommand stream aggregateConfiguration.StateBuilder commandHandler.StateBuilder (processCommand cmd)
+        | _ -> 
+            eventStream {
+                return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
+            }
         
     let ToInterface<'TId,'TCmd,'TState,'TEvent, 'TCommandContext> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent>) = {
         new ICommandHandler<'TEvent,'TId,'TCommandContext> with 
