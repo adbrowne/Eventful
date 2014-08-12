@@ -9,6 +9,12 @@ open Eventful.EventStream
 type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
 type StreamNameBuilder<'TId> = ('TId -> string)
 
+type IRegistrationVisitor<'T> =
+    abstract member Visit<'TCmd> : 'T -> unit 
+
+type IRegistrationVisitable =
+    abstract member Receive<'T> : 'T -> IRegistrationVisitor<'T> -> unit
+
 type EventResult = unit
 
 type AggregateConfiguration<'TCommandContext, 'TEventContext, 'TAggregateId> = {
@@ -26,6 +32,7 @@ type ICommandHandler<'TEvent,'TId,'TCommandContext> =
     abstract member GetId : 'TCommandContext-> obj -> 'TId
                     // AggregateType -> Cmd -> Source Stream -> EventNumber -> Program
     abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId> -> 'TCommandContext -> obj -> EventStreamProgram<CommandResult>
+    abstract member Visitable : IRegistrationVisitable
 
 type IEventHandler<'TEvent,'TId> =
     abstract member AddStateBuilder : CombinedStateBuilder -> CombinedStateBuilder
@@ -127,7 +134,7 @@ module AggregateActionBuilder =
             return (eventsConsumed, childState)
         }
 
-    let runCommand stream combinedStateBuilder commandStateBuilder f = 
+    let inline runCommand stream combinedStateBuilder commandStateBuilder f = 
         let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
 
         eventStream {
@@ -198,6 +205,10 @@ module AggregateActionBuilder =
              member this.CmdType = typeof<'TCmd>
              member this.AddStateBuilder aggregateStateBuilder = aggregateStateBuilder |> CombinedStateBuilder.add sb.StateBuilder
              member this.Handler aggregateConfig commandContext cmd = handleCommand sb aggregateConfig commandContext cmd
+             member this.Visitable = {
+                new IRegistrationVisitable with
+                    member x.Receive a r = r.Visit<'TCmd>(a)
+             }
         }
 
     let buildCmd<'TId,'TCmd,'TState,'TEvent, 'TCommandContext,'TEventContext> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent>) : ICommandHandler<'TEvent,'TId,'TCommandContext> = 

@@ -6,7 +6,7 @@ open FSharpx.Collections
 
                                             // Source StreamId, Source Event Number, Event -> Program
 type EventfulEventHandler<'T, 'TEventContext> = EventfulEventHandler of Type * ('TEventContext -> string -> int -> EventStreamEventData -> EventStreamProgram<'T>)
-type EventfulCommandHandler<'T, 'TCommandContext> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T>)
+type EventfulCommandHandler<'T, 'TCommandContext> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T>) * IRegistrationVisitable
 
 type MyEventResult = unit
 
@@ -20,7 +20,7 @@ type EventfulHandlers<'TCommandContext, 'TEventContext>
     member x.EventHandlers = eventHandlers
     member x.EventTypeMap = eventTypeMap
     member x.AddCommandHandler = function
-        | EventfulCommandHandler(cmdType,_) as handler -> 
+        | EventfulCommandHandler(cmdType,_,_) as handler -> 
             let cmdTypeFullName = cmdType.FullName
             let commandHandlers' = commandHandlers |> Map.add cmdTypeFullName handler
             new EventfulHandlers<'TCommandContext, 'TEventContext>(commandHandlers', eventHandlers, eventTypeMap)
@@ -41,7 +41,7 @@ module EventfulHandlers =
 
     let addCommandHandlers config (commandHandlers : ICommandHandler<_,_,_> list) eventfulHandlers =
         commandHandlers
-        |> Seq.map (fun x -> EventfulCommandHandler(x.CmdType, x.Handler config))
+        |> Seq.map (fun x -> EventfulCommandHandler(x.CmdType, x.Handler config, x.Visitable))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext>) h -> s.AddCommandHandler h) eventfulHandlers
 
     let addEventHandlers config (eventHandlers : IEventHandler<_,_> list) eventfulHandlers =
@@ -69,7 +69,7 @@ module EventfulHandlers =
             eventfulHandlers.CommandHandlers
             |> Map.tryFind cmdTypeFullName
             |> function
-            | Some (EventfulCommandHandler(_, handler)) -> handler
+            | Some (EventfulCommandHandler(_, handler, _)) -> handler
             | None -> failwith <| sprintf "Could not find handler for %A" cmdType
 
         handler context cmd

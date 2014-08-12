@@ -25,7 +25,7 @@ type TestSystem
             handlers.CommandHandlers
             |> Map.tryFind cmdTypeFullName
             |> function
-            | Some (EventfulCommandHandler(_, handler)) -> handler ()
+            | Some (EventfulCommandHandler(_, handler,_)) -> handler ()
             | None -> failwith <| sprintf "Could not find handler for %A" cmdType
 
         let (allEvents, result) = TestEventStore.runCommand interpret cmd handler allEvents
