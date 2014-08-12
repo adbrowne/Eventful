@@ -2,6 +2,7 @@
 
 open Eventful
 
+open FsCheck
 open FSharpx.Collections
 
 module TestHelpers = 
@@ -41,3 +42,42 @@ module TestHelpers =
                     | _ -> false
                 | _ -> false)
         )
+
+    let toObjArb<'a> (arb : Arbitrary<'a> ) : Arbitrary<obj> =
+        Arb.convert (fun x -> x :> obj) (fun x -> x :?> 'a) arb
+
+    let setField o fieldName value =
+        let field = o.GetType().GetField(fieldName, System.Reflection.BindingFlags.NonPublic ||| System.Reflection.BindingFlags.Instance)
+        field.SetValue(o, value)
+
+    let getArbVisitor = {
+         new IRegistrationVisitor<unit,Arbitrary<obj>> with
+                member x.Visit<'TCmd> t = Arb.from<'TCmd> |> toObjArb
+         }
+
+    let getCommandsForAggregate (aggregateDefinition: AggregateDefinition<_,_,_,_>) (fieldName, fieldValue) : Arbitrary<obj seq> =
+        let commandTypes : seq<Arbitrary<obj>> =
+            aggregateDefinition.Handlers.CommandHandlers
+            |> Seq.map (fun x -> x.Visitable.Receive () getArbVisitor)
+
+        let rec genCommandList (xs : list<obj>) length = gen {
+            match length with
+            | 0 -> return xs |> List.toSeq
+            | _ ->
+                let! typeArb = Gen.elements commandTypes
+                let! nextCmd = typeArb.Generator
+                setField nextCmd (sprintf "%s@" fieldName) fieldValue
+                return! genCommandList (nextCmd::xs) (length - 1)
+        }
+
+        let gen = Gen.sized <| genCommandList []
+        let shrink (a:seq<obj>) = 
+            let length = a |> Seq.length
+            if length = 0 then
+                Seq.empty
+            else 
+                seq {
+                    yield a |> Seq.skip 1
+                }
+
+        Arb.fromGenShrink (gen, shrink)
