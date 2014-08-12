@@ -9,11 +9,11 @@ open Eventful.EventStream
 type CommandResult = Choice<list<string * obj * EventMetadata>,NonEmptyList<ValidationFailure>> 
 type StreamNameBuilder<'TId> = ('TId -> string)
 
-type IRegistrationVisitor<'T> =
-    abstract member Visit<'TCmd> : 'T -> unit 
+type IRegistrationVisitor<'T,'U> =
+    abstract member Visit<'TCmd> : 'T -> 'U
 
 type IRegistrationVisitable =
-    abstract member Receive<'T> : 'T -> IRegistrationVisitor<'T> -> unit
+    abstract member Receive<'T,'U> : 'T -> IRegistrationVisitor<'T,'U> -> 'U
 
 type EventResult = unit
 

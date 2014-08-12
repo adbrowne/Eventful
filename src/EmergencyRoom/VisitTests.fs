@@ -10,7 +10,6 @@ open Eventful.Testing
 
 module VisitTests = 
 
-    type Marker = Marker 
     let emptyTestSystem =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate Visit.handlers
@@ -26,38 +25,29 @@ module VisitTests =
             true
         with | e -> false
 
-    let invokeGenericMethod (assembly : System.Reflection.Assembly) className methodName genericParameters parameters =
-        let arbType = 
-            assembly.GetTypes()
-            |> Seq.find(fun x -> x.Name = className)
-        let m = arbType.GetMethod(methodName).MakeGenericMethod(genericParameters)
-        m.Invoke(null, parameters)
-        
     let toObjArb<'a> (arb : Arbitrary<'a> ) : Arbitrary<obj> =
         Arb.convert (fun x -> x :> obj) (fun x -> x :?> 'a) arb
-
-    let arbforType (t : Type) =
-        let arbForT = invokeGenericMethod typeof<FsCheck.Arbitrary<_>>.Assembly "Arb" "from" [|t|] [||]
-        let arbForObj = invokeGenericMethod typeof<Marker>.Assembly "VisitTests" "toObjArb" [|t|] [|arbForT|]
-        arbForObj :?> Arbitrary<obj>
-    //        printfn "%A" m
-    //        Arb.from<int>
 
     let setField o fieldName value =
         let field = o.GetType().GetField(fieldName, System.Reflection.BindingFlags.NonPublic ||| System.Reflection.BindingFlags.Instance)
         field.SetValue(o, value)
 
+    let getArbVisitor = {
+         new IRegistrationVisitor<unit,Arbitrary<obj>> with
+                member x.Visit<'TCmd> t = Arb.from<'TCmd> |> toObjArb
+         }
+
     let validCommands (aggregateDefinition: AggregateDefinition<_,_,_,_>) visitId : Arbitrary<obj seq> =
-        let commandTypes : seq<Type> =
+        let commandTypes : seq<Arbitrary<obj>> =
             aggregateDefinition.Handlers.CommandHandlers
-            |> Seq.map (fun x -> x.CmdType)
+            |> Seq.map (fun x -> x.Visitable.Receive () getArbVisitor)
 
         let rec genCommandList (xs : list<obj>) length = gen {
             match length with
             | 0 -> return xs |> List.toSeq
             | _ ->
-                let! typeToGen = Gen.elements commandTypes
-                let! nextCmd = arbforType(typeToGen).Generator
+                let! typeArb = Gen.elements commandTypes
+                let! nextCmd = typeArb.Generator
                 setField nextCmd "VisitId@" visitId
                 return! genCommandList (nextCmd::xs) (length - 1)
         }
@@ -77,7 +67,3 @@ module VisitTests =
     [<Property>]
     let ``All valid command sequences successfully apply to the Read Model`` (visitId : VisitId) =
         Prop.forAll (validCommands Visit.handlers visitId) (fun cmds -> runCommandsAndApplyEventsToViewModel cmds visitId)
-
-    [<Property>]
-    let ``Generate type`` () =
-        Prop.forAll (arbforType typeof<int>) (fun obj -> printfn "%A" obj)
