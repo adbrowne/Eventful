@@ -12,8 +12,9 @@ module CombinedStateBuilderTests =
         Id : Guid
     }
 
-    let runState (builder : CombinedStateBuilder) (items : obj list) =
+    let runState (builder : CombinedStateBuilder<unit>) (items : obj list) =
         items
+        |> List.map (fun x -> (x,()))
         |> List.fold builder.Run Map.empty
 
     let countEventsBuilder = 

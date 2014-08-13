@@ -35,7 +35,7 @@ module EventStream =
     type EventStreamLanguage<'N,'TMetadata> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
     | GetEventTypeMap of unit * (EventTypeMap -> 'N)
-    | ReadValue of EventToken * (obj -> 'N)
+    | ReadValue of EventToken * ((obj * 'TMetadata) -> 'N)
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
 

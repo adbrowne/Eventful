@@ -57,6 +57,7 @@ module SchoolReportHelpers =
 
     let emptyMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty }
 
+    let nullStateBuilder = NamedStateBuilder.nullStateBuilder<SchoolReportMetadata>
     let inline simpleHandler s f = 
         let withMetadata f = f >> (fun x -> (x, emptyMetadata))
         Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s (withMetadata f)
@@ -137,13 +138,13 @@ module Report =
                        TeacherId = x.TeacherId
                        Name = x.Name } 
 
-            yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder addReport
+            yield buildSimpleCmdHandler nullStateBuilder addReport
 
             let changeName (x : ChangeReportNameCommand) =
                 NameChanged { ReportId = x.ReportId
                               Name = x.Name }
 
-            yield buildSimpleCmdHandler NamedStateBuilder.nullStateBuilder changeName
+            yield buildSimpleCmdHandler nullStateBuilder changeName
         }
 
     let evtHandlers =
@@ -158,7 +159,7 @@ module Report =
                     }
                 }
 
-            yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) NamedStateBuilder.nullStateBuilder createTeacherReport
+            yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) nullStateBuilder createTeacherReport
         }
 
     let handlers =

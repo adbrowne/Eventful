@@ -93,7 +93,7 @@ module Visit =
         let withMetadata = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
         Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s withMetadata
 
-    let stateBuilder = NamedStateBuilder.nullStateBuilder
+    let stateBuilder = NamedStateBuilder.nullStateBuilder<EmergencyEventMetadata>
 
     let getStreamName () (visitId : VisitId) =
         sprintf "Visit-%s" <| visitId.Id.ToString("N")

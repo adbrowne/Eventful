@@ -11,7 +11,7 @@ module TestInterpreter =
         prog 
         (eventStore : TestEventStore<'TMetadata>) 
         (eventTypeMap : Bimap<string, ComparableType>)
-        (values : Map<EventToken,obj>) 
+        (values : Map<EventToken,(obj * 'TMetadata)>) 
         (writes : Vector<string * int * EventStreamEvent<'TMetadata>>)= 
         match prog with
         | FreeEventStream (GetEventTypeMap ((), f)) ->
@@ -30,13 +30,13 @@ module TestInterpreter =
                                     Number = eventNumber
                                     EventType = eventType
                                 }
-                            (token, evt)
+                            (token, evt, metadata)
                         | EventLink _ -> failwith "todo"
                 }
             match readEvent with
-            | Some (eventToken, evt) -> 
+            | Some (eventToken, evt, metadata) -> 
                 let next = f (Some eventToken)
-                let values' = values |> Map.add eventToken evt
+                let values' = values |> Map.add eventToken (evt,metadata)
                 interpret next eventStore eventTypeMap values' writes
             | None ->
                 let next = f None

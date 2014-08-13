@@ -195,7 +195,7 @@ module StateBuilder =
             let! token = readFromStream streamName eventsConsumed
             match token with
             | Some token -> 
-                let! value = readValue token
+                let! (value, metadata) = readValue token
                 let currentState = state |> Option.getOrElse stateBuilder.InitialState
                 let state' = stateBuilder.Run currentState value
                 return! loop (eventsConsumed + 1) (Some state')
@@ -205,70 +205,73 @@ module StateBuilder =
         return! loop 0 None
     }
 
-type INamedStateBuilder =
+type INamedStateBuilder<'TMetadata> =
     abstract Name : string
-    abstract Apply : obj -> obj -> obj
+    abstract Apply : obj -> (obj * 'TMetadata) -> obj
     abstract InitialState : obj
 
-type NamedStateBuilder<'TState>(name : string, builder: StateBuilder<'TState>) =
+type NamedStateBuilder<'TState,'TMetadata>(name : string, builder: StateBuilder<'TState>) =
     member x.Name = name
     member x.Builder = builder
 
-    interface INamedStateBuilder with
+    interface INamedStateBuilder<'TMetadata> with
         member x.Name = name
-        member x.Apply state message = 
+        member x.Apply state objWithMetadata = 
+            let (message, metadata) = objWithMetadata
             let typedState = state :?> 'TState
             builder.Run typedState message :> obj
         member x.InitialState = builder.InitialState :> obj
 
 module NamedStateBuilder =
-    let withName (name : string) (builder : StateBuilder<'TState>) : NamedStateBuilder<'TState> =
-        new NamedStateBuilder<_>(name, builder)
+    let withName (name : string) (builder : StateBuilder<'TState>) : NamedStateBuilder<'TState,'TMetadata> =
+        new NamedStateBuilder<_,_>(name, builder)
 
-    let nullStateBuilder = 
+    let nullStateBuilder<'TMetadata> : NamedStateBuilder<unit, 'TMetadata> = 
         StateBuilder.Empty () |> withName "$Empty"
 
 type CombinedStateBuilderState = Map<string,obj>
 
-type CombinedStateBuilder internal (children : Map<string, INamedStateBuilder>) =
-    member x.AddChild (c : INamedStateBuilder) =
+type CombinedStateBuilder<'TMetadata> internal (children : Map<string, INamedStateBuilder<'TMetadata>>) =
+    member x.AddChild (c : INamedStateBuilder<'TMetadata>) =
         match children |> Map.tryFind c.Name with
         | Some n when n = c ->
             x // we are adding the same item twice - this is fine just return ourselves
         | Some n ->
             failwith "Cannot combine different NamedStateBuilders with the same name"
         | None ->
-            new CombinedStateBuilder(children |> Map.add c.Name c)
+            new CombinedStateBuilder<'TMetadata>(children |> Map.add c.Name c)
 
     member x.Run inputStates e =
-        let runChildState (item: obj) (s:CombinedStateBuilderState) (childKey : string) (childBuilder : INamedStateBuilder) =
+        let runChildState (item: obj, metadata : 'TMetadata) (s:CombinedStateBuilderState) (childKey : string) (childBuilder : INamedStateBuilder<'TMetadata>) =
             let currentState = inputStates |> Map.tryFind childKey |> Option.getOrElse childBuilder.InitialState
-            let newState = childBuilder.Apply currentState item
+            let newState = childBuilder.Apply currentState (item,metadata)
             s |> Map.add childKey newState
             
         children |> Map.fold (runChildState e) Map.empty
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module CombinedStateBuilder =
-    let empty = new CombinedStateBuilder(Map.empty)
+    let empty<'TMetadata> = new CombinedStateBuilder<'TMetadata>(Map.empty)
 
-    let add child (s:CombinedStateBuilder) =
+    let add child (s:CombinedStateBuilder<'TMetadata>) =
         s.AddChild(child)
 
-    let run inputStates item (s:CombinedStateBuilder) =
+    let run inputStates item (s:CombinedStateBuilder<'TMetadata>) =
         s.Run inputStates item
 
-    let getValue (builder:NamedStateBuilder<'TState>) (state : CombinedStateBuilderState) =
-        (state |> Map.find builder.Name) :?> 'TState
+    let getValueByName (name : string) (state : CombinedStateBuilderState) =
+        state |> Map.find name
+    let getValue (builder:NamedStateBuilder<'TState,'TMetadata>) (state : CombinedStateBuilderState) =
+        (getValueByName builder.Name state) :?> 'TState
 
-    let toStreamProgram streamName (stateBuilder:CombinedStateBuilder) = eventStream {
+    let toStreamProgram streamName (stateBuilder:CombinedStateBuilder<'TMetadata>) = eventStream {
         let rec loop eventsConsumed state = eventStream {
             let! token = readFromStream streamName eventsConsumed
             match token with
             | Some token -> 
-                let! value = readValue token
+                let! (value, metadata) = readValue token
                 let currentState = state |> Option.getOrElse Map.empty
-                let state' = stateBuilder.Run currentState value
+                let state' = stateBuilder.Run currentState (value, metadata)
                 return! loop (eventsConsumed + 1) (Some state')
             | None -> 
                 return (eventsConsumed, state) }
