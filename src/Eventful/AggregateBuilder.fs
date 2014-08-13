@@ -123,29 +123,30 @@ module AggregateActionBuilder =
             sb.GetId context cmd
         | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
 
-    let getChildState combinedState (childStateBuilder : NamedStateBuilder<'TChildState, 'TMetadata>) stream = eventStream {
-            let! (eventsConsumed, state) = 
-                combinedState 
-                |> CombinedStateBuilder.toStreamProgram stream
-
+    let getUntypedChildState (combinedState : Map<string,obj> option) (childStateBuilder : INamedStateBuilder<'TMetadata>) = eventStream {
             let childState = 
                 Option.maybe {
-                    let! stateValue = state
+                    let! stateValue = combinedState
                     match stateValue |> Map.tryFind childStateBuilder.Name with
                     | Some hasValue ->
-                        return hasValue :?> 'TChildState
+                        return hasValue
                     | None ->
-                        return childStateBuilder.Builder.InitialState
+                        return childStateBuilder.InitialState
                 }
 
-            return (eventsConsumed, childState)
+            return childState
         }
 
-    let inline runCommand stream combinedStateBuilder commandStateBuilder systemConfiguration f = 
+    let getChildState (combinedState : Map<string,obj> option) (childStateBuilder : NamedStateBuilder<'TChildState, 'TMetadata>) = eventStream {
+        let! childState = getUntypedChildState combinedState childStateBuilder
+        return childState |> Option.map (fun x -> x :?> 'TChildState)
+    }
+
+    let inline runCommand stream (eventsConsumed, combinedState) commandStateBuilder systemConfiguration f = 
         let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
 
         eventStream {
-            let! (eventsConsumed, commandState) = getChildState combinedStateBuilder commandStateBuilder stream
+            let! commandState = getChildState combinedState commandStateBuilder
 
             let result = 
                 f commandState
@@ -203,7 +204,13 @@ module AggregateActionBuilder =
         | :? 'TCmd as cmd -> 
             let id = commandHandler.GetId commandContext cmd
             let stream = aggregateConfiguration.GetCommandStreamName commandContext id
-            runCommand stream aggregateConfiguration.StateBuilder commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd)
+            eventStream {
+                let! (eventsConsumed, combinedState) = 
+                    aggregateConfiguration.StateBuilder 
+                    |> CombinedStateBuilder.toStreamProgram stream
+
+                return! runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd)
+            }
         | _ -> 
             eventStream {
                 return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
@@ -261,7 +268,9 @@ module AggregateActionBuilder =
                 let typedEvent = evt.Body :?> 'TOnEvent
                 let resultingStream = aggregateConfig.GetEventStreamName eventContext (fId typedEvent)
 
-                let! (eventsConsumed, state) = getChildState aggregateConfig.StateBuilder stateBuilder resultingStream
+                let! (eventsConsumed, combinedState) = 
+                    aggregateConfig.StateBuilder |> CombinedStateBuilder.toStreamProgram resultingStream
+                let! state = getChildState combinedState stateBuilder
 
                 let! eventTypeMap = getEventTypeMap()
 
