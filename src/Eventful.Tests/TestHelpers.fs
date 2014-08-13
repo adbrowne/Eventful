@@ -10,7 +10,7 @@ module TestHelpers =
        then Some ()
        else None
 
-    let beSuccessWithEvent (x:'A -> bool) = 
+    let beSuccessWithEvent<'A,'TMetadata> (x:'A -> bool) = 
         let matches (stream, event : obj, metadata) =
             match event with
             | :? 'A as event ->
@@ -20,7 +20,7 @@ module TestHelpers =
             sprintf "Matches %A" x, 
             (fun a ->
                 match a with
-                | :? CommandResult as result -> 
+                | :? CommandResult<'TMetadata> as result -> 
                     match result with
                     | Choice1Of2 (events) ->
                         events |> List.exists matches
@@ -28,13 +28,13 @@ module TestHelpers =
                 | _ -> false)
         )
 
-    let containError x = 
+    let containError<'TMetadata> x = 
         let matches msg = msg = x
         NHamcrest.CustomMatcher<obj>(
             sprintf "Matches %A" x, 
             (fun a ->
                 match a with
-                | :? CommandResult as result -> 
+                | :? CommandResult<'TMetadata> as result -> 
                     match result with
                     | Choice2Of2 errors ->
                         errors |> NonEmptyList.toSeq |> Seq.exists matches

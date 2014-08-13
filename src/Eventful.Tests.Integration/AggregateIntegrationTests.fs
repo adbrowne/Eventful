@@ -10,8 +10,18 @@ open Eventful.EventStream
 open Eventful.EventStore
 open Eventful.Aggregate
 open Eventful.AggregateActionBuilder
+open Eventful.Testing
 
 open FSharpx.Option
+
+module IntegrationHelpers =
+    let emptyMetadata messageId sourceMessageId : Eventful.Testing.TestMetadata = { MessageId = messageId; SourceMessageId= sourceMessageId }
+    let inline simpleHandler s f = Eventful.AggregateActionBuilder.simpleHandler emptyMetadata s f
+    let inline buildSimpleCmdHandler s f = Eventful.AggregateActionBuilder.buildSimpleCmdHandler emptyMetadata s f
+    let inline onEvent fId s f = Eventful.AggregateActionBuilder.onEvent emptyMetadata fId s f
+    let inline linkEvent fId f = Eventful.AggregateActionBuilder.linkEvent emptyMetadata fId f
+
+open IntegrationHelpers
 
 module AggregateIntegrationTests = 
     type AggregateType =
@@ -70,7 +80,7 @@ module AggregateIntegrationTests =
         |> EventfulHandlers.addAggregate widgetHandlers
         |> EventfulHandlers.addAggregate widgetCounterAggregate
 
-    let newSystem client = new EventStoreSystem<unit,unit>(handlers, client, RunningTests.esSerializer, ())
+    let newSystem client = new EventStoreSystem<unit,unit,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, ())
 
     let streamPositionMap : Map<string, int> ref = ref Map.empty
 
@@ -90,7 +100,7 @@ module AggregateIntegrationTests =
     [<Trait("requires", "eventstore")>]
     let ``Can run command`` () : unit =
         streamPositionMap := Map.empty
-        let newEvent (position, streamId, eventNumber, a:EventStreamEventData) =
+        let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
             streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
             IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
 
@@ -143,7 +153,7 @@ module AggregateIntegrationTests =
     [<Trait("requires", "eventstore")>]
     let ``Can run many command`` () : unit =
         streamPositionMap := Map.empty
-        let newEvent (position, streamId, eventNumber, a:EventStreamEventData) =
+        let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
             streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
             IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
 

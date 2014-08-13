@@ -8,6 +8,11 @@ open Eventful.Aggregate
 
 type VisitId = { Id : Guid } 
 
+type EmergencyEventMetadata = {
+    MessageId: Guid
+    SourceMessageId: Guid
+}
+
 type TriageLevel = 
 | Level1
 | Level2
@@ -79,6 +84,9 @@ module Visit =
     | PickedUp of PatientPickedUpEvent
     | Discharged of PatientDischaredEvent
 
+    let emptyMetadata messageId sourceMessageId = { MessageId = messageId; SourceMessageId= sourceMessageId }
+    let inline simpleHandler s f = Eventful.AggregateActionBuilder.simpleHandler emptyMetadata s f
+
     let stateBuilder = NamedStateBuilder.nullStateBuilder
 
     let getStreamName () (visitId : VisitId) =
@@ -104,8 +112,8 @@ module Visit =
                 }
 
            yield registerPatient
-                |> simpleHandler stateBuilder
-                |> buildCmd
+                 |> simpleHandler stateBuilder
+                 |> buildCmd
 
            let pickupPatient (cmd : PickUpPatientCommand) =
                 PickedUp {    

@@ -2,11 +2,6 @@
 
 open System
 
-type EventMetadata = {
-    MessageId : Guid
-    SourceMessageId : Guid
-}
-
 type ExpectedAggregateVersion =
 | Any
 | NewStream
@@ -18,17 +13,17 @@ type WriteResult =
 | WriteCancelled
 | WriteError of System.Exception
 
-type EventStreamEventData = {
+type EventStreamEventData<'TMetadata> = {
     Body : obj
     EventType : string
-    Metadata : EventMetadata
+    Metadata : 'TMetadata
 }
 
 type EventTypeMap = Bimap<string, ComparableType>
 
-type EventStreamEvent = 
-| Event of (EventStreamEventData)
-| EventLink of (string * int * EventMetadata)
+type EventStreamEvent<'TMetadata> = 
+| Event of (EventStreamEventData<'TMetadata>)
+| EventLink of (string * int * 'TMetadata)
 
 module EventStream =
     type EventToken = {
@@ -37,11 +32,11 @@ module EventStream =
         EventType : string
     }
 
-    type EventStreamLanguage<'N> =
+    type EventStreamLanguage<'N,'TMetadata> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
     | GetEventTypeMap of unit * (EventTypeMap -> 'N)
     | ReadValue of EventToken * (obj -> 'N)
-    | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent> * (WriteResult -> 'N)
+    | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
 
     let fmap f streamWorker = 
@@ -57,8 +52,8 @@ module EventStream =
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
 
-    type FreeEventStream<'F,'R> = 
-        | FreeEventStream of EventStreamLanguage<FreeEventStream<'F,'R>>
+    type FreeEventStream<'F,'R,'TMetadata> = 
+        | FreeEventStream of EventStreamLanguage<FreeEventStream<'F,'R,'TMetadata>,'TMetadata>
         | Pure of 'R
 
     let empty = Pure ()
@@ -90,7 +85,7 @@ module EventStream =
         else result ()
 
     // The delay operator.
-    let delay (func : unit -> FreeEventStream<'a,'b>) : FreeEventStream<'a,'b> = 
+    let delay (func : unit -> FreeEventStream<'a,'b,'TMetadata>) : FreeEventStream<'a,'b,'TMetadata> = 
         let notYetDone = NotYetDone (fun () -> ()) |> liftF
         bind func notYetDone
 
@@ -108,22 +103,22 @@ module EventStream =
 
     type EventStreamBuilder() =
         member x.Zero() = Pure ()
-        member x.Return(r:'R) : FreeEventStream<'F,'R> = Pure r
-        member x.ReturnFrom(r:FreeEventStream<'F,'R>) : FreeEventStream<'F,'R> = r
-        member x.Bind (inp : FreeEventStream<'F,'R>, body : ('R -> FreeEventStream<'F,'U>)) : FreeEventStream<'F,'U>  = bind body inp
+        member x.Return(r:'R) : FreeEventStream<'F,'R,'TMetadata> = Pure r
+        member x.ReturnFrom(r:FreeEventStream<'F,'R,'TMetadata>) : FreeEventStream<'F,'R,'TMetadata> = r
+        member x.Bind (inp : FreeEventStream<'F,'R,'TMetadata>, body : ('R -> FreeEventStream<'F,'U,'TMetadata>)) : FreeEventStream<'F,'U,'TMetadata>  = bind body inp
         member x.Combine(expr1, expr2) = combine expr1 expr2
         member x.For(a, f) = forLoop a f 
         member x.Delay(func) = delay func
 
     let eventStream = new EventStreamBuilder()
 
-    type EventStreamProgram<'A> = FreeEventStream<obj,'A>
+    type EventStreamProgram<'A,'TMetadata> = FreeEventStream<obj,'A,'TMetadata>
 
 
     // Higher level eventstream operations
 
     let writeLink stream expectedVersion linkStream linkEventNumber metadata =
-        let writes : seq<EventStreamEvent> = Seq.singleton (EventStreamEvent.EventLink(linkStream, linkEventNumber, metadata))
+        let writes : seq<EventStreamEvent<'TMetadata>> = Seq.singleton (EventStreamEvent.EventLink(linkStream, linkEventNumber, metadata))
         writeToStream stream expectedVersion writes
 
     let getEventStreamEvent evt metadata = eventStream {

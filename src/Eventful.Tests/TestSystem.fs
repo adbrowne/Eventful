@@ -7,14 +7,14 @@ open FSharpx.Choice
 open FSharpx.Option
 open Eventful.EventStream
 
-type TestSystem
+type TestSystem<'TMetadata when 'TMetadata : equality>
     (
-        handlers : EventfulHandlers<unit,unit>, 
-        lastResult : CommandResult, 
-        allEvents : TestEventStore
+        handlers : EventfulHandlers<unit,unit,'TMetadata>, 
+        lastResult : CommandResult<'TMetadata>, 
+        allEvents : TestEventStore<'TMetadata>
     ) =
 
-    let interpret prog (testEventStore : TestEventStore) =
+    let interpret prog (testEventStore : TestEventStore<'TMetadata>) =
         TestInterpreter.interpret  prog testEventStore handlers.EventTypeMap Map.empty Vector.empty
 
     member x.RunCommand (cmd : obj) =    
@@ -32,7 +32,7 @@ type TestSystem
 
         let allEvents = TestEventStore.processPendingEvents () interpret handlers allEvents
 
-        new TestSystem(handlers, result, allEvents)
+        new TestSystem<'TMetadata>(handlers, result, allEvents)
 
     member x.Handlers = handlers
 
@@ -40,7 +40,7 @@ type TestSystem
 
     member x.Run (cmds : obj list) =
         cmds
-        |> List.fold (fun (s:TestSystem) cmd -> s.RunCommand cmd) x
+        |> List.fold (fun (s:TestSystem<'TMetadata>) cmd -> s.RunCommand cmd) x
 
     member x.EvaluateState<'TState> (stream : string) (stateBuilder : StateBuilder<'TState>) =
         let streamEvents = 
@@ -65,8 +65,8 @@ type TestSystem
         |> Vector.fold stateBuilder.Run stateBuilder.InitialState
 
     static member Empty handlers =
-        new TestSystem(handlers, Choice1Of2 List.empty, TestEventStore.empty)
+        new TestSystem<'TMetadata>(handlers, Choice1Of2 List.empty, TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
-    let runCommand x (y:TestSystem) = y.RunCommand x
+    let runCommand x (y:TestSystem<'TMetadata>) = y.RunCommand x

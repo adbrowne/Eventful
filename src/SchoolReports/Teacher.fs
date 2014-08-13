@@ -7,6 +7,11 @@ open FSharpx
 open FSharpx.Choice
 open Eventful.Aggregate
 
+type SchoolReportMetadata = {
+    MessageId: Guid
+    SourceMessageId: Guid
+}
+
 type AggregateType =
 | Teacher
 | Report
@@ -43,6 +48,15 @@ type TeacherEvents =
 
 open Eventful.AggregateActionBuilder
 open Eventful.Validation
+
+module SchoolReportHelpers =
+    let emptyMetadata messageId sourceMessageId = { MessageId = messageId; SourceMessageId= sourceMessageId }
+    let inline simpleHandler s f = Eventful.AggregateActionBuilder.simpleHandler emptyMetadata s f
+    let inline buildSimpleCmdHandler s f = Eventful.AggregateActionBuilder.buildSimpleCmdHandler emptyMetadata s f
+    let inline onEvent fId s f = Eventful.AggregateActionBuilder.onEvent emptyMetadata fId s f
+    let inline linkEvent fId f = Eventful.AggregateActionBuilder.linkEvent emptyMetadata fId f
+
+open SchoolReportHelpers
 
 module Teacher =
     let stateBuilder = 
@@ -157,9 +171,15 @@ open FsUnit.Xunit
 open Eventful.Testing
 open Eventful.Testing.TestHelpers
 
+module SchoolReportTestHelpers = 
+    let containError = Eventful.Testing.TestHelpers.containError<SchoolReportMetadata>
+    let beSuccessWithEvent<'A> = Eventful.Testing.TestHelpers.beSuccessWithEvent<'A,SchoolReportMetadata>
+
+open SchoolReportTestHelpers
+
 module TeacherTests = 
     let teacherHandlers =
-        EventfulHandlers.empty<unit,unit>
+        EventfulHandlers.empty<unit,unit,SchoolReportMetadata>
         |> EventfulHandlers.addAggregate Teacher.handlers
         |> EventfulHandlers.addAggregate Report.handlers 
         |> EventfulHandlers.addAggregate TeacherReport.handlers 

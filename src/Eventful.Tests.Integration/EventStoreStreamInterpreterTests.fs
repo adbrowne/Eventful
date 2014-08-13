@@ -7,6 +7,7 @@ open FsUnit.Xunit
 open Eventful
 open Eventful.EventStream
 open Eventful.EventStore
+open Eventful.Testing
 
 open FSharpx.Option
 
@@ -43,7 +44,7 @@ module EventStoreStreamInterpreterTests =
             let! writeResult = 
                 eventStream {
                     let! eventToWrite = getEventStreamEvent event metadata
-                    let writes : seq<EventStreamEvent> = Seq.singleton eventToWrite
+                    let writes : seq<EventStreamEvent<TestMetadata>> = Seq.singleton eventToWrite
                     let! ignore = writeToStream stream NewStream writes
                     return "Write Complete"
                 } |> run
@@ -86,7 +87,7 @@ module EventStoreStreamInterpreterTests =
             let! writeResult = 
                 eventStream {
                     let! eventToWrite = getEventStreamEvent event metadata
-                    let writes : seq<EventStreamEvent> = Seq.singleton eventToWrite
+                    let writes : seq<EventStreamEvent<TestMetadata>> = Seq.singleton eventToWrite
                     return! writeToStream stream wrongExpectedVersion writes
                 } |> run
 

@@ -6,9 +6,9 @@ open EventStore.ClientAPI
 open System
 open FSharpx
 
-type EventStoreSystem<'TCommandContext, 'TEventContext> 
+type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadata : equality> 
     ( 
-        handlers : EventfulHandlers<'TCommandContext, 'TEventContext>,
+        handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>,
         client : Client,
         serializer: ISerializer,
         eventContext : 'TEventContext
@@ -20,7 +20,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext>
     let log = createLogger "Eventful.EventStoreSystem"
 
     let mutable lastEventProcessed : EventPosition = EventPosition.Start
-    let mutable onCompleteCallbacks : List<EventPosition * string * int * EventStreamEventData -> unit> = List.empty
+    let mutable onCompleteCallbacks : List<EventPosition * string * int * EventStreamEventData<'TMetadata> -> unit> = List.empty
     let mutable timer : System.Threading.Timer = null
     let mutable subscription : EventStoreAllCatchUpSubscription = null
     let completeTracker = new LastCompleteItemAgent<EventPosition>()
@@ -41,7 +41,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext>
             return! interpreter program
         }
 
-    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext>) (eventStream, eventNumber, eventStreamEvent) =
+    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>) (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
         | EventStreamEvent.Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             async {
@@ -83,9 +83,9 @@ type EventStoreSystem<'TCommandContext, 'TEventContext>
             async {
                 let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
                 do! completeTracker.Start position
-                let evt = serializer.DeserializeObj (event.Event.Data) eventType.RealType.FullName
+                let evt = serializer.DeserializeObj (event.Event.Data) eventType.RealType.AssemblyQualifiedName
 
-                let metadata = { MessageId = Guid.NewGuid(); SourceMessageId = Guid.NewGuid() } 
+                let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>.AssemblyQualifiedName) :?> 'TMetadata
                 let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
                 let eventStreamEvent = EventStreamEvent.Event eventData
 

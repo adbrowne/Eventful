@@ -9,10 +9,10 @@ open FSharpx.Option
 module TestInterpreter =
     let rec interpret 
         prog 
-        (eventStore : TestEventStore) 
+        (eventStore : TestEventStore<'TMetadata>) 
         (eventTypeMap : Bimap<string, ComparableType>)
         (values : Map<EventToken,obj>) 
-        (writes : Vector<string * int * EventStreamEvent>)= 
+        (writes : Vector<string * int * EventStreamEvent<'TMetadata>>)= 
         match prog with
         | FreeEventStream (GetEventTypeMap ((), f)) ->
             let next = f eventTypeMap
