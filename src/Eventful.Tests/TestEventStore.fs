@@ -6,7 +6,7 @@ open System
 
 type TestMetadata = {
     MessageId : Guid
-    SourceMessageId : Guid
+    SourceMessageId : String
 }
 
 type TestEventStore<'TMetadata when 'TMetadata : equality> = {

@@ -26,7 +26,7 @@ module EventStreamStateBuilder =
         let newMetadata () =
             { 
                 MessageId = (Guid.NewGuid()) 
-                SourceMessageId = (Guid.NewGuid()) 
+                SourceMessageId = (Guid.NewGuid().ToString())
             }
 
         let streamName = "TestStream-1"
@@ -48,7 +48,7 @@ module EventStreamStateBuilder =
         let newMetadata () =
             { 
                 MessageId = (Guid.NewGuid()) 
-                SourceMessageId = (Guid.NewGuid()) 
+                SourceMessageId = (Guid.NewGuid().ToString())
             }
 
         let streamName = "TestStream-1"

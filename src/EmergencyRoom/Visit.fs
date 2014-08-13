@@ -10,7 +10,7 @@ type VisitId = { Id : Guid }
 
 type EmergencyEventMetadata = {
     MessageId: Guid
-    SourceMessageId: Guid
+    SourceMessageId: string
 }
 
 type TriageLevel = 
@@ -84,8 +84,14 @@ module Visit =
     | PickedUp of PatientPickedUpEvent
     | Discharged of PatientDischaredEvent
 
-    let emptyMetadata messageId sourceMessageId = { MessageId = messageId; SourceMessageId= sourceMessageId }
-    let inline simpleHandler s f = Eventful.AggregateActionBuilder.simpleHandler emptyMetadata s f
+    let systemConfiguration = { 
+        SetSourceMessageId = (fun id metadata -> { metadata with SourceMessageId = id })
+        SetMessageId = (fun id metadata -> { metadata with MessageId = id })
+    }
+
+    let inline simpleHandler s f = 
+        let withMetadata = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s withMetadata
 
     let stateBuilder = NamedStateBuilder.nullStateBuilder
 

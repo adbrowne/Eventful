@@ -9,7 +9,7 @@ open Eventful.Aggregate
 
 type SchoolReportMetadata = {
     MessageId: Guid
-    SourceMessageId: Guid
+    SourceMessageId: string
 }
 
 type AggregateType =
@@ -50,11 +50,25 @@ open Eventful.AggregateActionBuilder
 open Eventful.Validation
 
 module SchoolReportHelpers =
-    let emptyMetadata messageId sourceMessageId = { MessageId = messageId; SourceMessageId= sourceMessageId }
-    let inline simpleHandler s f = Eventful.AggregateActionBuilder.simpleHandler emptyMetadata s f
-    let inline buildSimpleCmdHandler s f = Eventful.AggregateActionBuilder.buildSimpleCmdHandler emptyMetadata s f
-    let inline onEvent fId s f = Eventful.AggregateActionBuilder.onEvent emptyMetadata fId s f
-    let inline linkEvent fId f = Eventful.AggregateActionBuilder.linkEvent emptyMetadata fId f
+    let systemConfiguration = { 
+        SetSourceMessageId = (fun id metadata -> { metadata with SourceMessageId = id })
+        SetMessageId = (fun id metadata -> { metadata with MessageId = id })
+    }
+
+    let emptyMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty }
+
+    let inline simpleHandler s f = 
+        let withMetadata f = f >> (fun x -> (x, emptyMetadata))
+        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s (withMetadata f)
+    let inline buildSimpleCmdHandler s f = 
+        let withMetadata f = f >> (fun x -> (x, emptyMetadata))
+        Eventful.AggregateActionBuilder.buildSimpleCmdHandler systemConfiguration s (withMetadata f)
+    let inline onEvent fId s f = 
+        let withMetadata f = f >> Seq.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+        Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
+    let inline linkEvent fId f = 
+        let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f emptyMetadata
 
 open SchoolReportHelpers
 

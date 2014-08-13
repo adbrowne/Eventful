@@ -21,7 +21,7 @@ module EventStoreStreamInterpreterTests =
         System.Guid.NewGuid().ToString()
 
     let event = { Name = "Andrew Browne" }
-    let metadata = { SourceMessageId = System.Guid.NewGuid(); MessageId = System.Guid.NewGuid() }
+    let metadata = { SourceMessageId = System.Guid.NewGuid().ToString(); MessageId = System.Guid.NewGuid() }
 
     let eventNameMapping = 
         Bimap.Empty
