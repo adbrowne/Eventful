@@ -7,6 +7,11 @@ open FSharpx
 open Eventful.Aggregate
 
 type VisitId = { Id : Guid } 
+     with 
+     static member New () = 
+        { 
+            Id = (Guid.NewGuid()) 
+        }
 
 type EmergencyEventMetadata = {
     MessageId: Guid
