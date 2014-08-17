@@ -95,6 +95,11 @@ module Visit =
 
     let stateBuilder = NamedStateBuilder.nullStateBuilder<EmergencyEventMetadata>
 
+    let isRegistered = 
+        StateBuilder.Empty false
+        |> StateBuilder.addHandler (fun s (e:PatientRegisteredEvent) -> true)
+        |> NamedStateBuilder.withName "IsRegistered"
+
     let getStreamName () (visitId : VisitId) =
         sprintf "Visit-%s" <| visitId.Id.ToString("N")
 
@@ -118,8 +123,9 @@ module Visit =
                 }
 
            yield registerPatient
-                 |> simpleHandler stateBuilder
-                 |> buildCmd
+                |> simpleHandler isRegistered
+                |> addValidator (StateValidator (isFalse id "Patient cannot be registered twice"))
+                |> buildCmd
 
            let pickupPatient (cmd : PickUpPatientCommand) =
                 PickedUp {    

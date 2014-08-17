@@ -21,7 +21,8 @@ module VisitTests =
         let finalTestSystem = cmds |> Seq.fold applyCommand emptyTestSystem
 
     [<Property>]
-    let ``All valid command sequences successfully apply to the Read Model`` (visitId : VisitId) =
+    let ``All valid command sequences successfully apply to the Read Model`` 
+        (visitId : VisitId) =
         Prop.forAll 
             (TestHelpers.getCommandsForAggregate Visit.handlers ("VisitId",visitId)) 
             (fun cmds -> runCommandsAndApplyEventsToViewModel cmds visitId)

@@ -22,3 +22,12 @@ module Validation =
             Seq.empty
         else
             msg |> Seq.singleton
+
+    let isFalse (f:'A -> bool) msg (x:'A option) : seq<ValidationFailure> = 
+        match x with
+        | None ->
+           Seq.empty
+        | Some x when f x ->
+           msg |> Seq.singleton 
+        | Some _ ->
+            Seq.empty
