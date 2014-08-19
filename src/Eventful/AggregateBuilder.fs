@@ -77,11 +77,12 @@ type SystemConfiguration<'TMetadata> = {
     SetMessageId : Guid -> 'TMetadata -> 'TMetadata
 }
 
-type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TId, 'TEvent,'TMetadata> = {
+type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TId, 'TEvent,'TMetadata, 'TValidatedState> = {
     GetId : 'TCommandContext -> 'TCmd -> 'TId
     StateBuilder : NamedStateBuilder<'TCommandState, 'TMetadata>
+    StateValidation : 'TCommandState option -> Choice<'TValidatedState, NonEmptyList<ValidationFailure>> 
     Validators : Validator<'TCmd,'TCommandState> list
-    Handler : 'TCommandContext -> 'TCmd -> seq<'TEvent * 'TMetadata>
+    Handler : 'TValidatedState -> 'TCommandContext -> 'TCmd -> Choice<seq<'TEvent * 'TMetadata>, NonEmptyList<ValidationFailure>>
     SystemConfiguration : SystemConfiguration<'TMetadata>
 }
 
@@ -97,9 +98,10 @@ module AggregateActionBuilder =
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
             StateBuilder = stateBuilder
             Validators = List.empty
-            Handler = (fun _ -> f >> Seq.singleton)
+            StateValidation = Success
+            Handler = (fun _ _ -> f >> Seq.singleton >> Success)
             SystemConfiguration = systemConfiguration
-        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata> 
+        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TState option> 
 
     let toChoiceValidator cmd r =
         if r |> Seq.isEmpty then
@@ -117,7 +119,7 @@ module AggregateActionBuilder =
          |> List.map (fun x -> x)
          |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
 
-    let untypedGetId<'TId,'TCmd,'TEvent,'TState, 'TCommandContext, 'TMetadata> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata>) (context : 'TCommandContext) (cmd:obj) =
+    let untypedGetId<'TId,'TCmd,'TEvent,'TState, 'TCommandContext, 'TMetadata, 'TValidatedState> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) (context : 'TCommandContext) (cmd:obj) =
         match cmd with
         | :? 'TCmd as cmd ->
             sb.GetId context cmd
@@ -188,16 +190,15 @@ module AggregateActionBuilder =
         }
 
     let handleCommand 
-        (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata>) 
+        (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) 
         (aggregateConfiguration : AggregateConfiguration<_,_,_,_>) 
         (commandContext : 'TCommandContext) 
         (cmd : obj) =
         let processCommand cmd commandState =
             choose {
                 let! validated = runValidation commandHandler.Validators cmd commandState
-
-                let result = commandHandler.Handler commandContext validated
-                return result 
+                let! validatedState = commandHandler.StateValidation commandState
+                return! commandHandler.Handler validatedState commandContext validated
             }
 
         match cmd with
@@ -216,7 +217,7 @@ module AggregateActionBuilder =
                 return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
             }
         
-    let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata>) = {
+    let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TValidatedState>) = {
         new ICommandHandler<'TEvent,'TId,'TCommandContext,'TMetadata> with 
              member this.GetId context cmd = untypedGetId sb context cmd
              member this.CmdType = typeof<'TCmd>
@@ -228,12 +229,12 @@ module AggregateActionBuilder =
              }
         }
 
-    let buildCmd (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata>) : ICommandHandler<'TEvent,'TId,'TCommandContext,'TMetadata> = 
+    let buildCmd (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) : ICommandHandler<'TEvent,'TId,'TCommandContext,'TMetadata> = 
         ToInterface sb
 
     let addValidator 
         (validator : Validator<'TCmd,'TState>) 
-        (handler: CommandHandler<'TCmd,'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata>) = 
+        (handler: CommandHandler<'TCmd,'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) = 
         { handler with Validators = validator::handler.Validators }
 
     let ensureFirstCommand x = addValidator (StateValidator (isNone id "Must be the first command")) x
