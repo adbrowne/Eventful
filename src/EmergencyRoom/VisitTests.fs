@@ -24,10 +24,35 @@ module VisitTests =
         cmds |> Seq.fold applyCommand emptyTestSystem
 
     [<Fact>]
+    let ``Given empty visit When Register Patient Then Patient Registered Event emitted - equality`` () : unit =
+        let visitId = VisitId.New()
+        let patientId = PatientId.New()
+        let registrationTime = DateTime.UtcNow
+
+        let command : RegisterPatientCommand = {
+            VisitId = visitId
+            PatientId = patientId
+            RegistrationTime = registrationTime
+        }
+
+        let result = 
+            emptyTestSystem
+            |> TestSystem.runCommand command
+
+        let expectedEvent : PatientRegisteredEvent = {
+            VisitId = visitId
+            PatientId = patientId
+            RegistrationTime = registrationTime
+        } 
+        
+        result.LastResult |> should equal expectedEvent
+
+    [<Fact>]
     let ``Given empty visit When Register Patient Then Patient Registered Event emitted`` () : unit =
         let visitId = VisitId.New()
         let patientId = PatientId.New()
         let registrationTime = DateTime.UtcNow
+
         let command : RegisterPatientCommand = {
             VisitId = visitId
             PatientId = patientId
