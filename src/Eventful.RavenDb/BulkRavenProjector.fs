@@ -132,9 +132,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         |> Async.Ignore
 
     let queue = 
-        let q = new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete, name = databaseName + " processing", cancellationToken = cancellationToken, groupComparer = StringComparer.InvariantCultureIgnoreCase)
-        q.StopWork()
-        q
+        new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete, name = databaseName + " processing", cancellationToken = cancellationToken, groupComparer = StringComparer.InvariantCultureIgnoreCase, runImmediately = false)
 
     let mutable lastPositionWritten : Option<EventPosition> = None
 
