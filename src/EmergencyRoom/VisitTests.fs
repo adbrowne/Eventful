@@ -19,6 +19,9 @@ module VisitTests =
         |> TestSystem.Empty
 
     let runCommandsAndApplyEventsToViewModel (cmds : seq<obj>) (visitId : VisitId) =
+        if(cmds |> Seq.length > 100) then
+            failwith "cmds too long"
+
         let streamName = Visit.getStreamName () visitId
         let applyCommand = flip TestSystem.runCommand
         cmds |> Seq.fold applyCommand emptyTestSystem
@@ -33,6 +36,12 @@ module VisitTests =
             VisitId = visitId
             PatientId = patientId
             RegistrationTime = registrationTime
+            StreetNumber = "123"
+            StreetLine1 = "Test St"
+            StreetLine2 = ""
+            Suburb = "Testville"
+            State = "Victoria"
+            Postcode = "3000"
         }
 
         let result = 
@@ -43,9 +52,21 @@ module VisitTests =
             VisitId = visitId
             PatientId = patientId
             RegistrationTime = registrationTime
-        } 
+            Address = 
+            {
+                StreetNumber = 123
+                StreetLine1 = "Test St"
+                StreetLine2 = ""
+                Suburb = "Testville"
+                State = "Victoria"
+                Postcode = 3000
+            }
+        }
         
-        result.LastResult |> should equal expectedEvent
+        let lastEvent = 
+            result.LastResult 
+            |> Choice.map (List.map (fun (_,evt,_) -> evt)) // ignore metadata
+        lastEvent = (Choice1Of2 [expectedEvent]) |> should equal true
 
     [<Fact>]
     let ``Given empty visit When Register Patient Then Patient Registered Event emitted`` () : unit =
@@ -57,6 +78,12 @@ module VisitTests =
             VisitId = visitId
             PatientId = patientId
             RegistrationTime = registrationTime
+            StreetNumber = "123"
+            StreetLine1 = "Test St"
+            StreetLine2 = ""
+            Suburb = "Testville"
+            State = "Victoria"
+            Postcode = "3000"
         }
 
         let result = 
@@ -71,11 +98,71 @@ module VisitTests =
               } -> true
             | _ -> false
         
-        result.LastResult |> should beSuccessWithEvent expectedEvent
+        let lastEvent = 
+            result.LastResult 
+            |> Choice.map (List.map (fun (_,evt,_) -> evt)) // ignore metadata
+        result.LastResult |> should beSuccessWithEvent<PatientRegisteredEvent, EmergencyEventMetadata> expectedEvent
 
     [<Property>]
     let ``All valid command sequences successfully apply to the Read Model`` 
         (visitId : VisitId) =
+        let run = (fun cmds -> 
+                runCommandsAndApplyEventsToViewModel cmds visitId |> ignore
+                true)
         Prop.forAll 
             (TestHelpers.getCommandsForAggregate Visit.handlers ("VisitId",visitId)) 
-            (fun cmds -> runCommandsAndApplyEventsToViewModel cmds visitId)
+            run
+
+    [<Fact>]
+    let ``too many events?`` () : unit =
+        let visitId = { Id = Guid.NewGuid() }
+        let patientId = { PatientId.Id = Guid.NewGuid() }
+        let cmds : List<obj> = 
+                                [ {DischargePatientCommand.VisitId = visitId; DischargeLocation = Transfer} :> obj;
+                                  { PickUpPatientCommand.VisitId = visitId; PickupTime = DateTime.Parse("5/21/2056 6:51:17 AM")} :> obj
+                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
+                                  { RegisterPatientCommand.VisitId = visitId;
+                                    PatientId = patientId
+                                    RegistrationTime = DateTime.Parse("10/13/1911 10:47:55 AM")
+                                    StreetNumber = "F\xB";
+                                    StreetLine1 = "!	G'C\x14?	d";
+                                    StreetLine2 = "";
+                                    Suburb = "\x16C_c8%";
+                                    State = "C\x8~ l1'I?ZP";
+                                    Postcode = "r7";} :> obj; 
+                                  { RegisterPatientCommand.VisitId = visitId;
+                                    PatientId = patientId
+                                    RegistrationTime = DateTime.Parse("6/26/2066 6:56:30 PM")
+                                    StreetNumber = "\x1C\x12-#h|\x6Es\x1E";
+                                    StreetLine1 = "Km\!_";
+                                    StreetLine2 = "&rZ\x18x\x14e\x10";
+                                    Suburb = "UpQ";
+                                    State = "Sg\x1404	";
+                                    Postcode = "";} :> obj;
+                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
+                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
+                                  {DischargePatientCommand.VisitId = visitId; DischargeLocation = Transfer} :> obj;
+                                  { PickUpPatientCommand.VisitId = visitId; PickupTime = DateTime.Parse("5/21/2056 6:51:17 AM")} :> obj
+                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
+                                  {DischargePatientCommand.VisitId = visitId; DischargeLocation = Transfer} :> obj;
+//                                  { RegisterPatientCommand.VisitId = visitId;
+//                                    PatientId = patientId
+//                                    RegistrationTime = DateTime.Parse("6/26/2066 6:56:30 PM")
+//                                    StreetNumber = "\x1C\x12-#h|\x6Es\x1E";
+//                                    StreetLine1 = "Km\!_";
+//                                    StreetLine2 = "&rZ\x18x\x14e\x10";
+//                                    Suburb = "UpQ";
+//                                    State = "Sg\x1404	";
+//                                    Postcode = "r7";} :> obj;
+//                                  { RegisterPatientCommand.VisitId = visitId;
+//                                    PatientId = patientId
+//                                    RegistrationTime = DateTime.Parse("6/26/2066 6:56:30 PM")
+//                                    StreetNumber = "\x1C\x12-#h|\x6Es\x1E";
+//                                    StreetLine1 = "Km\!_";
+//                                    StreetLine2 = "&rZ\x18x\x14e\x10";
+//                                    Suburb = "UpQ";
+//                                    State = "Sg\x1404	";
+//                                    Postcode = "";} :> obj;
+                                  { PickUpPatientCommand.VisitId = visitId; PickupTime = DateTime.Parse("5/21/2056 6:51:17 AM")} :> obj]
+        runCommandsAndApplyEventsToViewModel cmds visitId |> ignore
+

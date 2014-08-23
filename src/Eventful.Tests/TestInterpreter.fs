@@ -53,6 +53,7 @@ module TestInterpreter =
                 |> Vector.map snd
             
             let lastStreamEventIndex = streamEvents.Length - 1
+
             let expectedValueCorrect =
                 match (expectedValue, lastStreamEventIndex) with
                 | (Any, _) -> true
@@ -74,7 +75,7 @@ module TestInterpreter =
                     Seq.zip (Seq.initInfinite ((+) startingEventNumber)) streamEvents'
 
                 let eventStore' = 
-                    streamEvents' |> Vector.fold (fun s e -> s |> TestEventStore.addEvent stream e) eventStore
+                    events |> Vector.ofSeq |> Vector.fold (fun s e -> s |> TestEventStore.addEvent stream e) eventStore
 
                 interpret (next WriteSuccess) eventStore' eventTypeMap values writes
             else

@@ -93,6 +93,16 @@ module AggregateActionBuilder =
 
     let log = createLogger "Eventful.AggregateActionBuilder"
 
+    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> systemConfiguration stateBuilder f =
+        {
+            GetId = (fun _ -> MagicMapper.magicId<'TId>)
+            StateBuilder = stateBuilder
+            Validators = List.empty
+            StateValidation = Success
+            Handler = f
+            SystemConfiguration = systemConfiguration
+        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TState option> 
+
     let simpleHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> systemConfiguration stateBuilder (f : 'TCmd -> ('TEvent * 'TMetadata)) =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
@@ -209,7 +219,6 @@ module AggregateActionBuilder =
                 let! (eventsConsumed, combinedState) = 
                     aggregateConfiguration.StateBuilder 
                     |> CombinedStateBuilder.toStreamProgram stream
-
                 return! runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd)
             }
         | _ -> 

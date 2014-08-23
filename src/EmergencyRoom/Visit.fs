@@ -4,6 +4,7 @@ open System
 open Microsoft.FSharp.Core
 open Eventful
 open FSharpx
+open FSharpx.Collections
 open Eventful.Aggregate
 
 type VisitId = { Id : Guid } 
@@ -51,12 +52,28 @@ type RegisterPatientCommand = {
     VisitId : VisitId
     PatientId : PatientId
     RegistrationTime : DateTime
+    StreetNumber : string
+    StreetLine1: string
+    StreetLine2: string
+    Suburb: string
+    State: string
+    Postcode: string
+}
+
+type Address = {
+    StreetNumber : int
+    StreetLine1: string
+    StreetLine2: string
+    Suburb: string
+    State: string
+    Postcode: int
 }
 
 type PatientRegisteredEvent = {
     VisitId : VisitId
     PatientId : PatientId
     RegistrationTime : DateTime
+    Address : Address
 }
 
 type PickUpPatientCommand = {
@@ -82,6 +99,9 @@ type PatientDischaredEvent = {
 open Eventful.AggregateActionBuilder
 open Eventful.Validation
 
+open FSharpx.Choice
+open FSharpx.Validation
+
 module Visit = 
     type VisitEvents =
     | Triaged of PatientTriagedEvent
@@ -97,6 +117,16 @@ module Visit =
     let inline simpleHandler s f = 
         let withMetadata = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
         Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s withMetadata
+
+    let inline fullHandler s f =
+        let withMetadata a b c =
+            f a b c
+            |> Choice.map (fun evts ->
+                evts 
+                |> List.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+                |> List.toSeq
+            )
+        Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
 
     let stateBuilder = NamedStateBuilder.nullStateBuilder<EmergencyEventMetadata>
 
@@ -120,15 +150,82 @@ module Visit =
                  |> simpleHandler stateBuilder
                  |> buildCmd
 
-           let registerPatient (cmd : RegisterPatientCommand) =
-                Registered {    
-                    VisitId = cmd.VisitId
-                    PatientId = cmd.PatientId
-                    RegistrationTime = cmd.RegistrationTime
+           let hasLength length (input:string) =
+                if input.Length = length then
+                    Success input
+                else
+                    sprintf "Must have %d characters" length
+                    |> NonEmptyList.singleton
+                    |> Failure
+
+           let isNumber (input:string) =
+                let (success, result) = Int32.TryParse(input)                   
+                match success with
+                | true ->
+                    Success result
+                | false ->
+                    Failure <| NonEmptyList.singleton "Must be a number"
+
+           let hasRange minValue maxValue input =
+                match input with
+                | _ when input > maxValue ->
+                    sprintf "Must be less than %d" maxValue 
+                    |> NonEmptyList.singleton
+                    |> Failure
+                | _ when input < minValue ->
+                    sprintf "Must be greater than %d" minValue
+                    |> NonEmptyList.singleton
+                    |> Failure
+                | _ -> Success input
+                    
+           let validatePostcode postcode =
+                hasLength 4 postcode
+                *> isNumber postcode 
+                >>= hasRange 1 9999
+                |> Choice.mapSecond (fun x -> 
+                     sprintf "Postcode: %s" <| String.Join(",", x |> Array.ofSeq)
+                     |> NonEmptyList.singleton
+                )
+           let buildAddress streetNumber streetLine1 streetLine2 suburb state postcode =
+                {
+                    Address.StreetNumber = streetNumber
+                    StreetLine1 = streetLine1
+                    StreetLine2 = streetLine2
+                    Suburb = suburb
+                    State = state
+                    Postcode = postcode
                 }
 
+           let validateAddress streetNumber streetLine1 streetLine2 suburb state postcode =
+                buildAddress 
+                    <!> isNumber streetNumber 
+                    <*> Success streetLine1 
+                    <*> Success streetLine2 
+                    <*> Success suburb 
+                    <*> Success state
+                    <*> validatePostcode postcode
+
+           let registerPatient state context (cmd : RegisterPatientCommand) =
+                let buildEvent (address:Address) = 
+                    [Registered {    
+                        VisitId = cmd.VisitId
+                        PatientId = cmd.PatientId
+                        RegistrationTime = cmd.RegistrationTime
+                        Address = address
+                    }]
+                let address = 
+                    validateAddress 
+                        cmd.StreetNumber 
+                        cmd.StreetLine1 
+                        cmd.StreetLine2 
+                        cmd.Suburb 
+                        cmd.State 
+                        cmd.Postcode
+
+                buildEvent <!> address
+
            yield registerPatient
-                |> simpleHandler isRegistered
+                |> fullHandler isRegistered
                 |> addValidator (StateValidator (isFalse id "Patient cannot be registered twice"))
                 |> buildCmd
 
