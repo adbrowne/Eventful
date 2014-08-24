@@ -4,8 +4,10 @@ open System
 open FSharpx
 open FSharpx.Validation
 open FSharpx.Collections
+open FSharpx.Choice
+open FSharpx.Validation
 
-type ValidationFailure = string
+type ValidationFailure = string option * string
 
 module Validation = 
     let Success = Choice1Of2
@@ -13,7 +15,7 @@ module Validation =
 
     let notBlank (f:'A -> string) fieldName (x:'A) : seq<ValidationFailure> = 
         if f x |> String.IsNullOrWhiteSpace then
-            sprintf "%s must not be blank" fieldName |> Seq.singleton
+            (Some fieldName, sprintf "%s must not be blank" fieldName) |> Seq.singleton
         else
             Seq.empty
 
@@ -31,3 +33,47 @@ module Validation =
            msg |> Seq.singleton 
         | Some _ ->
             Seq.empty
+
+    let hasText (fieldName:string) (input:string) =
+        match String.IsNullOrWhiteSpace input with
+        | true ->
+            Failure <| NonEmptyList.singleton (Some fieldName, "Must have a value")
+        | false ->
+            Success input
+
+    let isNumber (fieldName:string) (input:string) =
+        let (success, result) = Int32.TryParse(input)                   
+        match success with
+        | true ->
+            Success result
+        | false ->
+            Failure <| NonEmptyList.singleton (Some fieldName, "Must be a number")
+
+    let hasRange fieldName minValue maxValue input =
+        match input with
+        | _ when input > maxValue ->
+            (Some fieldName, sprintf "Must be less than %d" maxValue)
+            |> NonEmptyList.singleton
+            |> Failure
+        | _ when input < minValue ->
+            (Some fieldName, sprintf "Must be greater than %d" minValue)
+            |> NonEmptyList.singleton
+            |> Failure
+        | _ -> Success input
+
+    let hasLength fieldName length (input:string) =
+        if input = null then
+            (Some fieldName, sprintf "Must have %d characters" length)
+            |> NonEmptyList.singleton
+            |> Failure
+        elif input.Length = length then
+            Success input
+        else
+            (Some fieldName, sprintf "Must have %d characters" length)
+            |> NonEmptyList.singleton
+            |> Failure
+            
+    let validatePostcode fieldName postcode =
+        hasLength fieldName 4 postcode
+        *> isNumber fieldName postcode 
+        >>= hasRange fieldName 1 9999

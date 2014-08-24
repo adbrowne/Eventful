@@ -223,7 +223,7 @@ module AggregateActionBuilder =
             }
         | _ -> 
             eventStream {
-                return NonEmptyList.singleton (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
+                return NonEmptyList.singleton (None, sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
             }
         
     let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TValidatedState>) = {
@@ -246,7 +246,7 @@ module AggregateActionBuilder =
         (handler: CommandHandler<'TCmd,'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) = 
         { handler with Validators = validator::handler.Validators }
 
-    let ensureFirstCommand x = addValidator (StateValidator (isNone id "Must be the first command")) x
+    let ensureFirstCommand x = addValidator (StateValidator (isNone id (None, "Must be the first command"))) x
 
     let buildSimpleCmdHandler<'TId,'TCmd,'TCmdState,'TEvent, 'TCommandContext,'TMetadata> emptyMetadata stateBuilder = 
         (simpleHandler<'TId,'TCmdState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> emptyMetadata stateBuilder) >> buildCmd

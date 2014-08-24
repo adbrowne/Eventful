@@ -29,6 +29,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SchoolReports", "SchoolRepo
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "EmergencyRoom", "EmergencyRoom\EmergencyRoom.fsproj", "{58D3D665-0343-4D8C-90F2-BD46FE91AFF1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EmergencyRoom.Web", "EmergencyRoom.Web\EmergencyRoom.Web.csproj", "{569BCE12-BCD4-4BF9-B22B-68194E38F2DB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,6 +73,10 @@ Global
 		{58D3D665-0343-4D8C-90F2-BD46FE91AFF1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{58D3D665-0343-4D8C-90F2-BD46FE91AFF1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{58D3D665-0343-4D8C-90F2-BD46FE91AFF1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{569BCE12-BCD4-4BF9-B22B-68194E38F2DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{569BCE12-BCD4-4BF9-B22B-68194E38F2DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{569BCE12-BCD4-4BF9-B22B-68194E38F2DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{569BCE12-BCD4-4BF9-B22B-68194E38F2DB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -78,5 +84,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{9B9270D8-ADF1-4249-98AC-F4BEA5BF4AC9} = {35981068-F93F-407E-9580-0CB68919E4D0}
 		{58D3D665-0343-4D8C-90F2-BD46FE91AFF1} = {35981068-F93F-407E-9580-0CB68919E4D0}
+		{569BCE12-BCD4-4BF9-B22B-68194E38F2DB} = {35981068-F93F-407E-9580-0CB68919E4D0}
 	EndGlobalSection
 EndGlobal

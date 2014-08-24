@@ -48,6 +48,7 @@ type PatientTriagedEvent = {
     TriageLevel : TriageLevel
 }
 
+[<CLIMutable>]
 type RegisterPatientCommand = {
     VisitId : VisitId
     PatientId : PatientId
@@ -58,6 +59,7 @@ type RegisterPatientCommand = {
     Suburb: string
     State: string
     Postcode: string
+    MedicareNumber : string
 }
 
 type Address = {
@@ -74,6 +76,7 @@ type PatientRegisteredEvent = {
     PatientId : PatientId
     RegistrationTime : DateTime
     Address : Address
+    MedicareNumber: string
 }
 
 type PickUpPatientCommand = {
@@ -138,6 +141,53 @@ module Visit =
     let getStreamName () (visitId : VisitId) =
         sprintf "Visit-%s" <| visitId.Id.ToString("N")
 
+    let buildAddress streetNumber streetLine1 streetLine2 suburb state postcode =
+        {
+            Address.StreetNumber = streetNumber
+            StreetLine1 = streetLine1
+            StreetLine2 = streetLine2
+            Suburb = suburb
+            State = state
+            Postcode = postcode
+        }
+
+    let validateAddress streetNumber streetLine1 streetLine2 suburb state postcode =
+        buildAddress 
+            <!> isNumber "StreetNumber" streetNumber 
+            <*> hasText "StreetLine1" streetLine1 
+            <*> Success streetLine2 
+            <*> hasText "Suburb" suburb
+            <*> hasText "State" state
+            <*> validatePostcode "Postcode" postcode
+
+    let registerPatient state context (cmd : RegisterPatientCommand) =
+        let address =
+            validateAddress 
+                cmd.StreetNumber 
+                cmd.StreetLine1 
+                cmd.StreetLine2 
+                cmd.Suburb 
+                cmd.State 
+                cmd.Postcode
+
+        let buildEvent (address:Address) medicareNumber = 
+            [Registered {    
+                VisitId = cmd.VisitId
+                PatientId = cmd.PatientId
+                RegistrationTime = cmd.RegistrationTime
+                Address = address
+                MedicareNumber = medicareNumber
+            }]
+
+        buildEvent 
+            <!> address
+            <*> hasLength "MedicareNumber" 10 cmd.MedicareNumber
+
+    let validateCommand (cmd : RegisterPatientCommand) =
+       match (registerPatient () () cmd) with
+       | Choice1Of2 _ -> Seq.empty
+       | Choice2Of2 errors -> errors |> NonEmptyList.toSeq
+        
     let cmdHandlers = 
         seq {
            let triagePatient (cmd : TriagePatientCommand) =
@@ -150,83 +200,9 @@ module Visit =
                  |> simpleHandler stateBuilder
                  |> buildCmd
 
-           let hasLength length (input:string) =
-                if input.Length = length then
-                    Success input
-                else
-                    sprintf "Must have %d characters" length
-                    |> NonEmptyList.singleton
-                    |> Failure
-
-           let isNumber (input:string) =
-                let (success, result) = Int32.TryParse(input)                   
-                match success with
-                | true ->
-                    Success result
-                | false ->
-                    Failure <| NonEmptyList.singleton "Must be a number"
-
-           let hasRange minValue maxValue input =
-                match input with
-                | _ when input > maxValue ->
-                    sprintf "Must be less than %d" maxValue 
-                    |> NonEmptyList.singleton
-                    |> Failure
-                | _ when input < minValue ->
-                    sprintf "Must be greater than %d" minValue
-                    |> NonEmptyList.singleton
-                    |> Failure
-                | _ -> Success input
-                    
-           let validatePostcode postcode =
-                hasLength 4 postcode
-                *> isNumber postcode 
-                >>= hasRange 1 9999
-                |> Choice.mapSecond (fun x -> 
-                     sprintf "Postcode: %s" <| String.Join(",", x |> Array.ofSeq)
-                     |> NonEmptyList.singleton
-                )
-           let buildAddress streetNumber streetLine1 streetLine2 suburb state postcode =
-                {
-                    Address.StreetNumber = streetNumber
-                    StreetLine1 = streetLine1
-                    StreetLine2 = streetLine2
-                    Suburb = suburb
-                    State = state
-                    Postcode = postcode
-                }
-
-           let validateAddress streetNumber streetLine1 streetLine2 suburb state postcode =
-                buildAddress 
-                    <!> isNumber streetNumber 
-                    <*> Success streetLine1 
-                    <*> Success streetLine2 
-                    <*> Success suburb 
-                    <*> Success state
-                    <*> validatePostcode postcode
-
-           let registerPatient state context (cmd : RegisterPatientCommand) =
-                let buildEvent (address:Address) = 
-                    [Registered {    
-                        VisitId = cmd.VisitId
-                        PatientId = cmd.PatientId
-                        RegistrationTime = cmd.RegistrationTime
-                        Address = address
-                    }]
-                let address = 
-                    validateAddress 
-                        cmd.StreetNumber 
-                        cmd.StreetLine1 
-                        cmd.StreetLine2 
-                        cmd.Suburb 
-                        cmd.State 
-                        cmd.Postcode
-
-                buildEvent <!> address
-
            yield registerPatient
                 |> fullHandler isRegistered
-                |> addValidator (StateValidator (isFalse id "Patient cannot be registered twice"))
+                |> addValidator (StateValidator (isFalse id (None,"Patient cannot be registered twice")))
                 |> buildCmd
 
            let pickupPatient (cmd : PickUpPatientCommand) =

@@ -24,7 +24,8 @@ module VisitTests =
 
         let streamName = Visit.getStreamName () visitId
         let applyCommand = flip TestSystem.runCommand
-        cmds |> Seq.fold applyCommand emptyTestSystem
+        let finalTestSystem = cmds |> Seq.fold applyCommand emptyTestSystem
+        finalTestSystem.EvaluateState streamName Visit.visitDocumentBuilder |> ignore
 
     [<Fact>]
     let ``Given empty visit When Register Patient Then Patient Registered Event emitted - equality`` () : unit =
@@ -42,6 +43,7 @@ module VisitTests =
             Suburb = "Testville"
             State = "Victoria"
             Postcode = "3000"
+            MedicareNumber = "1234567890"
         }
 
         let result = 
@@ -53,14 +55,15 @@ module VisitTests =
             PatientId = patientId
             RegistrationTime = registrationTime
             Address = 
-            {
-                StreetNumber = 123
-                StreetLine1 = "Test St"
-                StreetLine2 = ""
-                Suburb = "Testville"
-                State = "Victoria"
-                Postcode = 3000
-            }
+                {
+                    StreetNumber = 123
+                    StreetLine1 = "Test St"
+                    StreetLine2 = ""
+                    Suburb = "Testville"
+                    State = "Victoria"
+                    Postcode = 3000
+                }
+            MedicareNumber = "1234567890"
         }
         
         let lastEvent = 
@@ -84,6 +87,7 @@ module VisitTests =
             Suburb = "Testville"
             State = "Victoria"
             Postcode = "3000"
+            MedicareNumber = "1234567890"
         }
 
         let result = 
@@ -106,63 +110,8 @@ module VisitTests =
     [<Property>]
     let ``All valid command sequences successfully apply to the Read Model`` 
         (visitId : VisitId) =
-        let run = (fun cmds -> 
-                runCommandsAndApplyEventsToViewModel cmds visitId |> ignore
-                true)
         Prop.forAll 
             (TestHelpers.getCommandsForAggregate Visit.handlers ("VisitId",visitId)) 
-            run
-
-    [<Fact>]
-    let ``too many events?`` () : unit =
-        let visitId = { Id = Guid.NewGuid() }
-        let patientId = { PatientId.Id = Guid.NewGuid() }
-        let cmds : List<obj> = 
-                                [ {DischargePatientCommand.VisitId = visitId; DischargeLocation = Transfer} :> obj;
-                                  { PickUpPatientCommand.VisitId = visitId; PickupTime = DateTime.Parse("5/21/2056 6:51:17 AM")} :> obj
-                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
-                                  { RegisterPatientCommand.VisitId = visitId;
-                                    PatientId = patientId
-                                    RegistrationTime = DateTime.Parse("10/13/1911 10:47:55 AM")
-                                    StreetNumber = "F\xB";
-                                    StreetLine1 = "!	G'C\x14?	d";
-                                    StreetLine2 = "";
-                                    Suburb = "\x16C_c8%";
-                                    State = "C\x8~ l1'I?ZP";
-                                    Postcode = "r7";} :> obj; 
-                                  { RegisterPatientCommand.VisitId = visitId;
-                                    PatientId = patientId
-                                    RegistrationTime = DateTime.Parse("6/26/2066 6:56:30 PM")
-                                    StreetNumber = "\x1C\x12-#h|\x6Es\x1E";
-                                    StreetLine1 = "Km\!_";
-                                    StreetLine2 = "&rZ\x18x\x14e\x10";
-                                    Suburb = "UpQ";
-                                    State = "Sg\x1404	";
-                                    Postcode = "";} :> obj;
-                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
-                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
-                                  {DischargePatientCommand.VisitId = visitId; DischargeLocation = Transfer} :> obj;
-                                  { PickUpPatientCommand.VisitId = visitId; PickupTime = DateTime.Parse("5/21/2056 6:51:17 AM")} :> obj
-                                  { TriagePatientCommand.VisitId = visitId; TriageLevel = TriageLevel.Level2 } :> obj
-                                  {DischargePatientCommand.VisitId = visitId; DischargeLocation = Transfer} :> obj;
-//                                  { RegisterPatientCommand.VisitId = visitId;
-//                                    PatientId = patientId
-//                                    RegistrationTime = DateTime.Parse("6/26/2066 6:56:30 PM")
-//                                    StreetNumber = "\x1C\x12-#h|\x6Es\x1E";
-//                                    StreetLine1 = "Km\!_";
-//                                    StreetLine2 = "&rZ\x18x\x14e\x10";
-//                                    Suburb = "UpQ";
-//                                    State = "Sg\x1404	";
-//                                    Postcode = "r7";} :> obj;
-//                                  { RegisterPatientCommand.VisitId = visitId;
-//                                    PatientId = patientId
-//                                    RegistrationTime = DateTime.Parse("6/26/2066 6:56:30 PM")
-//                                    StreetNumber = "\x1C\x12-#h|\x6Es\x1E";
-//                                    StreetLine1 = "Km\!_";
-//                                    StreetLine2 = "&rZ\x18x\x14e\x10";
-//                                    Suburb = "UpQ";
-//                                    State = "Sg\x1404	";
-//                                    Postcode = "";} :> obj;
-                                  { PickUpPatientCommand.VisitId = visitId; PickupTime = DateTime.Parse("5/21/2056 6:51:17 AM")} :> obj]
-        runCommandsAndApplyEventsToViewModel cmds visitId |> ignore
-
+            (fun cmds -> 
+                runCommandsAndApplyEventsToViewModel cmds visitId |> ignore
+                true)
