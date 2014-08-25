@@ -92,11 +92,13 @@ type PatientPickedUpEvent = {
 type DischargePatientCommand = {
     VisitId : VisitId
     DischargeLocation : DischargeLocation
+    DischargeTime : DateTime
 }
 
-type PatientDischaredEvent = {
+type PatientDischargedEvent = {
     VisitId : VisitId
     DischargeLocation : DischargeLocation
+    DischargeTime : DateTime
 }
 
 open Eventful.AggregateActionBuilder
@@ -110,16 +112,23 @@ module Visit =
     | Triaged of PatientTriagedEvent
     | Registered of PatientRegisteredEvent
     | PickedUp of PatientPickedUpEvent
-    | Discharged of PatientDischaredEvent
+    | Discharged of PatientDischargedEvent
 
     let systemConfiguration = { 
         SetSourceMessageId = (fun id metadata -> { metadata with SourceMessageId = id })
         SetMessageId = (fun id metadata -> { metadata with MessageId = id })
     }
 
-    let inline simpleHandler s f = 
+    let stateBuilder = NamedStateBuilder.nullStateBuilder<EmergencyEventMetadata>
+
+    let inline simpleHandler f = 
         let withMetadata = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s withMetadata
+        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration stateBuilder withMetadata
+    
+    let inline buildCmdHandler f =
+        f
+        |> simpleHandler
+        |> buildCmd
 
     let inline fullHandler s f =
         let withMetadata a b c =
@@ -131,8 +140,29 @@ module Visit =
             )
         Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
 
-    let stateBuilder = NamedStateBuilder.nullStateBuilder<EmergencyEventMetadata>
+    type VisitState = {
+        Registered : bool
+        CurrentTriageLevel : Option<TriageLevel>
+        RegistrationTime : Option<DateTime>
+        DischargeTime : Option<DateTime>
+    }
+    with static member Empty = { 
+            Registered = false
+            CurrentTriageLevel = None
+            DischargeTime = None
+            RegistrationTime = None }
 
+    let visitStateBuilder = 
+        StateBuilder.Empty VisitState.Empty
+        |> StateBuilder.addHandler (fun s (e:PatientTriagedEvent) ->
+            { s with CurrentTriageLevel = Some e.TriageLevel })
+        |> StateBuilder.addHandler (fun s (e:PatientRegisteredEvent) ->
+            { s with   
+                 Registered = true
+                 RegistrationTime = Some e.RegistrationTime })
+        |> StateBuilder.addHandler (fun s (e:PatientDischargedEvent) ->
+            { s with DischargeTime = Some e.DischargeTime })
+        
     let isRegistered = 
         StateBuilder.Empty false
         |> StateBuilder.addHandler (fun s (e:PatientRegisteredEvent) -> true)
@@ -200,9 +230,7 @@ module Visit =
                    TriageLevel = cmd.TriageLevel
                }
 
-           yield triagePatient
-                 |> simpleHandler stateBuilder
-                 |> buildCmd
+           yield buildCmdHandler triagePatient
 
            yield registerPatient
                 |> fullHandler isRegistered
@@ -214,19 +242,16 @@ module Visit =
                     PickupTime = cmd.PickupTime
                 }
 
-           yield pickupPatient
-                |> simpleHandler stateBuilder
-                |> buildCmd
+           yield buildCmdHandler pickupPatient
 
            let dischargePatient (cmd : DischargePatientCommand) =
                 Discharged {    
                     VisitId = cmd.VisitId
                     DischargeLocation = cmd.DischargeLocation
+                    DischargeTime = cmd.DischargeTime
                 }
 
-           yield dischargePatient
-                |> simpleHandler stateBuilder
-                |> buildCmd
+           yield buildCmdHandler dischargePatient
         }
 
     let handlers =
