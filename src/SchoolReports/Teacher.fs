@@ -188,7 +188,7 @@ open Eventful.Testing.TestHelpers
 
 module SchoolReportTestHelpers = 
     let containError = Eventful.Testing.TestHelpers.containError<SchoolReportMetadata>
-    let beSuccessWithEvent<'A> = Eventful.Testing.TestHelpers.beSuccessWithEvent<'A,SchoolReportMetadata>
+//    let beSuccessWithEvent<'A> = Eventful.Testing.TestHelpers.beSuccessWithEvent<'A,SchoolReportMetadata>
 
 open SchoolReportTestHelpers
 

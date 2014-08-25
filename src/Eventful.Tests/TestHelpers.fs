@@ -11,8 +11,8 @@ module TestHelpers =
        then Some ()
        else None
 
-    let beSuccessWithEvent<'A,'TMetadata> (x:'A -> bool) = 
-        let matches (stream, event : obj, metadata) =
+    let beSuccessWithEvent<'A> (x:'A -> bool) = 
+        let matches (event : obj) =
             match event with
             | :? 'A as event ->
                 x event
@@ -21,7 +21,7 @@ module TestHelpers =
             sprintf "Matches %A" x, 
             (fun a ->
                 match a with
-                | :? CommandResult<'TMetadata> as result -> 
+                | :? Choice<list<'A>,NonEmptyList<ValidationFailure>>  as result -> 
                     match result with
                     | Choice1Of2 (events) ->
                         events |> List.exists matches
