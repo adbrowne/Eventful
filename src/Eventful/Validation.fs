@@ -13,6 +13,11 @@ module Validation =
     let Success = Choice1Of2
     let Failure = Choice2Of2
 
+    let failWithError error = 
+        (None, error)
+        |> NonEmptyList.singleton
+        |> Failure
+
     let notBlank (f:'A -> string) fieldName (x:'A) : seq<ValidationFailure> = 
         if f x |> String.IsNullOrWhiteSpace then
             (Some fieldName, sprintf "%s must not be blank" fieldName) |> Seq.singleton

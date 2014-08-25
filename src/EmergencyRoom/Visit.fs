@@ -160,15 +160,7 @@ module Visit =
             <*> hasText "State" state
             <*> validatePostcode "Postcode" postcode
 
-    let registerPatient state context (cmd : RegisterPatientCommand) =
-        let address =
-            validateAddress 
-                cmd.StreetNumber 
-                cmd.StreetLine1 
-                cmd.StreetLine2 
-                cmd.Suburb 
-                cmd.State 
-                cmd.Postcode
+    let registerPatient isRegistered context (cmd : RegisterPatientCommand) =
 
         let buildEvent (address:Address) medicareNumber = 
             [Registered {    
@@ -179,12 +171,24 @@ module Visit =
                 MedicareNumber = medicareNumber
             }]
 
-        buildEvent 
-            <!> address
-            <*> hasLength "MedicareNumber" 10 cmd.MedicareNumber
+        let address =
+            validateAddress 
+                cmd.StreetNumber 
+                cmd.StreetLine1 
+                cmd.StreetLine2 
+                cmd.Suburb 
+                cmd.State 
+                cmd.Postcode
+
+        if isRegistered = Some true then
+            failWithError "Patient is already registered"
+        else 
+            buildEvent 
+                <!> address
+                <*> hasLength "MedicareNumber" 10 cmd.MedicareNumber
 
     let validateCommand (cmd : RegisterPatientCommand) =
-       match (registerPatient () () cmd) with
+       match (registerPatient None () cmd) with
        | Choice1Of2 _ -> Seq.empty
        | Choice2Of2 errors -> errors |> NonEmptyList.toSeq
         
@@ -202,7 +206,6 @@ module Visit =
 
            yield registerPatient
                 |> fullHandler isRegistered
-                |> addValidator (StateValidator (isFalse id (None,"Patient cannot be registered twice")))
                 |> buildCmd
 
            let pickupPatient (cmd : PickUpPatientCommand) =
