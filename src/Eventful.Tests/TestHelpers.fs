@@ -81,3 +81,19 @@ module TestHelpers =
                 }
 
         Arb.fromGenShrink (gen, shrink)
+
+    let assertTrueWithin maxWaitMilliseconds error f =
+        let sleepTime = 5
+
+        let rec loop remaining =
+            if remaining < 0 then
+                Xunit.Assert.True(f (), error)
+                ()
+            else
+                if f() then
+                    ()
+                else
+                    System.Threading.Thread.Sleep(sleepTime)
+                    loop (remaining - sleepTime)
+
+        loop maxWaitMilliseconds

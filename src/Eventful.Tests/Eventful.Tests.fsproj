@@ -78,7 +78,7 @@
     <Compile Include="PreludeTests.fs" />
     <Compile Include="CounterAgent.fs" />
     <Compile Include="ParellelInOrderTransformerTests.fs" />
-    <Compile Include="SimpleSetTrackerAgentTests.fs" />
+    <Compile Include="OperationSetCompleteTests.fs" />
     <Compile Include="MutableOrderedGroupingQueue.fs" />
     <Compile Include="WorktrackingQueueTests.fs" />
     <Compile Include="BatchingQueueTests.fs" />
