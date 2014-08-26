@@ -225,7 +225,14 @@ module TeacherTests =
             | _ -> false
 
         result.LastResult
-        |> should beSuccessWithEvent expectedEvent
+        |> function
+        | Choice1Of2 [(stream, evt , metadata)] -> 
+            match evt with
+            | :? TeacherAddedEvent as evt -> 
+                expectedEvent evt
+            | _ -> false
+        | _ -> false
+        |> should be True
 
     [<Fact>]
     [<Trait("category", "unit")>]
