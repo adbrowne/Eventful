@@ -62,7 +62,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                                 try
                                     do! runWithTimeout workerName workTimeout ct work
                                 with | e ->
-                                    log.Debug <| lazy (sprintf "Work failed..retrying: %A" workerName)
+                                    log.DebugWithException <| lazy (sprintf "Work failed..retrying: %A" workerName, e)
 
                                     return! loop(count + 1)
                             else
