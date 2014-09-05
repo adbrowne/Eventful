@@ -21,7 +21,8 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         ?name : string,
         ?cancellationToken : CancellationToken,
         ?groupComparer : System.Collections.Generic.IComparer<'TGroup>,
-        ?runImmediately : bool
+        ?runImmediately : bool,
+        ?workTimeout : TimeSpan option
     ) =
     let log = createLogger "Eventful.WorktrackingQueue"
 
@@ -45,7 +46,6 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         | None -> true
 
     let workerName = (sprintf "WorktrackingQueue worker %A" name)
-    let workTimeout = TimeSpan.FromSeconds(30.0)
     let workers = 
         let workAsync = async {
             let! ct = Async.CancellationToken
@@ -60,7 +60,11 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
                         async {
                             if count < maxAttempts then
                                 try
-                                    do! runWithTimeout workerName workTimeout ct work
+                                    match workTimeout with
+                                    | Some (Some timeout) ->
+                                        do! runWithTimeout workerName timeout ct work
+                                    | _ ->
+                                        do! runWithCancellation workerName ct work
                                 with | e ->
                                     log.DebugWithException <| lazy (sprintf "Work failed..retrying: %A" workerName, e)
 

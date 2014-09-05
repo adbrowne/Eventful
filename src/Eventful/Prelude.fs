@@ -115,6 +115,11 @@ module Prelude =
 
         startCatchCancellation(computation, Some combinedCancellation.Token)
 
+    let runWithCancellation<'a> name cancellationToken (computation : 'a Async) : 'a Async =
+        let tcs = new TaskCompletionSource<'a>();
+
+        startCatchCancellation(computation, Some cancellationToken)
+
     let newAgent (name : string) (log : Logger) f  =
         let agent= Agent.Start(f)
         agent.Error.Add(fun e -> log.ErrorWithException <| lazy(sprintf "Exception thrown by %A" name, e))

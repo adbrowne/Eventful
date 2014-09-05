@@ -299,3 +299,42 @@ module MutableOrderedGroupingBoundedQueueTests =
             | [|(s1,e1);(s2,e2)|] -> Assert.True(s1 < s2 && e1 <= s2 || s2 < s1 && e2 <= s1, sprintf "Consumers should not overlap (%A - %A) (%A - %A)" s1 e1 s2 e2)
             | x -> Assert.True(false,sprintf "Unexpected result: %A" x)
         } |> Async.RunSynchronously
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``On complete callback is run`` () : unit =
+        let groupingQueue = new MutableOrderedGroupingBoundedQueue<string,string>(1000)
+        let received = ref 0
+
+        let monitor = new obj()
+
+        let groupName = "group"
+        let itemValue = "item"
+
+        let consumer (group, items) = async {
+            return ()
+        }
+
+        async {
+            while(true) do
+                    let! work = groupingQueue.Consume((fun (g, items) -> async { 
+                        let! r = consumer(g, items)
+                        return ()
+                    }))
+                    do! work
+            return ()
+        } |> Async.StartAsTask |> ignore
+
+        let callback = async {
+            lock monitor (fun () ->
+                //received := !received + 1
+                ()
+            )
+        }
+
+        async {
+            do! groupingQueue.Add("item1",(fun _ -> Seq.singleton ("item1", "group")), callback)
+            do! groupingQueue.Add("item1",(fun _ -> Seq.singleton ("item1", "group")), callback)
+        } |> Async.Start
+
+        (fun () -> !received = 2) |> Eventful.Testing.TestHelpers.assertTrueWithin 200 "Callback should be called once for each item"

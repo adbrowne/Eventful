@@ -4,9 +4,10 @@ open System
 
 open FSharpx
 
+type GroupEntryItem<'TItem> = Int64 * 'TItem * Option<OperationSetComplete<Int64>>
 type GroupEntry<'TItem> = {
-    Items : List<Int64 * 'TItem>
-    Processing : List<Int64 * 'TItem>
+    Items : List<GroupEntryItem<'TItem>>
+    Processing : List<GroupEntryItem<'TItem>>
 }
   
 type MutableOrderedGroupingBoundedQueueMessages<'TGroup, 'TItem> = 
@@ -135,25 +136,19 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 try
                     let items = itemsF ()
                     let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
-                    for ((item, group), index) in indexedItems do
-                        state.AddItemToGroup (index, item) group
-                        do! lastCompleteTracker.Start index
+                    let indexSet = indexedItems |> Seq.map snd |> Set.ofSeq
 
-                    let nextIndex = 
-                        if Seq.length indexedItems > 0 then
-                            let lastIndex = indexedItems |> Seq.map snd |> Seq.last
-                            match onComplete with
-                            | Some a -> lastCompleteTracker.NotifyWhenComplete(lastIndex, None, a)
-                            | None -> ()
-                            lastIndex + 1L
-                        else
-                            itemIndex
+                    let nextIndex = itemIndex + (indexSet |> Set.count |> int64)
 
-                    // there were no items keep moving
-                    if(nextIndex = itemIndex) then 
+                    let setCompleteTracker = 
                         match onComplete with
-                        | Some a -> do! a
-                        | None -> ()
+                        | Some a ->
+                            Some (new OperationSetComplete<int64>(indexSet, a))
+                        | None -> None
+
+                    for ((item, group), index) in indexedItems do
+                        state.AddItemToGroup (index, item, setCompleteTracker) group
+                        do! lastCompleteTracker.Start index
 
                     return! (nextMessage nextIndex) 
                 with | e -> 
@@ -168,12 +163,22 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                 let work =
                     async {
                         try
-                            do! workCallback(nextKey,values.Items |> List.rev |> List.map snd) 
+                            let items =
+                                values.Items 
+                                // items are added to the front as they
+                                // come in reverse them here so they match the order 
+                                // of arrival
+                                |> List.rev 
+                                |> List.map (fun (_,a,_) -> a)
+                            do! workCallback(nextKey, items) 
                         with | e ->
                             System.Console.WriteLine ("Error" + e.Message)
                         
-                        for (i, _) in values.Items do
+                        for (i, _, groupCompleteTracker) in values.Items do
                             lastCompleteTracker.Complete i
+                            match groupCompleteTracker with
+                            | Some t -> t.Complete i
+                            | None -> ()
 
                         agent.Post <| GroupComplete nextKey
                     }

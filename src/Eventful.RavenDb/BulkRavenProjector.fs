@@ -23,7 +23,8 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         onEventComplete : 'TMessage -> Async<unit>,
         cancellationToken : CancellationToken,
         writeQueue : RavenWriteQueue,
-        readQueue : RavenReadQueue
+        readQueue : RavenReadQueue,
+        workTimeout : TimeSpan option
     ) =
     let log = createLogger "Eventful.Raven.BulkRavenProjector"
 
@@ -132,7 +133,17 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         |> Async.Ignore
 
     let queue = 
-        new WorktrackingQueue<_,_,_>(grouper, processEvent, maxEventQueueSize, eventWorkers, eventComplete, name = databaseName + " processing", cancellationToken = cancellationToken, groupComparer = StringComparer.InvariantCultureIgnoreCase, runImmediately = false)
+        new WorktrackingQueue<_,_,_>(
+            grouper, 
+            processEvent, 
+            maxEventQueueSize, 
+            eventWorkers, 
+            eventComplete, 
+            name = databaseName + " processing", 
+            cancellationToken = cancellationToken, 
+            groupComparer = StringComparer.InvariantCultureIgnoreCase, 
+            runImmediately = false,
+            workTimeout = workTimeout)
 
     let mutable lastPositionWritten : Option<EventPosition> = None
 

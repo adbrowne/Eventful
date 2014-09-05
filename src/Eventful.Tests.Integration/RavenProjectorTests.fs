@@ -277,7 +277,7 @@ module RavenProjectorTests =
         let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
         let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken,  cache)
 
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, myProcessor, "tenancy-blue", 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue)
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, myProcessor, "tenancy-blue", 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue, None)
 
         projector
   
