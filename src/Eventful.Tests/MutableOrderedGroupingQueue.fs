@@ -327,7 +327,7 @@ module MutableOrderedGroupingBoundedQueueTests =
 
         let callback = async {
             lock monitor (fun () ->
-                //received := !received + 1
+                received := !received + 1
                 ()
             )
         }
