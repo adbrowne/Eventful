@@ -19,6 +19,7 @@ type RavenReadQueue
 
     let batchReadBatchSizeHistogram = Metric.Histogram("RavenReadQueue Batch Size", Unit.Items)
     let batchReadTimer = Metric.Timer("RavenReadQueue Timer", Unit.None)
+    let batchReadThroughput = Metric.Meter("RavenReadQueue Documents Read", Unit.Items)
 
     let readDocs databaseName (docs : seq<(seq<GetDocRequest> * AsyncReplyChannel<seq<GetDocResponse>>)>) : Async<unit>  = 
 
@@ -27,7 +28,9 @@ type RavenReadQueue
             |> Seq.collect (fun i -> fst i)
             |> List.ofSeq
 
-        batchReadBatchSizeHistogram.Update(int64 request.Length)
+        let documentCount = int64 request.Length
+        batchReadBatchSizeHistogram.Update(documentCount)
+        batchReadThroughput.Mark(documentCount)
            
         async {
             let timer = startNanoSecondTimer()
