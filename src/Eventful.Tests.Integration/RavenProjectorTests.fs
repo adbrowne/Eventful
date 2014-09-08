@@ -426,3 +426,42 @@ module RavenProjectorTests =
         } |> Async.RunSynchronously
 
         ()
+
+    [<Fact>]
+    let ``Pump many events at Raven`` () : unit =
+        use config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
+        
+        let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
+
+        let streamCount = 10000
+        let itemPerStreamCount = 100
+        let totalEvents = streamCount * itemPerStreamCount
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+
+        let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
+
+        let projector = ``Get Raven Projector`` documentStore
+        //projector.StartWork()
+        projector.StartPersistingPosition()
+
+        seq {
+            yield async {
+                let sw = System.Diagnostics.Stopwatch.StartNew()
+                for event in myEvents do
+                    do! projector.Enqueue event
+
+                consoleLog <| sprintf "Enqueue Time: %A ms" sw.ElapsedMilliseconds
+
+                projector.StartWork()
+                do! projector.WaitAll()
+                sw.Stop()
+
+                consoleLog <| sprintf "Insert all time: %A ms" sw.ElapsedMilliseconds
+                consoleLog <| sprintf "Insert rate %A/s" (double streamCount / double sw.Elapsed.TotalSeconds)
+            }
+        }
+        |> Async.Parallel
+        |> Async.Ignore
+        |> Async.RunSynchronously
+
+        ()
