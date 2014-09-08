@@ -69,6 +69,17 @@ module Prelude =
         (fun () -> 
             let endTicks = System.DateTime.UtcNow.Ticks
             ticksIntervalToNanoSeconds startTicks endTicks)
+
+    let timeAsync (timer : Metrics.Timer) (computation) = async {
+        let startTicks = System.DateTime.Now.Ticks
+        let! result = computation
+
+        let totalTicks = System.DateTime.Now.Ticks - startTicks
+        let totalTimeSpan = new System.TimeSpan(totalTicks)
+        timer.Record(int64 totalTimeSpan.TotalMilliseconds, Metrics.TimeUnit.Milliseconds)
+
+        return result
+    }
             
     // from: http://blogs.msdn.com/b/dsyme/archive/2009/11/08/equality-and-comparison-constraints-in-f-1-9-7.aspx
     let equalsOn f x (yobj:obj) =
