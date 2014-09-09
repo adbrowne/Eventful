@@ -151,7 +151,7 @@ module RavenProjectorTests =
 
         async {
             for event in myEvents do
-                do! tracker.Start event.Context.Position
+                tracker.Start event.Context.Position
 
             for event in myEvents do
                 tracker.Complete event.Context.Position
