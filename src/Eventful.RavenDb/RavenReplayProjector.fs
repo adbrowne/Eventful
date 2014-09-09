@@ -86,4 +86,5 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             | Write (writeRequest, _) ->
                 let doc = RavenJObject.FromObject(writeRequest.Document, documentStore.Conventions.CreateSerializer())
                 bulkInsert.Store(doc, writeRequest.Metadata.Force(), writeRequest.DocumentKey)
-            | _ -> () // don't do anything for other operation types
+            | Delete _ -> () // don't do anything for delete
+            | Custom _ -> failwith "Cannot support custom operations"
