@@ -305,6 +305,58 @@ module RavenProjectorTests =
             // do! projector.WaitAll()
         } |> Async.RunSynchronously
 
+
+    [<Fact>]
+    let ``Run Events Through Grouping Queue`` () : unit =   
+        let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
+
+        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
+
+        let streamCount = 10000
+        let itemPerStreamCount = 100
+        let totalEvents = streamCount * itemPerStreamCount
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+
+        let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
+
+        let queue = new MutableOrderedGroupingBoundedQueue<string, SubscriberEvent>(100000000, "My Queue")
+
+        let sw = System.Diagnostics.Stopwatch.StartNew()
+        let working = ref false
+
+        let lastDone = ref DateTime.Now.Ticks
+        for i in [1..100] do
+            async {
+                while(true) do  
+                    if not !working then
+                        do! Async.Sleep 2000
+                    else
+                        let! work = queue.Consume (fun _ -> async { () })
+                        do! work
+                        lastDone := DateTime.Now.Ticks
+                return ()
+            } |> Async.StartAsTask |> ignore
+
+        async {
+            for event in myEvents do
+                do! queue.Add(event, fun _ -> Seq.singleton (event, event.StreamId))
+        }
+        |> Async.RunSynchronously
+
+        consoleLog <| sprintf "Enqueue Time: %A ms" sw.ElapsedMilliseconds
+        sw.Restart()
+
+        sw.Restart()
+        working := true
+        queue.CurrentItemsComplete () |> Async.RunSynchronously
+        sw.Stop()
+        let completeTime = sw.ElapsedMilliseconds
+        let ticksSinceLastComplete = DateTime.Now.Ticks - !lastDone
+        consoleLog <| sprintf "Complete %A ms" sw.ElapsedMilliseconds
+        consoleLog <| sprintf "Just waiting for notify to catch up %A ms" (new TimeSpan(ticksSinceLastComplete)).TotalMilliseconds
+        consoleLog <| sprintf "Complete Rate %A /s" (double streamCount / sw.Elapsed.TotalSeconds)
+
+
     [<Fact>]
     let ``Deal with timeouts gracefully`` () : unit =
         use config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
