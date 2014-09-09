@@ -172,7 +172,6 @@ type LastCompleteItemAgent<'TItem when 'TItem : comparison> (?name : string) =
 
     member x.Start(item) = 
       agent.Post <| Start item
-      async { () }
 
     member x.Complete(item) = 
       agent.Post(Complete item)

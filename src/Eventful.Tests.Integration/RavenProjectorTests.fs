@@ -342,6 +342,42 @@ module RavenProjectorTests =
         |> Async.RunSynchronously
 
     [<Fact>]
+    let ``Test Speed of LastCompleteItemAgent`` () : unit =   
+        let random = new Random(4)
+
+        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
+
+        let lastItem = 1000000L
+        let start = [0L..lastItem]
+        let completeOrder = 
+            start 
+            |> List.sortBy (fun _ -> random.Next())
+
+        let sw = System.Diagnostics.Stopwatch.StartNew()
+        let myLastCompleteItemAgent = new LastCompleteItemAgent<int64>()
+        for i in start do
+            myLastCompleteItemAgent.Start i |> ignore
+
+        myLastCompleteItemAgent.NotifyWhenComplete (lastItem, Some "Ignore", async { tcs.SetResult(true) })
+
+        let startTime = sw.ElapsedMilliseconds
+        sw.Restart()
+
+        for i in completeOrder do
+            myLastCompleteItemAgent.Complete i
+
+        let completeTime = sw.ElapsedMilliseconds
+        sw.Restart()
+
+        tcs.Task.Wait()
+
+        let notifyTime = sw.ElapsedMilliseconds
+
+        consoleLog <| sprintf "Start time: %A" startTime
+        consoleLog <| sprintf "completeTime: %A" completeTime
+        consoleLog <| sprintf "notifyTime: %A" notifyTime
+
+    [<Fact>]
     let ``Pump many events at Raven with concurrency`` () : unit =
         use config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
         

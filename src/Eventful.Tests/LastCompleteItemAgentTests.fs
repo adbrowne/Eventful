@@ -42,7 +42,7 @@ module LastCompleteItemAgentTests =
         async {
             lastCompleteTracker.NotifyWhenComplete(1L, Some "My Thing", callback) 
             do! Async.Sleep(100)
-            do! lastCompleteTracker.Start(1L)
+            lastCompleteTracker.Start(1L)
             do! Async.Sleep(100)
             lastCompleteTracker.NotifyWhenComplete(1L, Some "My Thing2", callback) 
             do! Async.Sleep(100)
@@ -62,7 +62,7 @@ module LastCompleteItemAgentTests =
                 for action in actions do
                     match action with
                     | Start i ->
-                        do! lastCompleteTracker.Start(i)
+                        lastCompleteTracker.Start(i)
                     | Complete i ->
                         lastCompleteTracker.Complete(i)
 

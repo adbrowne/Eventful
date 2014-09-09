@@ -137,7 +137,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                     let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
                     for ((item, group), index) in indexedItems do
                         state.AddItemToGroup (index, item) group
-                        do! lastCompleteTracker.Start index
+                        lastCompleteTracker.Start index
 
                     let nextIndex = 
                         if Seq.length indexedItems > 0 then

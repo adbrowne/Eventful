@@ -109,7 +109,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             let position = 
                 persistedPosition |> Option.getOrElse EventPosition.Start
 
-            do! t.Start position
+            t.Start position
             t.Complete position
                 
         } |> Async.RunSynchronously
@@ -205,7 +205,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         async {
             match message.GlobalPosition with
             | Some position -> 
-                do! tracker.Start position
+                tracker.Start position
             | None -> ()
 
             do! queue.Add message

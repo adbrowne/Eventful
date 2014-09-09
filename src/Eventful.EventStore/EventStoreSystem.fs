@@ -82,7 +82,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
         | Some (eventType) ->
             async {
                 let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
-                do! completeTracker.Start position
+                completeTracker.Start position
                 let evt = serializer.DeserializeObj (event.Event.Data) eventType.RealType.AssemblyQualifiedName
 
                 let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>.AssemblyQualifiedName) :?> 'TMetadata
@@ -99,7 +99,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
         | None -> 
             async {
                 let position = event.OriginalPosition.Value |> toEventfulPosition
-                do! completeTracker.Start position
+                completeTracker.Start position
                 completeTracker.Complete position
             }
 

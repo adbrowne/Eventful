@@ -88,7 +88,7 @@ module MutableOrderedGroupingBoundedQueueTests =
 
         async {
             for item in items do
-                do! tracker.Start(item)
+                tracker.Start(item)
 
             for item in randomItems do
                 tracker.Complete(item)
