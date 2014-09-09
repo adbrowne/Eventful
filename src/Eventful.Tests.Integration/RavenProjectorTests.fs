@@ -342,7 +342,7 @@ module RavenProjectorTests =
         |> Async.RunSynchronously
 
     [<Fact>]
-    let ``Pump many events at Raven`` () : unit =
+    let ``Pump many events at Raven with concurrency`` () : unit =
         use config = Metric.Config.WithHttpEndpoint("http://localhost:8083/")
         
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
@@ -450,6 +450,7 @@ module RavenProjectorTests =
                 for event in myEvents do
                     do! projector.Enqueue event
 
+                let enqueueTicks = sw.ElapsedTicks
                 consoleLog <| sprintf "Enqueue Time: %A ms" sw.ElapsedMilliseconds
 
                 projector.StartWork()
@@ -457,7 +458,8 @@ module RavenProjectorTests =
                 sw.Stop()
 
                 consoleLog <| sprintf "Insert all time: %A ms" sw.ElapsedMilliseconds
-                consoleLog <| sprintf "Insert rate %A/s" (double streamCount / double sw.Elapsed.TotalSeconds)
+                let insertOnlyTime = new TimeSpan(sw.ElapsedTicks - enqueueTicks)
+                consoleLog <| sprintf "Insert rate %A/s" (double streamCount / double insertOnlyTime.TotalSeconds)
             }
         }
         |> Async.Parallel
