@@ -162,8 +162,7 @@ module RavenProjectorTests =
         } |> Async.RunSynchronously
         ()
 
-    let ``Get Raven Projector`` documentStore = 
-
+    let ``Get Document Processor`` documentStore =
         let countingDocKeyPrefix =  "MyCountingDocs/"
         let countingDocKey (key : Guid) =
             countingDocKeyPrefix + key.ToString()  
@@ -204,22 +203,6 @@ module RavenProjectorTests =
                 processValue value doc
             | _ -> doc
 
-        let beforeWrite = (fun (doc : MyCountingDoc, metadata, etag) ->
-                doc.Writes <- doc.Writes + 1
-                (doc, metadata, etag)
-            )
-
-        let monitor = new System.Object()
-        let itemsComplete = ref 0
-
-        let writeComplete _ = async {
-            lock(monitor) (fun () -> 
-                itemsComplete := !itemsComplete + 1
-            )
-        }
-        
-        let rnd = new Random()
-
         let processBatch (docKey : string, fetcher : IDocumentFetcher, events) = async {
             let requestId = Guid.NewGuid()
             let permDocKey = "PermissionDocs/" + docKey
@@ -236,6 +219,11 @@ module RavenProjectorTests =
             let (doc, metadata, etag) = 
                 events
                 |> Seq.fold (processEvent) (doc, metadata, etag)
+
+            let beforeWrite = (fun (doc : MyCountingDoc, metadata, etag) ->
+                doc.Writes <- doc.Writes + 1
+                (doc, metadata, etag)
+            )
 
             let (doc, metadata, etag) = beforeWrite (doc, metadata, etag)
 
@@ -270,6 +258,22 @@ module RavenProjectorTests =
             Process = processBatchTask
         }
 
+        myProcessor
+
+    let testDatabase = "tenancy-blue"
+
+    let ``Get Raven Projector`` documentStore = 
+        let monitor = new System.Object()
+        let itemsComplete = ref 0
+
+        let writeComplete _ = async {
+            lock(monitor) (fun () -> 
+                itemsComplete := !itemsComplete + 1
+            )
+        }
+        
+        let rnd = new Random()
+        let myProcessor = ``Get Document Processor`` documentStore
         let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
 
         let cancellationToken = Async.DefaultCancellationToken
@@ -277,7 +281,7 @@ module RavenProjectorTests =
         let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
         let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken,  cache)
 
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, myProcessor, "tenancy-blue", 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue, None)
+        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, myProcessor, testDatabase, 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue, None)
 
         projector
   

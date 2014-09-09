@@ -73,6 +73,7 @@
     <Compile Include="PositionTests.fs" />
     <Compile Include="RavenOperationTests.fs" />
     <Compile Include="RavenProjectorTests.fs" />
+    <Compile Include="RavenReplayProjectorTests.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>
