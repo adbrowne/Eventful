@@ -548,6 +548,7 @@ module RavenProjectorTests =
                 consoleLog <| sprintf "Insert all time: %A ms" sw.ElapsedMilliseconds
                 let insertOnlyTime = new TimeSpan(sw.ElapsedTicks - enqueueTicks)
                 consoleLog <| sprintf "Insert rate %A/s" (double streamCount / double insertOnlyTime.TotalSeconds)
+                let docCount = streamCount * 2 // permission docs double the number
             }
         }
         |> Async.Parallel
