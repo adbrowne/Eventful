@@ -53,6 +53,12 @@ module RavenOperations =
             }
         | entry -> failwith <| sprintf "Unexpected entry type %A" entry
 
+    let writeDoc (documentStore : Raven.Client.IDocumentStore) database (key : string) (doc : obj) (metadata : RavenJObject) = async {
+        use commands = documentStore.AsyncDatabaseCommands.ForDatabase(database)
+        let jsonDoc = RavenJObject.FromObject(doc, documentStore.Conventions.CreateSerializer())
+        do! commands.PutAsync(key, null, jsonDoc, metadata) |> Async.AwaitTask |> Async.Ignore
+    }
+
     let getDocuments (documentStore : IDocumentStore) (cache : MemoryCache) (database : string) (request : seq<GetDocRequest>) : Async<seq<GetDocResponse>> = async {
         let requestCacheMatches =
             request

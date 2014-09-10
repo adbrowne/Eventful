@@ -21,6 +21,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         databaseName: string
     ) =
 
+    let log = createLogger "Eventful.Raven.RavenReplayProjector"
     let numWorkers = 10
 
     let fetcher = {
@@ -52,19 +53,24 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
         return Seq.append s writeRequests
     }
 
+    let printReport v =
+        log.Debug <| lazy v
+
     member x.Enqueue (message : 'TMessage) =
         messages <- message::messages
 
     member x.ProcessQueuedItems() =
+        log.Debug <| lazy(sprintf "ProcessQueuedItems: %A. Count: %A" databaseName messages.Length)
         let inserts = 
             messages
             // reverse messages so they run in order
             |> List.rev
+            |> PSeq.ordered
             |> PSeq.map documentsWithKeys
             // route events to documents
-            |> Seq.collect id
+            |> PSeq.collect id
             // group events into groups by document
-            |> Seq.groupBy fst
+            |> PSeq.groupBy fst
             // group items into numWorkers batches
             |> PSeq.mapi(fun i x -> (i % numWorkers,x))
             |> PSeq.groupBy fst
@@ -80,7 +86,10 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             |> Array.toSeq
             |> Seq.collect id
 
+        log.Debug <| lazy(sprintf "Starting document insert")
+
         use bulkInsert = documentStore.BulkInsert(databaseName)
+        bulkInsert.add_Report(fun s -> printReport s)
         for insert in inserts do
             match insert with
             | Write (writeRequest, _) ->
@@ -88,3 +97,12 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                 bulkInsert.Store(doc, writeRequest.Metadata.Force(), writeRequest.DocumentKey)
             | Delete _ -> () // don't do anything for delete
             | Custom _ -> failwith "Cannot support custom operations"
+
+        messages <- []
+
+    member x.WritePosition (position : EventPosition) =
+        let key = RavenConstants.PositionDocumentKey
+        let doc = position
+        let metadata = RavenOperations.emptyMetadata<EventPosition> documentStore
+        RavenOperations.writeDoc documentStore databaseName key doc metadata
+        |> Async.RunSynchronously

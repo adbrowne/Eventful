@@ -67,6 +67,7 @@
     <Compile Include="RavenWriteQueue.fs" />
     <Compile Include="RavenReadQueue.fs" />
     <Compile Include="DocumentFetcher.fs" />
+    <Compile Include="RavenConstants.fs" />
     <Compile Include="BulkRavenProjector.fs" />
     <Compile Include="RavenReplayProjector.fs" />
     <None Include="app.config" />

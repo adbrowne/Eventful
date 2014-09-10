@@ -33,10 +33,8 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
     let fetcher = new DocumentFetcher(documentStore, databaseName, readQueue) :> IDocumentFetcher
 
-    let positionDocumentKey = "EventProcessingPosition"
-
     let getPersistedPosition = async {
-        let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument positionDocumentKey |> Async.AwaitTask
+        let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument RavenConstants.PositionDocumentKey |> Async.AwaitTask
         return persistedLastComplete |> Option.map((fun (doc,_,_) -> doc))
     }
 
@@ -138,7 +136,7 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             let writeRequests =
                 Write (
                     {
-                        DocumentKey = positionDocumentKey
+                        DocumentKey = RavenConstants.PositionDocumentKey
                         Document = position
                         Metadata = lazy(RavenOperations.emptyMetadata<EventPosition> documentStore)
                         Etag = null // just write this blindly
