@@ -63,6 +63,7 @@
     <Compile Include="VisitTests.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
+    <Compile Include="EmergencyRoomApplicationConfig.fs" />
     <Compile Include="EmergencyRoomApplication.fs" />
     <Compile Include="Topshelf.fs" />
     <Compile Include="Program.fs" />

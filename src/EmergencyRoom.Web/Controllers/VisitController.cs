@@ -3,12 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web;
 using System.Web.Mvc;
+using Eventful.EventStore;
 using Microsoft.FSharp.Core;
 
 namespace EmergencyRoom.Web.Controllers
 {
     public class VisitController : Controller
     {
+        private readonly EmergencyRoomSystem _system;
+
+        public VisitController(EmergencyRoomSystem system)
+        {
+            _system = system;
+        }
+
         //
         // GET: /Visit/
 
@@ -38,6 +46,7 @@ namespace EmergencyRoom.Web.Controllers
             }
             else
             {
+                _system.RunCommand(command);
                 return View("Success");
             }
         }
