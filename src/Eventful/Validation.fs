@@ -12,7 +12,7 @@ type ValidationFailure = string option * string
 type CommandFailure = 
 | CommandException of string option * Exception
 | CommandError of string
-| CommandFieldError of (string * string)
+| CommandFieldError of string * string
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module CommandFailure =

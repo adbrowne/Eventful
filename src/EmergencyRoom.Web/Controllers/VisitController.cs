@@ -1,9 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
+using Eventful;
 using Eventful.EventStore;
+using FSharpx;
+using FSharpx.Collections;
+using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
 
 namespace EmergencyRoom.Web.Controllers
@@ -31,8 +36,10 @@ namespace EmergencyRoom.Web.Controllers
         }
 
         [AcceptVerbs(HttpVerbs.Post)]
-        public ActionResult Register(RegisterPatientCommand command)
+        public async Task<ActionResult> Register(RegisterPatientCommand command)
         {
+            command.VisitId = new VisitId(Guid.NewGuid());
+
             var errors = Visit.validateCommand(command);
             if (errors.Any())
             {
@@ -46,8 +53,35 @@ namespace EmergencyRoom.Web.Controllers
             }
             else
             {
-                _system.RunCommand(command);
-                return View("Success");
+                FSharpChoice<FSharpList<Tuple<string, object, EmergencyEventMetadata>>, NonEmptyList<CommandFailure>> result = await _system.RunCommand(command);
+                if (result.IsChoice1Of2)
+                {
+                    return View("Success");
+                }
+                else
+                {
+                    var errorResult = ((FSharpChoice<FSharpList<Tuple<string, object, EmergencyEventMetadata>>, NonEmptyList<CommandFailure>>.Choice2Of2) result).Item;
+                    foreach (var error in errorResult)
+                    {
+                        var commandError = error as CommandFailure.CommandError;
+                        if (commandError != null)
+                        {
+                            ModelState.AddModelError("", commandError.Item);
+                        }
+
+                        var commandExn = error as CommandFailure.CommandException;
+                        if (commandExn != null)
+                        {
+                            ModelState.AddModelError("", commandExn.Item1 + ": " + commandExn.Item2);
+                        }
+                        var fieldError = error as CommandFailure.CommandFieldError;
+                        if (fieldError != null)
+                        {
+                            ModelState.AddModelError(fieldError.Item1, fieldError.Item2);
+                        }
+                    }
+                    return View();
+                }
             }
         }
     }
