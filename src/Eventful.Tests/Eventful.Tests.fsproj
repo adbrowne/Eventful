@@ -89,6 +89,7 @@
     <Compile Include="CombinedStateBuilderTests.fs" />
     <Compile Include="EventStreamStateBuilder.fs" />
     <Compile Include="FreePlay.fs" />
+    <Compile Include="AggregateConfigurationErrorTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Common.Logging">

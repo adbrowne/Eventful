@@ -9,6 +9,17 @@ open FSharpx.Validation
 
 type ValidationFailure = string option * string
 
+type CommandFailure = 
+| CommandException of string option * Exception
+| CommandError of string
+| CommandFieldError of (string * string)
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module CommandFailure =
+    let ofValidationFailure = function
+        | (Some field, error) -> CommandFieldError (field, error)
+        | (None, error) -> CommandError error
+
 module Validation = 
     let Success = Choice1Of2
     let Failure = Choice2Of2

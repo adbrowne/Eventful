@@ -29,6 +29,24 @@ module TestHelpers =
                 | _ -> false)
         )
 
+    let containException<'TMetadata> (context, exnMatcher) = 
+        let matches failure = 
+            match failure with
+            | CommandException (c, exn) ->
+                c = context && exnMatcher(exn)
+            | _ -> false
+        NHamcrest.CustomMatcher<obj>(
+            sprintf "Matches %A with exception" context, 
+            (fun a ->
+                match a with
+                | :? CommandResult<'TMetadata> as result -> 
+                    match result with
+                    | Choice2Of2 errors ->
+                        errors |> NonEmptyList.toSeq |> Seq.exists matches
+                    | _ -> false
+                | _ -> false)
+        )
+
     let containError<'TMetadata> x = 
         let matches msg = msg = x
         NHamcrest.CustomMatcher<obj>(

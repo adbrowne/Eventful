@@ -258,7 +258,7 @@ module TeacherTests =
               } -> true
             | _ -> false
 
-        result.LastResult |> should containError (None, "Must be the first command")
+        result.LastResult |> should containError (CommandError "Must be the first command")
 
     [<Fact>]
     [<Trait("category", "unit")>]
@@ -273,8 +273,8 @@ module TeacherTests =
 
         let result = newTestSystem.RunCommand command
 
-        result.LastResult |> should containError (Some "FirstName", "FirstName must not be blank")
-        result.LastResult |> should containError (Some "LastName", "LastName must not be blank")
+        result.LastResult |> should containError (CommandFieldError ("FirstName", "FirstName must not be blank"))
+        result.LastResult |> should containError (CommandFieldError ("LastName", "LastName must not be blank"))
 
     [<Fact>]
     [<Trait("category", "unit")>]

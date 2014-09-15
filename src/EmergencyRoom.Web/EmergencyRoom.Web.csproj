@@ -302,6 +302,10 @@
       <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
       <Name>Eventful.EventStore</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Eventful\Eventful.fsproj">
+      <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
+      <Name>Eventful</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

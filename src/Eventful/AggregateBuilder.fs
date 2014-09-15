@@ -6,7 +6,7 @@ open FSharpx.Collections
 
 open Eventful.EventStream
 
-type CommandResult<'TMetadata> = Choice<list<string * obj * 'TMetadata>,NonEmptyList<ValidationFailure>> 
+type CommandResult<'TMetadata> = Choice<list<string * obj * 'TMetadata>,NonEmptyList<CommandFailure>> 
 type StreamNameBuilder<'TId> = ('TId -> string)
 
 type IRegistrationVisitor<'T,'U> =
@@ -213,17 +213,36 @@ module AggregateActionBuilder =
 
         match cmd with
         | :? 'TCmd as cmd -> 
-            let id = commandHandler.GetId commandContext cmd
-            let stream = aggregateConfiguration.GetCommandStreamName commandContext id
-            eventStream {
-                let! (eventsConsumed, combinedState) = 
-                    aggregateConfiguration.StateBuilder 
-                    |> CombinedStateBuilder.toStreamProgram stream
-                return! runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd)
-            }
+            let getId = FSharpx.Choice.protect (commandHandler.GetId commandContext) cmd
+            match getId with
+            | Choice1Of2 id ->
+                let id = commandHandler.GetId commandContext cmd
+                let stream = aggregateConfiguration.GetCommandStreamName commandContext id
+                eventStream {
+                    let! (eventsConsumed, combinedState) = 
+                        aggregateConfiguration.StateBuilder 
+                        |> CombinedStateBuilder.toStreamProgram stream
+                    let! result = 
+                        runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd)
+                    return
+                        result
+                        |> Choice.mapSecond (NonEmptyList.map CommandFailure.ofValidationFailure)
+                }
+            | Choice2Of2 exn ->
+                eventStream {
+                    return 
+                        (Some "Retrieving aggregate id from command",exn)
+                        |> CommandException
+                        |> NonEmptyList.singleton 
+                        |> Choice2Of2
+                }
         | _ -> 
             eventStream {
-                return NonEmptyList.singleton (None, sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>) |> Choice2Of2
+                return 
+                    (sprintf "Invalid command type: %A expected %A" (cmd.GetType()) typeof<'TCmd>)
+                    |> CommandError
+                    |> NonEmptyList.singleton 
+                    |> Choice2Of2
             }
         
     let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TValidatedState>) = {
