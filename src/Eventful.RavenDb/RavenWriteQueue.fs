@@ -5,6 +5,8 @@ open System
 open Metrics
 open System.Threading
 
+type RavenWriteQueueResult = Choice<unit,System.Exception>
+
 type RavenWriteQueue 
     (
         documentStore:Raven.Client.IDocumentStore, 
@@ -22,7 +24,7 @@ type RavenWriteQueue
     let batchWriterThroughput = Metric.Meter("RavenWriteQueue Documents Written", Unit.Items)
     let batchConflictsMeter = Metric.Meter("RavenWriteQueue Conflicts", Unit.Items)
 
-    let writeDocs databaseName (docs : seq<BatchWrite * AsyncReplyChannel<bool>>) = async {
+    let writeDocs databaseName (docs : seq<BatchWrite * AsyncReplyChannel<RavenWriteQueueResult>>) = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
         let batchId = Guid.NewGuid()
         let originalDocMap = 
@@ -45,7 +47,7 @@ type RavenWriteQueue
         let! result = BatchOperations.writeBatch documentStore databaseName (docs |> Seq.map fst)
         let writeSuccessful = 
             match result with
-            | Some (batchResult, docs) ->
+            | Choice1Of2 (batchResult, docs) ->
                 batchWriteTracker.Update(batchResult.LongLength)
                 batchWriterThroughput.Mark(batchResult.LongLength)
                 for docResult in batchResult do
@@ -57,16 +59,13 @@ type RavenWriteQueue
                         let cacheKey = RavenOperations.getCacheKey databaseName docResult.Key
                         cache.Remove(cacheKey) |> ignore
 
-                true
-            | None ->
+                Choice1Of2 ()
+            | Choice2Of2 e ->
                 batchConflictsMeter.Mark()
-                for docRequest in originalDocMap |> Map.toSeq do
-                    match docRequest with
-                    | (docKey, Choice1Of2 (_, _, callback)) ->
-                        let cacheKey = RavenOperations.getCacheKey databaseName docKey
-                        cache.Remove(cacheKey) |> ignore
-                    | _ -> ()
-                false
+                for (docKey, _) in originalDocMap |> Map.toSeq do
+                    let cacheKey = RavenOperations.getCacheKey databaseName docKey
+                    cache.Remove(cacheKey) |> ignore
+                Choice2Of2 e
         
         for (docs, callback) in docs do
             callback.Reply writeSuccessful
@@ -75,7 +74,7 @@ type RavenWriteQueue
         batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
     }
 
-    let queue = new BatchingQueue<string, BatchWrite, bool>(maxBatchSize, maxQueueSize)
+    let queue = new BatchingQueue<string, BatchWrite, RavenWriteQueueResult>(maxBatchSize, maxQueueSize)
 
     let consumer = async {
         while true do
@@ -94,3 +93,10 @@ type RavenWriteQueue
         ()
     
     member x.Work = queue.Work
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module RavenWriteQueue =
+    let resultWasSuccess (result : RavenWriteQueueResult) = 
+        match result with
+        | Choice1Of2 _ -> true
+        | _ -> false

@@ -52,17 +52,18 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             if count < maxAttempts then
                 try
                     let! attempt = tryEvent key cachedValues
-                    if not attempt then
-                        return! loop (count + 1) exceptions
-                    else
+                    match attempt with
+                    | Choice1Of2 _ ->
                         ()
+                    | Choice2Of2 ex ->
+                        return! loop (count + 1) (ex::exceptions)
                 with | ex ->
                     return! loop(count + 1) (ex::exceptions)
             else
                 processingExceptions.Mark()
-                log.Error <| lazy(sprintf "Processing failed permanently for %A. Exceptions to follow." key)
+                log.Error <| lazy(sprintf "Processing failed permanently for %s %A. Exceptions to follow." databaseName key)
                 for ex in exceptions do
-                    log.ErrorWithException <| lazy(sprintf "Processing failed permanently for %A" key, ex)
+                    log.ErrorWithException <| lazy(sprintf "Processing failed permanently for %s %A" databaseName key, ex)
                 ()
         }
         do! loop 0 []
@@ -140,12 +141,10 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     }, Guid.NewGuid())
                 |> Seq.singleton
 
-            let! success = writeQueue.Work databaseName writeRequests
+            let! writeResult = writeQueue.Work databaseName writeRequests
 
-            if(success) then
+            if writeResult |> RavenWriteQueue.resultWasSuccess then
                 lastPositionWritten <- Some position
-            else
-                ()
         }
 
         let rec loop () =  async {

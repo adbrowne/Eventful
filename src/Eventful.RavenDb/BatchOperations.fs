@@ -39,15 +39,15 @@ module BatchOperations =
                 |> documentStore.AsyncDatabaseCommands.ForDatabase(database).BatchAsync
                 |> Async.AwaitTask
 
-            return Some (batchResult, docs)
+            return Choice1Of2 (batchResult, docs)
         with    
             | :? System.AggregateException as e -> 
                 log.DebugWithException <| lazy("Write Error", e :> System.Exception)
                 log.DebugWithException <| lazy("Write Inner", e.InnerException)
-                return None
+                return Choice2Of2 (e :> System.Exception)
             | e ->
                 log.DebugWithException <| lazy("Write Error", e)
-                return None
+                return Choice2Of2 e
     }
 
     let bulkInsert (documentStore : Raven.Client.IDocumentStore) (inserter : Raven.Client.Document.BulkInsertOperation) (docs:seq<BatchWrite>) = async {
