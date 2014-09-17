@@ -48,27 +48,24 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let processEvent key values = async {
         let cachedValues = values |> Seq.cache
         let maxAttempts = 10
-        let rec loop count ex = async {
+        let rec loop count exceptions = async {
             if count < maxAttempts then
                 try
                     let! attempt = tryEvent key cachedValues
                     if not attempt then
-                        return! loop (count + 1) None
+                        return! loop (count + 1) exceptions
                     else
                         ()
                 with | ex ->
-                    //consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
-                    return! loop(count + 1) (Some ex)
+                    return! loop(count + 1) (ex::exceptions)
             else
                 processingExceptions.Mark()
-                match ex with
-                | Some ex ->
+                log.Error <| lazy(sprintf "Processing failed permanently for %A. Exceptions to follow." key)
+                for ex in exceptions do
                     log.ErrorWithException <| lazy(sprintf "Processing failed permanently for %A" key, ex)
-                | None -> 
-                    log.Error <| lazy(sprintf "Processing failed permanently - no exception key: %A" key)
                 ()
         }
-        do! loop 0 None
+        do! loop 0 []
     }
 
     let grouper (event : 'TMessage) =
