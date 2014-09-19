@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Web;
 using System.Web.Mvc;
 using Eventful;
-using Eventful.EventStore;
-using FSharpx;
 using FSharpx.Collections;
 using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
