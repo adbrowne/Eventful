@@ -48,27 +48,25 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
     let processEvent key values = async {
         let cachedValues = values |> Seq.cache
         let maxAttempts = 10
-        let rec loop count ex = async {
+        let rec loop count exceptions = async {
             if count < maxAttempts then
                 try
                     let! attempt = tryEvent key cachedValues
-                    if not attempt then
-                        return! loop (count + 1) None
-                    else
+                    match attempt with
+                    | Choice1Of2 _ ->
                         ()
+                    | Choice2Of2 ex ->
+                        return! loop (count + 1) (ex::exceptions)
                 with | ex ->
-                    //consoleLog <| sprintf "Exception while processing: %A %A %A %A" e e.StackTrace key values
-                    return! loop(count + 1) (Some ex)
+                    return! loop(count + 1) (ex::exceptions)
             else
                 processingExceptions.Mark()
-                match ex with
-                | Some ex ->
-                    log.ErrorWithException <| lazy(sprintf "Processing failed permanently for %A" key, ex)
-                | None -> 
-                    log.Error <| lazy(sprintf "Processing failed permanently - no exception key: %A" key)
+                log.Error <| lazy(sprintf "Processing failed permanently for %s %A. Exceptions to follow." databaseName key)
+                for ex in exceptions do
+                    log.ErrorWithException <| lazy(sprintf "Processing failed permanently for %s %A" databaseName key, ex)
                 ()
         }
-        do! loop 0 None
+        do! loop 0 []
     }
 
     let grouper (event : 'TMessage) =
@@ -143,12 +141,10 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
                     }, Guid.NewGuid())
                 |> Seq.singleton
 
-            let! success = writeQueue.Work databaseName writeRequests
+            let! writeResult = writeQueue.Work databaseName writeRequests
 
-            if(success) then
+            if writeResult |> RavenWriteQueue.resultWasSuccess then
                 lastPositionWritten <- Some position
-            else
-                ()
         }
 
         let rec loop () =  async {
