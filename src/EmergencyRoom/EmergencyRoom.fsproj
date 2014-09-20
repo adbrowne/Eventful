@@ -60,6 +60,7 @@
     <Compile Include="Common.fs" />
     <Compile Include="Patient.fs" />
     <Compile Include="Visit.fs" />
+    <Compile Include="WaitQueue.fs" />
     <Compile Include="VisitTests.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />

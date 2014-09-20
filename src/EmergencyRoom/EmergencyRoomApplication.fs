@@ -20,6 +20,7 @@ type EmergencyRoomTopShelfService () =
             let c = new Client(connection)
 
             let system = EmergencyRoomApplicationConfig.buildEventStoreSystem c
+            system.Start() |> Async.StartAsTask |> ignore
 
             client <- Some c
             eventStoreSystem <- Some system

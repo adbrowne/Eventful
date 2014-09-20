@@ -41,6 +41,7 @@ module EmergencyRoomApplicationConfig =
                     .Create()
                     .OnConnected(fun _ _ -> printf "Connected"; )
                     .OnErrorOccurred(fun _ ex -> printfn "Error: %A" ex)
+                    .OnDisconnected(fun _ _ -> printfn "Disconnectiong")
                     .SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit"))
             let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
 
@@ -52,6 +53,7 @@ module EmergencyRoomApplicationConfig =
     let handlers =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate Visit.handlers
+        |> EventfulHandlers.addAggregate WaitQueue.handlers
 
     let buildEventStoreSystem client =
         new EventStoreSystem<unit,unit,EmergencyEventMetadata>(handlers, client, esSerializer, ())

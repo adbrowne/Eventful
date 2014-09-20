@@ -6,6 +6,13 @@ open Eventful
 open FSharpx
 open FSharpx.Collections
 open Eventful.Aggregate
+open Eventful.AggregateActionBuilder
+open Eventful.Validation
+
+open FSharpx.Choice
+open FSharpx.Validation
+
+open EmergencyRoom.Common
 
 type VisitId = { Id : Guid } 
      with 
@@ -13,11 +20,6 @@ type VisitId = { Id : Guid }
         { 
             Id = (Guid.NewGuid()) 
         }
-
-type EmergencyEventMetadata = {
-    MessageId: Guid
-    SourceMessageId: string
-}
 
 type TriageLevel = 
 | Level1
@@ -101,44 +103,12 @@ type PatientDischargedEvent = {
     DischargeTime : DateTime
 }
 
-open Eventful.AggregateActionBuilder
-open Eventful.Validation
-
-open FSharpx.Choice
-open FSharpx.Validation
-
 module Visit = 
     type VisitEvents =
     | Triaged of PatientTriagedEvent
     | Registered of PatientRegisteredEvent
     | PickedUp of PatientPickedUpEvent
     | Discharged of PatientDischargedEvent
-
-    let systemConfiguration = { 
-        SetSourceMessageId = (fun id metadata -> { metadata with SourceMessageId = id })
-        SetMessageId = (fun id metadata -> { metadata with MessageId = id })
-    }
-
-    let stateBuilder = NamedStateBuilder.nullStateBuilder<EmergencyEventMetadata>
-
-    let inline simpleHandler f = 
-        let withMetadata = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration stateBuilder withMetadata
-    
-    let inline buildCmdHandler f =
-        f
-        |> simpleHandler
-        |> buildCmd
-
-    let inline fullHandler s f =
-        let withMetadata a b c =
-            f a b c
-            |> Choice.map (fun evts ->
-                evts 
-                |> List.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
-                |> List.toSeq
-            )
-        Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
 
     type VisitState = {
         Registered : bool
