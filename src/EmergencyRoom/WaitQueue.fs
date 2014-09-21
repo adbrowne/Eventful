@@ -41,6 +41,13 @@ module WaitQueue =
         
     let getStreamName () _ = "WaitQueue"
 
+    let inline onEventHandler stateBuilder handler = 
+        Eventful.AggregateActionBuilder.onEvent 
+            Common.systemConfiguration 
+            (fun (e:PatientRegisteredEvent) -> getStreamName () e) 
+            stateBuilder 
+            handler
+
     let evtHandlers = 
         seq {
            let onPatientRegistered (evt : PatientRegisteredEvent) = seq {
@@ -49,8 +56,7 @@ module WaitQueue =
                     PatientId = evt.PatientId
                }, context }
 
-           let handler = Eventful.AggregateActionBuilder.onEvent Common.systemConfiguration (fun (e:PatientRegisteredEvent) -> getStreamName () e) Common.stateBuilder onPatientRegistered
-           yield handler
+           yield onEventHandler Common.stateBuilder onPatientRegistered
         }
 
     let handlers =
