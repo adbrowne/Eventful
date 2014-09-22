@@ -64,6 +64,7 @@
     <Compile Include="VisitTests.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
+    <Compile Include="EmergencyRooomApplicationEvent.fs" />
     <Compile Include="EmergencyRoomApplicationConfig.fs" />
     <Compile Include="EmergencyRoomApplication.fs" />
     <Compile Include="Topshelf.fs" />
@@ -122,9 +123,19 @@
       <HintPath>..\packages\FsUnit.xUnit.1.2.2.1\Lib\net40\NHamcrest.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Raven.Abstractions">
+      <HintPath>..\packages\RavenDB.Client.2.5.2874\lib\net45\Raven.Abstractions.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Raven.Client.Lightweight">
+      <HintPath>..\packages\RavenDB.Client.2.5.2874\lib\net45\Raven.Client.Lightweight.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
+    <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
+    <Reference Include="System.Runtime.Caching" />
     <Reference Include="Topshelf">
       <HintPath>..\packages\Topshelf.3.1.3\lib\net40-full\Topshelf.dll</HintPath>
       <Private>True</Private>

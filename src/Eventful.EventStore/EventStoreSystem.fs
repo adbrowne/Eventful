@@ -110,4 +110,6 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
             return result
         }
 
+    member x.EventTypeMap = handlers.EventTypeMap
+
     member x.LastEventProcessed = lastEventProcessed
