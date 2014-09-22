@@ -129,6 +129,8 @@ type BulkRavenProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
     member x.LastComplete () = tracker.LastComplete()
 
+    // todo ensure this is idempotent
+    // at the moment it can be called multiple times
     member x.StartPersistingPosition () = 
         let writeUpdatedPosition position = async {
             let writeRequests =
