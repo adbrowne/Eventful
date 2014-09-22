@@ -8,6 +8,10 @@ open Eventful.EventStore
 open Eventful.Raven
 open System.Threading.Tasks
 
+type EventCountDoc = {
+    Count : int
+}
+
 type EmergencyRoomTopShelfService () =
     let log = createLogger "EmergencyRoom.EmergencyRoomTopShelfService"
 
@@ -15,18 +19,29 @@ type EmergencyRoomTopShelfService () =
     let mutable eventStoreSystem : EventStoreSystem<unit,unit,EmergencyEventMetadata> option = None
 
     let matchingKeys (message : EventStoreMessage) = seq {
-        yield message.Event.GetType().ToString()
+        yield "EventCount/" + message.Event.GetType().ToString()
     }
 
-    let processDocuments documentStore (key:string, documentFetcher:IDocumentFetcher, messages : seq<'TMessage>) =
+    let processDocuments documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<'TMessage>) =
         let f = (fun () -> 
                     async {
+                        let! doc = documentFetcher.GetDocument<EventCountDoc>(docKey) |> Async.AwaitTask
+                        let (doc, metadata, etag) = 
+                            match doc with
+                            | Some x -> x
+                            | None -> 
+                                let doc = { Count = 0 }
+                                let metadata = RavenOperations.emptyMetadata<EventCountDoc> documentStore
+                                let etag = Raven.Abstractions.Data.Etag.Empty
+                                (doc, metadata, etag)
+
+                        let doc = { doc with Count = doc.Count + 1 }
                         return seq {
                             let write = {
-                               DocumentKey = key
-                               Document = new obj()
-                               Metadata = lazy(RavenOperations.emptyMetadata<obj> documentStore) 
-                               Etag = null
+                               DocumentKey = docKey
+                               Document = doc
+                               Metadata = lazy(metadata) 
+                               Etag = etag
                             }
                             yield Write (write, Guid.NewGuid())
                         }
