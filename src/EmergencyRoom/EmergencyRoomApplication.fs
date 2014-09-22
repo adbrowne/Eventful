@@ -20,11 +20,22 @@ type EmergencyRoomTopShelfService () =
 
     let matchingKeys (message : EventStoreMessage) = seq {
         yield "EventCount/" + message.Event.GetType().ToString()
+
+        let isVisitEvent = 
+            Visit.visitDocumentBuilder.Types
+            |> List.exists (fun x -> 
+                                let areEqual = x = message.Event.GetType()
+                                printfn "areEqual %s %s %b" (x.Name) (message.Event.GetType().Name) areEqual
+                                areEqual
+                                )
+
+        if isVisitEvent then    
+            printfn "is a visit event"
+            let visitId : VisitId = MagicMapper.magicId message.Event
+            yield "Visit/" + visitId.Id.ToString()
     }
 
-    let processDocuments documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<'TMessage>) =
-        let f = (fun () -> 
-                    async {
+    let processEventCount documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<'TMessage>) = async {
                         let! doc = documentFetcher.GetDocument<EventCountDoc>(docKey) |> Async.AwaitTask
                         let (doc, metadata, etag) = 
                             match doc with
@@ -45,7 +56,48 @@ type EmergencyRoomTopShelfService () =
                             }
                             yield Write (write, Guid.NewGuid())
                         }
-                    } |> Async.StartAsTask
+    }
+
+    let processVisitEvent documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<EventStoreMessage>) = async {
+                        let! doc = documentFetcher.GetDocument<Visit.VisitDocument>(docKey) |> Async.AwaitTask
+                        let visitId : VisitId = 
+                            messages
+                            |> Seq.head
+                            |> (fun x -> MagicMapper.magicId x.Event)
+                        let (doc, metadata, etag) = 
+                            match doc with
+                            | Some x -> x
+                            | None -> 
+                                let doc = Visit.VisitDocument.NewDoc visitId
+                                let metadata = RavenOperations.emptyMetadata<Visit.VisitDocument> documentStore
+                                let etag = Raven.Abstractions.Data.Etag.Empty
+                                (doc, metadata, etag)
+
+                        let doc = 
+                            messages
+                            |> Seq.map (fun x -> x.Event)
+                            |> Seq.fold Visit.visitDocumentBuilder.Run (Some doc)
+                            |> function
+                            | Some doc -> doc
+                            | None -> Visit.VisitDocument.NewDoc visitId
+
+                        return seq {
+                            let write = {
+                               DocumentKey = docKey
+                               Document = doc
+                               Metadata = lazy(metadata) 
+                               Etag = etag
+                            }
+                            yield Write (write, Guid.NewGuid())
+                        }
+    }
+
+    let processDocuments documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<EventStoreMessage>) =
+        let f = (fun () -> 
+                    if docKey.StartsWith("EventCount/") then
+                        processEventCount documentStore (docKey, documentFetcher, messages) |> Async.StartAsTask
+                    else
+                        processVisitEvent documentStore (docKey, documentFetcher, messages) |> Async.StartAsTask
                 ) 
         new System.Func<Task<seq<ProcessAction>>>(f)
 
@@ -94,10 +146,8 @@ type EmergencyRoomTopShelfService () =
                 |> Option.map (fun eventPosition -> new EventStore.ClientAPI.Position(eventPosition.Commit, eventPosition.Prepare))
 
             let handle id (re : EventStore.ClientAPI.ResolvedEvent) =
-                printfn "Got event for projector: %s" re.Event.EventType
                 match system.EventTypeMap.TryFind re.Event.EventType with
                 | Some comparableType ->
-                    printfn "Running event in projector: %s" re.Event.EventType
                     let evtObj = EmergencyRoomApplicationConfig.esSerializer.DeserializeObj re.Event.Data comparableType.RealType.FullName
                     let metadata = EmergencyRoomApplicationConfig.esSerializer.DeserializeObj re.Event.Metadata typeof<EmergencyEventMetadata>.FullName :?> EmergencyEventMetadata
 
