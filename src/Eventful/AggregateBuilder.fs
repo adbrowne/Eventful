@@ -79,7 +79,7 @@ type SystemConfiguration<'TMetadata> = {
 
 type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TId, 'TEvent,'TMetadata, 'TValidatedState> = {
     GetId : 'TCommandContext -> 'TCmd -> 'TId
-    StateBuilder : NamedStateBuilder<'TCommandState, 'TMetadata>
+    StateBuilder : INamedStateBuilder<'TCommandState, 'TMetadata>
     StateValidation : 'TCommandState option -> Choice<'TValidatedState, NonEmptyList<ValidationFailure>> 
     Validators : Validator<'TCmd,'TCommandState> list
     Handler : 'TValidatedState -> 'TCommandContext -> 'TCmd -> Choice<seq<'TEvent * 'TMetadata>, NonEmptyList<ValidationFailure>>
@@ -135,7 +135,7 @@ module AggregateActionBuilder =
             sb.GetId context cmd
         | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
 
-    let getUntypedChildState (combinedState : Map<string,obj> option) (childStateBuilder : INamedStateBuilder<'TMetadata>) = eventStream {
+    let getUntypedChildState (combinedState : Map<string,obj> option) (childStateBuilder : IUntypedStateBuilder<'TMetadata>) = eventStream {
             let childState = 
                 Option.maybe {
                     let! stateValue = combinedState
@@ -149,8 +149,8 @@ module AggregateActionBuilder =
             return childState
         }
 
-    let getChildState (combinedState : Map<string,obj> option) (childStateBuilder : NamedStateBuilder<'TChildState, 'TMetadata>) = eventStream {
-        let! childState = getUntypedChildState combinedState childStateBuilder
+    let getChildState (combinedState : Map<string,obj> option) (childStateBuilder : INamedStateBuilder<'TChildState, 'TMetadata>) = eventStream {
+        let! childState = getUntypedChildState combinedState (childStateBuilder :> IUntypedStateBuilder<'TMetadata>)
         return childState |> Option.map (fun x -> x :?> 'TChildState)
     }
 
@@ -288,7 +288,7 @@ module AggregateActionBuilder =
              }
         }
 
-    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata> (fId : 'TOnEvent -> 'TId) systemConfiguration (stateBuilder : NamedStateBuilder<'TState, 'TMetadata>) (runEvent : 'TOnEvent -> seq<'TEvent * 'TMetadata>) = {
+    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata> (fId : 'TOnEvent -> 'TId) systemConfiguration (stateBuilder : INamedStateBuilder<'TState, 'TMetadata>) (runEvent : 'TOnEvent -> seq<'TEvent * 'TMetadata>) = {
         new IEventHandler<'TEvent,'TId,'TMetadata> with 
             member this.EventType = typeof<'TOnEvent>
             member this.AddStateBuilder aggregateStateBuilder = aggregateStateBuilder |> CombinedStateBuilder.add stateBuilder
@@ -323,7 +323,7 @@ module AggregateActionBuilder =
     let linkEvent<'TLinkEvent,'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> systemConfiguration fId (linkEvent : 'TLinkEvent -> 'TEvent) (metadata:'TMetadata) = 
         getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TMetadata> systemConfiguration fId metadata
 
-    let onEvent<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata> systemConfiguration fId (stateBuilder : NamedStateBuilder<'TEventState, 'TMetadata>) (runEvent : 'TOnEvent -> seq<'TEvent * 'TMetadata>) = 
+    let onEvent<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata> systemConfiguration fId (stateBuilder : INamedStateBuilder<'TEventState, 'TMetadata>) (runEvent : 'TOnEvent -> seq<'TEvent * 'TMetadata>) = 
         getEventInterfaceForOnEvent<'TOnEvent,'TEvent,'TId,'TEventState, 'TMetadata> fId systemConfiguration stateBuilder runEvent
 
 type AggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata> = {

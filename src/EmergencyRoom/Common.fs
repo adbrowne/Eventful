@@ -13,6 +13,7 @@ type AggregateType =
 
 type EmergencyEventMetadata = {
     MessageId: Guid
+    AggregateId : Guid
     SourceMessageId: string
     EventTime : DateTime
 }
@@ -25,7 +26,7 @@ module Common =
 
     let stateBuilder = NamedStateBuilder.nullStateBuilder<EmergencyEventMetadata>
 
-    let emptyMetadata () = { SourceMessageId = String.Empty; MessageId = Guid.Empty; EventTime = DateTime.UtcNow }
+    let emptyMetadata () = { SourceMessageId = String.Empty; MessageId = Guid.Empty; EventTime = DateTime.UtcNow; AggregateId = Guid.Empty }
 
     let inline simpleHandler f = 
         let withMetadata = f >> (fun x -> (x, emptyMetadata ()))

@@ -205,11 +205,25 @@ module StateBuilder =
         return! loop 0 None
     }
 
-type INamedStateBuilder<'TMetadata> =
+type IUntypedStateBuilder<'TMetadata> =
     abstract Name : string
-    abstract Apply : obj -> (obj * 'TMetadata) -> obj
+    abstract Apply : obj * obj * 'TMetadata -> obj
     abstract InitialState : obj
     abstract MessageTypes : List<Type>
+
+type INamedStateBuilder<'TState, 'TMetadata> =
+    inherit IUntypedStateBuilder<'TMetadata>
+    abstract Name : string
+    abstract Apply : 'TState * obj * 'TMetadata -> 'TState
+    abstract InitialState : 'TState
+    abstract MessageTypes : List<Type>
+
+type IKeyedStateBuilder<'TState, 'TMetadata, 'TKey> =
+    abstract Name : string
+    abstract Apply : 'TState * obj * 'TMetadata -> 'TState
+    abstract InitialState : 'TState
+    abstract MessageTypes : List<Type>
+    abstract GetKey : obj * 'TMetadata -> 'TKey
 
 type NamedStateBuilder<'TState,'TMetadata>(name : string, builder: StateBuilder<'TState>) =
     member x.Name = name
@@ -220,23 +234,59 @@ type NamedStateBuilder<'TState,'TMetadata>(name : string, builder: StateBuilder<
         let typedState = state :?> 'TState
         builder.Run typedState message
 
-    interface INamedStateBuilder<'TMetadata> with
+    interface IUntypedStateBuilder<'TMetadata> with
         member x.Name = name
         member x.MessageTypes = builder.Types
-        member x.Apply state objWithMetadata = (x.Apply state objWithMetadata) :> obj
+        member x.Apply (state, msg, metadata) = (x.Apply (state, msg, metadata)) :> obj
         member x.InitialState = builder.InitialState :> obj
+    interface INamedStateBuilder<'TState, 'TMetadata> with
+        member x.Name = name
+        member x.Apply (state, message, metadata) = 
+            builder.Run state message
+        member x.MessageTypes = builder.Types
+        member x.InitialState = builder.InitialState
+
+type KeyedStateBuilder<'TState, 'TMetadata, 'TKey> 
+    (
+        name : string,
+        fKey : 'TMetadata -> 'TKey,
+        builder : StateBuilder<'TState>
+    ) = 
+    interface IUntypedStateBuilder<'TMetadata> with
+        member x.Name = name
+        member x.InitialState = builder.InitialState :> obj
+        member x.MessageTypes = builder.Types
+        member x.Apply (state, message, metadata)  = 
+            let typedState = state :?> 'TState
+            builder.Run typedState message :> obj
+    interface INamedStateBuilder<'TState, 'TMetadata> with
+        member x.Name = name
+        member x.Apply (state, message, metadata) = 
+            builder.Run state message
+        member x.MessageTypes = builder.Types
+        member x.InitialState = builder.InitialState
+    interface IKeyedStateBuilder<'TState, 'TMetadata, 'TKey> with
+        member x.Name = name
+        member x.Apply (state, message, metadata) = 
+            builder.Run state message
+        member x.MessageTypes = builder.Types
+        member x.GetKey (evt,metadata) = fKey metadata
+        member x.InitialState = builder.InitialState
 
 module NamedStateBuilder =
     let withName (name : string) (builder : StateBuilder<'TState>) : NamedStateBuilder<'TState,'TMetadata> =
         new NamedStateBuilder<_,_>(name, builder)
+
+    let withKey (name : string) (fKey : 'TMetadata -> 'TKey) (builder : StateBuilder<'TState>) : KeyedStateBuilder<'TState, 'TMetadata, 'TKey> =
+        new KeyedStateBuilder<_,_,_>(name, fKey, builder)
 
     let nullStateBuilder<'TMetadata> : NamedStateBuilder<unit, 'TMetadata> = 
         StateBuilder.Empty () |> withName "$Empty"
 
 type CombinedStateBuilderState = Map<string,obj>
 
-type CombinedStateBuilder<'TMetadata> internal (children : Map<string, INamedStateBuilder<'TMetadata>>) =
-    member x.AddChild (c : INamedStateBuilder<'TMetadata>) =
+type CombinedStateBuilder<'TMetadata> internal (children : Map<string, IUntypedStateBuilder<'TMetadata>>) =
+    member x.AddChild (c : IUntypedStateBuilder<'TMetadata>) =
         match children |> Map.tryFind c.Name with
         | Some n when n = c ->
             x // we are adding the same item twice - this is fine just return ourselves
@@ -246,9 +296,9 @@ type CombinedStateBuilder<'TMetadata> internal (children : Map<string, INamedSta
             new CombinedStateBuilder<'TMetadata>(children |> Map.add c.Name c)
 
     member x.Run inputStates e =
-        let runChildState (item: obj, metadata : 'TMetadata) (s:CombinedStateBuilderState) (childKey : string) (childBuilder : INamedStateBuilder<'TMetadata>) =
+        let runChildState (item: obj, metadata : 'TMetadata) (s:CombinedStateBuilderState) (childKey : string) (childBuilder : IUntypedStateBuilder<'TMetadata>) =
             let currentState = inputStates |> Map.tryFind childKey |> Option.getOrElse childBuilder.InitialState
-            let newState = childBuilder.Apply currentState (item,metadata)
+            let newState = childBuilder.Apply(currentState,item,metadata)
             s |> Map.add childKey newState
             
         children |> Map.fold (runChildState e) Map.empty

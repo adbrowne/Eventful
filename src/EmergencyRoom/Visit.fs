@@ -136,7 +136,7 @@ module Visit =
     let isRegistered = 
         StateBuilder.Empty false
         |> StateBuilder.addHandler (fun s (e:PatientRegisteredEvent) -> true)
-        |> NamedStateBuilder.withName "IsRegistered"
+        |> NamedStateBuilder.withKey "IsRegistered" (fun metadata -> { Id = metadata.AggregateId })
 
     let getStreamName () (visitId : VisitId) =
         sprintf "Visit-%s" <| visitId.Id.ToString("N")
