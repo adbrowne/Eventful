@@ -209,17 +209,21 @@ type INamedStateBuilder<'TMetadata> =
     abstract Name : string
     abstract Apply : obj -> (obj * 'TMetadata) -> obj
     abstract InitialState : obj
+    abstract MessageTypes : List<Type>
 
 type NamedStateBuilder<'TState,'TMetadata>(name : string, builder: StateBuilder<'TState>) =
     member x.Name = name
     member x.Builder = builder
+    member x.MessageTypes = builder.Types
+    member x.Apply (state : obj) objWithMetadata = 
+        let (message, metadata) = objWithMetadata
+        let typedState = state :?> 'TState
+        builder.Run typedState message
 
     interface INamedStateBuilder<'TMetadata> with
         member x.Name = name
-        member x.Apply state objWithMetadata = 
-            let (message, metadata) = objWithMetadata
-            let typedState = state :?> 'TState
-            builder.Run typedState message :> obj
+        member x.MessageTypes = builder.Types
+        member x.Apply state objWithMetadata = (x.Apply state objWithMetadata) :> obj
         member x.InitialState = builder.InitialState :> obj
 
 module NamedStateBuilder =
