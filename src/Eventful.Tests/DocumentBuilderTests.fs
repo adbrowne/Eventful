@@ -30,19 +30,22 @@ module DocumentBuilderTests =
 
     type WidgetDocument = {
         WidgetId : Guid
-        Name : string
-    }
+        Name : string } 
+    with static member Empty id = { WidgetId = id; Name = "" }
 
     type IDocumentStateMap<'TDocument, 'TMetadata> =
         abstract member Types : List<Type>
         abstract member Apply : (obj * 'TMetadata) -> 'TDocument -> 'TDocument
 
-    type DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc:'TKey -> 'T, stateMaps: IDocumentStateMap<'T, 'TMetadata> list) =
-        static member Empty<'TKey,'T> createDoc = new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, [])
+    type DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc:'TKey -> 'T, getDocumentKey:'TKey -> string, stateMaps: IDocumentStateMap<'T, 'TMetadata> list) =
+        static member Empty<'TKey,'T> createDoc getDocumentKey = new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, getDocumentKey, [])
         member x.AddStateMap stateMap =
-            new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, stateMap::stateMaps)
+            new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, getDocumentKey, stateMap::stateMaps)
         member x.EventTypes =
             stateMaps |> List.collect (fun x -> x.Types)
+        member x.GetDocumentKey = getDocumentKey
+        member x.GetKeysFromEvent (evt:obj, metadata : 'TMetadata) : 'TKey list =
+            []
 
     [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
     module DocumentBuilder =
@@ -62,7 +65,9 @@ module DocumentBuilderTests =
     [<Fact>]
     let ``Can map state builders to documents`` () =
         let visitDocumentBuilder = 
-            DocumentBuilder.Empty<Guid, WidgetDocument> (fun x -> { WidgetDocument.WidgetId = x; Name = "" })
+            DocumentBuilder.Empty<Guid, WidgetDocument> (fun x -> WidgetDocument.Empty x) (fun x -> sprintf "WidgetDocument/%s" (x.ToString()))
             |> DocumentBuilder.mapStateToProperty widgetNameStateBuilder (fun doc -> doc.Name) (fun name doc -> { doc with Name = name })
 
         visitDocumentBuilder.EventTypes |> List.exists (fun x -> x = typeof<WidgetRenamedEvent>) |> should equal true
+        let guid = Guid.Parse("75ca0d81-7a8e-4692-86ac-7f128deb75bd")
+        visitDocumentBuilder.GetDocumentKey guid |> should equal "WidgetDocument/75ca0d81-7a8e-4692-86ac-7f128deb75bd"
