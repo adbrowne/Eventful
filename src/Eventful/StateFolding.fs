@@ -229,8 +229,7 @@ type NamedStateBuilder<'TState,'TMetadata>(name : string, builder: StateBuilder<
     member x.Name = name
     member x.Builder = builder
     member x.MessageTypes = builder.Types
-    member x.Apply (state : obj) objWithMetadata = 
-        let (message, metadata) = objWithMetadata
+    member x.Apply (state : obj, message, metadata) = 
         let typedState = state :?> 'TState
         builder.Run typedState message
 
