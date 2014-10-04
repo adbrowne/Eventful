@@ -90,6 +90,7 @@
     <Compile Include="EventStreamStateBuilder.fs" />
     <Compile Include="FreePlay.fs" />
     <Compile Include="AggregateConfigurationErrorTests.fs" />
+    <Compile Include="AggregateStateBuilderTests.fs" />
     <Compile Include="DocumentBuilderTests.fs" />
   </ItemGroup>
   <ItemGroup>

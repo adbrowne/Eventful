@@ -84,6 +84,7 @@
     <Compile Include="EventfulHandlers.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
+    <Compile Include="AggregateStateBuilder.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Common.Logging">
