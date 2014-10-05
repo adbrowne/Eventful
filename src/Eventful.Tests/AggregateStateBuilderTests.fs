@@ -39,8 +39,8 @@ module AggregateStateBuilderTests =
         UnitStateBuilder.Empty "EventCount" 0
         |> UnitStateBuilder.allEventsHandler (fun m -> m.AggregateId) (fun (s,e,m) -> s + 1)
 
-    let metadata = { Tenancy = "Blue"; AggregateId = Guid.NewGuid() }
     let widgetId = Guid.Parse("2F8A016D-FB2C-4857-8E2F-5E81FB4F95DA")
+    let metadata = { Tenancy = "Blue"; AggregateId = widgetId }
 
     [<Fact>]
     let ``Can calculate simple state`` () =
@@ -80,3 +80,13 @@ module AggregateStateBuilderTests =
         |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
         |> snd
         |> should equal 2
+
+    [<Fact>]
+    let ``Can combine state`` () =
+        let tupledState = AggregateStateBuilder.tuple2 widgetNameStateBuilder widgetEventCountBuilder
+
+        Map.empty
+        |> AggregateStateBuilder.run tupledState.GetUnitBuilders widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
+        |> AggregateStateBuilder.run tupledState.GetUnitBuilders widgetId { WidgetId = widgetId; NewName = "My NEW Widget Name"} metadata
+        |> tupledState.GetState
+        |> should equal ("My NEW Widget Name", 2)
