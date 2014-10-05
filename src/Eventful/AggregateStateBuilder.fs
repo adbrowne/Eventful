@@ -2,6 +2,7 @@
 
 open System
 open FSharpx
+open Eventful
 
 type StateRunner<'TMetadata, 'TState, 'TEvent> = 'TEvent -> 'TMetadata -> 'TState -> 'TState
 
@@ -170,6 +171,20 @@ module AggregateStateBuilder =
     let map (f : 'T1 -> 'T2) (stateBuilder: IStateBuilder<'T1, 'TMetadata, 'TKey>) =
         let extract unitStates = stateBuilder.GetState unitStates |> f
         new AggregateStateBuilder<'T2, 'TMetadata, 'TKey>(stateBuilder.GetUnitBuilders, extract) :> IStateBuilder<'T2, 'TMetadata, 'TKey>
+
+    let toStreamProgram streamName key (stateBuilder:IStateBuilder<'TState, 'TMetadata, 'TKey>) = EventStream.eventStream {
+        let rec loop eventsConsumed currentState = EventStream.eventStream {
+            let! token = EventStream.readFromStream streamName eventsConsumed
+            match token with
+            | Some token -> 
+                let! (value, metadata) = EventStream.readValue token
+                let state' = run stateBuilder.GetUnitBuilders key value metadata currentState
+                return! loop (eventsConsumed + 1) state'
+            | None -> 
+                return (eventsConsumed, currentState) }
+            
+        return! loop 0 Map.empty
+    }
 
     let tuple2 b1 b2 =
         combine FSharpx.Prelude.tuple2 b1 b2

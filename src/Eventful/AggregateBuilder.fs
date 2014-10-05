@@ -20,7 +20,7 @@ type EventResult = unit
 type AggregateConfiguration<'TCommandContext, 'TEventContext, 'TAggregateId, 'TMetadata> = {
     // the combination of all the named state builders
     // for commands and events
-    StateBuilder : CombinedStateBuilder<'TMetadata>
+    StateBuilder : IStateBuilder<Map<string,obj>,'TMetadata, 'TAggregateId>
 
     GetCommandStreamName : 'TCommandContext -> 'TAggregateId -> string
     GetEventStreamName : 'TEventContext -> 'TAggregateId -> string
@@ -69,8 +69,8 @@ open Eventful.Validation
 
 type Validator<'TCmd,'TState> = 
 | CommandValidator of ('TCmd -> seq<ValidationFailure>)
-| StateValidator of ('TState option -> seq<ValidationFailure>)
-| CombinedValidator of ('TCmd -> 'TState option -> seq<ValidationFailure>)
+| StateValidator of ('TState -> seq<ValidationFailure>)
+| CombinedValidator of ('TCmd -> 'TState -> seq<ValidationFailure>)
 
 type SystemConfiguration<'TMetadata> = {
     SetSourceMessageId : string -> 'TMetadata -> 'TMetadata
@@ -79,8 +79,8 @@ type SystemConfiguration<'TMetadata> = {
 
 type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TId, 'TEvent,'TMetadata, 'TValidatedState> = {
     GetId : 'TCommandContext -> 'TCmd -> 'TId
-    StateBuilder : INamedStateBuilder<'TCommandState, 'TMetadata>
-    StateValidation : 'TCommandState option -> Choice<'TValidatedState, NonEmptyList<ValidationFailure>> 
+    StateBuilder : IStateBuilder<'TCommandState, 'TMetadata, 'TId>
+    StateValidation : 'TCommandState -> Choice<'TValidatedState, NonEmptyList<ValidationFailure>> 
     Validators : Validator<'TCmd,'TCommandState> list
     Handler : 'TValidatedState -> 'TCommandContext -> 'TCmd -> Choice<seq<'TEvent * 'TMetadata>, NonEmptyList<ValidationFailure>>
     SystemConfiguration : SystemConfiguration<'TMetadata>
@@ -101,7 +101,7 @@ module AggregateActionBuilder =
             StateValidation = Success
             Handler = f
             SystemConfiguration = systemConfiguration
-        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TState option> 
+        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TState> 
 
     let simpleHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> systemConfiguration stateBuilder (f : 'TCmd -> ('TEvent * 'TMetadata)) =
         {
@@ -111,7 +111,7 @@ module AggregateActionBuilder =
             StateValidation = Success
             Handler = (fun _ _ -> f >> Seq.singleton >> Success)
             SystemConfiguration = systemConfiguration
-        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TState option> 
+        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata,'TState> 
 
     let toChoiceValidator cmd r =
         if r |> Seq.isEmpty then
@@ -149,16 +149,11 @@ module AggregateActionBuilder =
             return childState
         }
 
-    let getChildState (combinedState : Map<string,obj> option) (childStateBuilder : INamedStateBuilder<'TChildState, 'TMetadata>) = eventStream {
-        let! childState = getUntypedChildState combinedState (childStateBuilder :> IUntypedStateBuilder<'TMetadata>)
-        return childState |> Option.map (fun x -> x :?> 'TChildState)
-    }
-
-    let inline runCommand stream (eventsConsumed, combinedState) commandStateBuilder systemConfiguration f = 
+    let inline runCommand stream (eventsConsumed, combinedState) (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, 'TId>) systemConfiguration f = 
         let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
 
         eventStream {
-            let! commandState = getChildState combinedState commandStateBuilder
+            let commandState = commandStateBuilder.GetState combinedState
 
             let result = 
                 f commandState
@@ -221,7 +216,7 @@ module AggregateActionBuilder =
                 eventStream {
                     let! (eventsConsumed, combinedState) = 
                         aggregateConfiguration.StateBuilder 
-                        |> CombinedStateBuilder.toStreamProgram stream
+                        |> AggregateStateBuilder.toStreamProgram stream id
                     let! result = 
                         runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd)
                     return

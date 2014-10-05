@@ -79,12 +79,12 @@
     <Compile Include="EventStream.fs" />
     <Compile Include="StateFolding.fs" />
     <Compile Include="Validation.fs" />
+    <Compile Include="AggregateStateBuilder.fs" />
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventProcessingConfiguration.fs" />
     <Compile Include="EventfulHandlers.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
-    <Compile Include="AggregateStateBuilder.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Common.Logging">
