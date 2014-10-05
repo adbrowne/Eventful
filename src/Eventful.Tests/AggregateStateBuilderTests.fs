@@ -45,30 +45,38 @@ module AggregateStateBuilderTests =
     [<Fact>]
     let ``Can calculate simple state`` () =
         (widgetNameStateBuilder, widgetNameStateBuilder.InitialState)
-        |> UnitStateBuilder.run { WidgetId = widgetId; Name = "My Widget Name"} metadata
+        |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
         |> snd
         |> should equal "My Widget Name"
 
     [<Fact>]
     let ``Can run multiple events`` () =
         (widgetNameStateBuilder, widgetNameStateBuilder.InitialState)
-        |> UnitStateBuilder.run { WidgetId = widgetId; Name = "My Widget Name"} metadata
-        |> UnitStateBuilder.run { WidgetId = widgetId; NewName = "My NEW Widget Name"} metadata
+        |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
+        |> UnitStateBuilder.run widgetId { WidgetId = widgetId; NewName = "My NEW Widget Name"} metadata
         |> snd
         |> should equal "My NEW Widget Name"
 
     [<Fact>]
     let ``Can use previous state`` () =
         (widgetNameStateBuilder, widgetNameStateBuilder.InitialState)
-        |> UnitStateBuilder.run { WidgetId = widgetId; Name = "My Widget Name"} metadata
-        |> UnitStateBuilder.run { WidgetId = widgetId; Suffix = "My Suffix"} metadata
+        |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
+        |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Suffix = "My Suffix"} metadata
         |> snd
         |> should equal "My Widget NameMy Suffix"
 
     [<Fact>]
+    let ``Can Get Keys From Event`` () =
+        let evt = { WidgetId = widgetId; Name = "My Widget Name"}
+        widgetNameStateBuilder
+        |> UnitStateBuilder.getKeys evt metadata
+        |> Seq.toList
+        |> should equal [widgetId]
+
+    [<Fact>]
     let ``Can count events`` () =
         (widgetEventCountBuilder, widgetEventCountBuilder.InitialState)
-        |> UnitStateBuilder.run { WidgetId = widgetId; Name = "My Widget Name"} metadata
-        |> UnitStateBuilder.run { WidgetId = widgetId; Name = "My Widget Name"} metadata
+        |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
+        |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
         |> snd
         |> should equal 2
