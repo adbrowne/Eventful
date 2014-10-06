@@ -67,9 +67,12 @@ type IHandler<'TEvent,'TId,'TCommandContext,'TEventContext> =
 open FSharpx
 open Eventful.Validation
 
-type Validator<'TCmd,'TState> = 
+type IStateValidatorRegistration<'TMetadata,'TKey> =
+    abstract member Register<'TState> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TState -> seq<ValidationFailure>) -> unit
+
+type Validator<'TCmd,'TState, 'TMetadata, 'TKey> = 
 | CommandValidator of ('TCmd -> seq<ValidationFailure>)
-| StateValidator of ('TState -> seq<ValidationFailure>)
+| StateValidator of (IStateValidatorRegistration<'TMetadata,'TKey> -> unit)
 | CombinedValidator of ('TCmd -> 'TState -> seq<ValidationFailure>)
 
 type SystemConfiguration<'TMetadata> = {
@@ -81,7 +84,7 @@ type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TId, 'TEvent,'TMet
     GetId : 'TCommandContext -> 'TCmd -> 'TId
     StateBuilder : IStateBuilder<'TCommandState, 'TMetadata, 'TId>
     StateValidation : 'TCommandState -> Choice<'TValidatedState, NonEmptyList<ValidationFailure>> 
-    Validators : Validator<'TCmd,'TCommandState> list
+    Validators : Validator<'TCmd,'TCommandState,'TMetadata,'TId> list
     Handler : 'TValidatedState -> 'TCommandContext -> 'TCmd -> Choice<seq<'TEvent * 'TMetadata>, NonEmptyList<ValidationFailure>>
     SystemConfiguration : SystemConfiguration<'TMetadata>
 }
@@ -124,7 +127,12 @@ module AggregateActionBuilder =
         validators
         |> List.map (function
                         | CommandValidator validator -> validator cmd |> (toChoiceValidator cmd)
-                        | StateValidator validator -> validator state |> (toChoiceValidator cmd)
+                        | StateValidator validator -> 
+                            let registration = 
+                                { new IStateValidatorRegistration<_,_> with 
+                                    member x.Register
+                                }
+                            validator state |> (toChoiceValidator cmd)
                         | CombinedValidator validator -> validator cmd state |> (toChoiceValidator cmd))
          |> List.map (fun x -> x)
          |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
@@ -261,8 +269,7 @@ module AggregateActionBuilder =
         (handler: CommandHandler<'TCmd,'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) = 
         { handler with Validators = validator::handler.Validators }
 
-    // todo reinstate this
-    // let ensureFirstCommand x = addValidator (StateValidator (isNone id (None, "Must be the first command"))) x 
+    let ensureFirstCommand x = addValidator (StateValidator (isNone id (None, "Must be the first command"))) x 
 
     let buildSimpleCmdHandler<'TId,'TCmd,'TCmdState,'TEvent, 'TCommandContext,'TMetadata when 'TId : equality> emptyMetadata stateBuilder = 
         (simpleHandler<'TId,'TCmdState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> emptyMetadata stateBuilder) >> buildCmd
