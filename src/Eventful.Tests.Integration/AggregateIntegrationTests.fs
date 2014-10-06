@@ -75,7 +75,7 @@ module AggregateIntegrationTests =
                } 
 
                yield addWidget
-                     |> simpleHandler NamedStateBuilder.nullStateBuilder
+                     |> simpleHandler UnitStateBuilder.nullUnitStateBuilder
                      |> buildCmd
             }
 

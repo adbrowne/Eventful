@@ -3,8 +3,6 @@
 open System
 open Microsoft.FSharp.Core
 open Eventful
-open FSharpx
-open FSharpx.Choice
 open Eventful.Aggregate
 
 type SchoolReportMetadata = {
@@ -75,9 +73,8 @@ open SchoolReportHelpers
 
 module Teacher =
     let stateBuilder = 
-        StateBuilder.Empty { TeacherState.TeacherId = { TeacherId.Id = Guid.NewGuid() }}
-        |> StateBuilder.addHandler (fun s (e:TeacherAddedEvent) -> { s with TeacherId = e.TeacherId })
-        |> NamedStateBuilder.withName "TeacherId"
+        UnitStateBuilder.Empty "TeacherId" { TeacherState.TeacherId = { TeacherId.Id = Guid.NewGuid() }}
+        |> UnitStateBuilder.handler (fun (e:TeacherAddedEvent) _ -> e.TeacherId) (fun (s, e, _) -> { s with TeacherId = e.TeacherId })
 
     let getStreamName () (id:TeacherId) =
         sprintf "Teacher-%s" (id.Id.ToString("N"))
@@ -93,7 +90,7 @@ module Teacher =
 
                yield addTeacher
                      |> simpleHandler stateBuilder
-                     |> ensureFirstCommand
+                     |> ensureFirstCommand // todo reinstate this
                      |> addValidator (CommandValidator (notBlank (fun x -> x.FirstName) "FirstName"))
                      |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
                      |> buildCmd
@@ -138,13 +135,13 @@ module Report =
                        TeacherId = x.TeacherId
                        Name = x.Name } 
 
-            yield buildSimpleCmdHandler nullStateBuilder addReport
+            yield buildSimpleCmdHandler UnitStateBuilder.nullUnitStateBuilder addReport
 
             let changeName (x : ChangeReportNameCommand) =
                 NameChanged { ReportId = x.ReportId
                               Name = x.Name }
 
-            yield buildSimpleCmdHandler nullStateBuilder changeName
+            yield buildSimpleCmdHandler UnitStateBuilder.nullUnitStateBuilder changeName
         }
 
     let evtHandlers =
@@ -159,7 +156,7 @@ module Report =
                     }
                 }
 
-            yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) nullStateBuilder createTeacherReport
+            yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) UnitStateBuilder.nullUnitStateBuilder createTeacherReport
         }
 
     let handlers =

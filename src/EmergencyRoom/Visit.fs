@@ -179,7 +179,7 @@ module Visit =
                 cmd.State 
                 cmd.Postcode
 
-        if isRegistered = Some true then
+        if isRegistered then
             failWithError "Patient is already registered"
         else 
             buildEvent 
@@ -187,7 +187,7 @@ module Visit =
                 <*> hasLength "MedicareNumber" 10 cmd.MedicareNumber
 
     let validateCommand (cmd : RegisterPatientCommand) =
-       match (registerPatient None () cmd) with
+       match (registerPatient false () cmd) with
        | Choice1Of2 _ -> Seq.empty
        | Choice2Of2 errors -> errors |> NonEmptyList.toSeq
         

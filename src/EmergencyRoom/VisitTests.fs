@@ -47,7 +47,7 @@ module VisitTests =
         }
 
         let result = 
-            Visit.registerPatient (Some false) () command
+            Visit.registerPatient false () command
 
         let expectedEvent = Registered {
                 VisitId = visitId
@@ -87,7 +87,7 @@ module VisitTests =
         }
 
         let result = 
-            Visit.registerPatient (Some false) () command
+            Visit.registerPatient false () command
 
         let expectedEvent : VisitEvents -> bool = function
             | Registered 

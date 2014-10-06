@@ -83,6 +83,9 @@ type UnitStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module UnitStateBuilder =
+    let nullUnitStateBuilder<'TMetadata, 'TKey when 'TKey : equality> =
+        UnitStateBuilder<unit, 'TMetadata, 'TKey>.Empty "$Empty" ()
+
     let untypedHandler f (state, (evt : obj), metadata) = 
         match evt with
         | :? 'TEvent as evt ->
@@ -151,6 +154,14 @@ module AggregateStateBuilder =
             f (b1.GetState unitStates) (b2.GetState unitStates)
 
         new AggregateStateBuilder<'TStateCombined, 'TMetadata, 'TKey>(combinedUnitBuilders, extract) :> IStateBuilder<'TStateCombined, 'TMetadata, 'TKey>
+
+    let combineHandlers (h1 : IUnitStateBuilder<'TMetadata, 'TId> list) (h2 : IUnitStateBuilder<'TMetadata, 'TId> list) =
+        List.append h1 h2 
+        |> Seq.distinct
+        |> List.ofSeq
+
+    let ofStateBuilderList (builders : IUnitStateBuilder<'TMetadata, 'TKey> list) =
+        new AggregateStateBuilder<Map<string,obj>,'TMetadata, 'TKey>(builders, id)
 
     let run (unitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
         let runBuilder unitStates (builder : IUnitStateBuilder<'TMetadata, 'TKey>) = 

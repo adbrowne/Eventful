@@ -48,7 +48,7 @@ module TestAggregate =
         SetMessageId = (fun id metadata -> { metadata with MessageId = id })
     }
 
-    let stateBuilder = NamedStateBuilder.nullStateBuilder<TestEventMetadata>
+    let stateBuilder = UnitStateBuilder.nullUnitStateBuilder<TestEventMetadata, TestId>
 
     let inline simpleHandler f = 
         let withMetadata = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
