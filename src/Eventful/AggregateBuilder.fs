@@ -68,12 +68,15 @@ open FSharpx
 open Eventful.Validation
 
 type IStateValidatorRegistration<'TMetadata,'TKey> =
-    abstract member Register<'TState> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TState -> seq<ValidationFailure>) -> unit
+    abstract member Register<'TState> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TState -> seq<ValidationFailure>) -> (IUnitStateBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>))
+
+type ICombinedValidatorRegistration<'TMetadata,'TKey> =
+    abstract member Register<'TState,'TInput> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TInput -> 'TState -> seq<ValidationFailure>) -> (IUnitStateBuilder<'TMetadata, 'TKey> list * ('TInput -> Map<string,obj> -> seq<ValidationFailure>))
 
 type Validator<'TCmd,'TState, 'TMetadata, 'TKey> = 
 | CommandValidator of ('TCmd -> seq<ValidationFailure>)
-| StateValidator of (IStateValidatorRegistration<'TMetadata,'TKey> -> unit)
-| CombinedValidator of ('TCmd -> 'TState -> seq<ValidationFailure>)
+| StateValidator of (IStateValidatorRegistration<'TMetadata,'TKey> -> (IUnitStateBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>)))
+| CombinedValidator of (ICombinedValidatorRegistration<'TMetadata,'TKey> -> (IUnitStateBuilder<'TMetadata, 'TKey> list * ('TCmd -> Map<string,obj> -> seq<ValidationFailure>)))
 
 type SystemConfiguration<'TMetadata> = {
     SetSourceMessageId : string -> 'TMetadata -> 'TMetadata
@@ -127,13 +130,35 @@ module AggregateActionBuilder =
         validators
         |> List.map (function
                         | CommandValidator validator -> validator cmd |> (toChoiceValidator cmd)
-                        | StateValidator validator -> 
+                        | StateValidator validatorRegistration -> 
                             let registration = 
                                 { new IStateValidatorRegistration<_,_> with 
-                                    member x.Register
+                                    member x.Register stateBuilder validator = 
+                                        let runValidation unitValueMap : seq<ValidationFailure> = 
+                                            let state = stateBuilder.GetState unitValueMap
+                                            validator state
+
+                                        (stateBuilder.GetUnitBuilders, runValidation)
                                 }
-                            validator state |> (toChoiceValidator cmd)
-                        | CombinedValidator validator -> validator cmd state |> (toChoiceValidator cmd))
+
+                            let (unitBuilders, runValidation) = validatorRegistration registration
+                            
+                            runValidation state |> (toChoiceValidator cmd)
+                        | CombinedValidator validatorRegistration -> 
+                            let registration = 
+                                { new ICombinedValidatorRegistration<_,_> with 
+                                    member x.Register stateBuilder validator = 
+                                        let runValidation cmd unitValueMap : seq<ValidationFailure> = 
+                                            let state = stateBuilder.GetState unitValueMap
+                                            validator cmd state
+
+                                        (stateBuilder.GetUnitBuilders, runValidation)
+                                }
+
+                            let (unitBuilders, runValidation) = validatorRegistration registration
+                            
+                            runValidation cmd state |> (toChoiceValidator cmd)
+                     )
          |> List.map (fun x -> x)
          |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
 
@@ -202,14 +227,49 @@ module AggregateActionBuilder =
                     eventStream { return Choice2Of2 x }
         }
 
+    let getValidatorUnitBuilders (validator : Validator<'TCmd,'TCommandState,'TMetadata,'TId>)= 
+        match validator with
+        | CommandValidator validator -> []
+        | StateValidator validatorRegistration -> 
+            let registration = 
+                { new IStateValidatorRegistration<_,_> with 
+                    member x.Register stateBuilder validator = 
+                        let runValidation unitValueMap : seq<ValidationFailure> = 
+                            let state = stateBuilder.GetState unitValueMap
+                            validator state
+
+                        (stateBuilder.GetUnitBuilders, runValidation)
+                }
+
+            let (unitBuilders, _) = validatorRegistration registration
+            
+            unitBuilders
+        | CombinedValidator validatorRegistration -> 
+            let registration = 
+                { new ICombinedValidatorRegistration<_,_> with 
+                    member x.Register stateBuilder validator = 
+                        let runValidation cmd unitValueMap : seq<ValidationFailure> = 
+                            let state = stateBuilder.GetState unitValueMap
+                            validator cmd state
+
+                        (stateBuilder.GetUnitBuilders, runValidation)
+                }
+
+            let (unitBuilders, _) = validatorRegistration registration
+            
+            unitBuilders
+
+    let getValidatorsUnitBuilders (validators : Validator<'TCmd,'TCommandState,'TMetadata,'TId> list) = 
+        List.fold (fun s b -> List.append s (getValidatorUnitBuilders b)) [] validators
+
     let handleCommand 
         (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) 
         (aggregateConfiguration : AggregateConfiguration<_,_,_,_>) 
         (commandContext : 'TCommandContext) 
         (cmd : obj) =
-        let processCommand cmd commandState =
+        let processCommand cmd (unitStates : Map<string,obj>) commandState =
             choose {
-                let! validated = runValidation commandHandler.Validators cmd commandState
+                let! validated = runValidation commandHandler.Validators cmd unitStates
                 let! validatedState = commandHandler.StateValidation commandState
                 return! commandHandler.Handler validatedState commandContext validated
             }
@@ -219,15 +279,15 @@ module AggregateActionBuilder =
             let getId = FSharpx.Choice.protect (commandHandler.GetId commandContext) cmd
             match getId with
             | Choice1Of2 id ->
-                let id = commandHandler.GetId commandContext cmd
                 let stream = aggregateConfiguration.GetCommandStreamName commandContext id
                 eventStream {
                     let! (eventsConsumed, combinedState) = 
-                        aggregateConfiguration.StateBuilder 
+                        aggregateConfiguration.StateBuilder
+                        |> AggregateStateBuilder.combineHandlers (getValidatorsUnitBuilders commandHandler.Validators)
                         |> AggregateStateBuilder.ofStateBuilderList
                         |> AggregateStateBuilder.toStreamProgram stream id
                     let! result = 
-                        runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd)
+                        runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder commandHandler.SystemConfiguration (processCommand cmd combinedState)
                     return
                         result
                         |> Choice.mapSecond (NonEmptyList.map CommandFailure.ofValidationFailure)
@@ -265,11 +325,9 @@ module AggregateActionBuilder =
         ToInterface sb
 
     let addValidator 
-        (validator : Validator<'TCmd,'TState>) 
+        (validator : Validator<'TCmd,'TState, 'TMetadata, 'TId>) 
         (handler: CommandHandler<'TCmd,'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) = 
         { handler with Validators = validator::handler.Validators }
-
-    let ensureFirstCommand x = addValidator (StateValidator (isNone id (None, "Must be the first command"))) x 
 
     let buildSimpleCmdHandler<'TId,'TCmd,'TCmdState,'TEvent, 'TCommandContext,'TMetadata when 'TId : equality> emptyMetadata stateBuilder = 
         (simpleHandler<'TId,'TCmdState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> emptyMetadata stateBuilder) >> buildCmd

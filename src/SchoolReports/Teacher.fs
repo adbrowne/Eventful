@@ -6,6 +6,7 @@ open Eventful
 open Eventful.Aggregate
 
 type SchoolReportMetadata = {
+    AggregateId : Guid
     MessageId: Guid
     SourceMessageId: string
 }
@@ -53,7 +54,7 @@ module SchoolReportHelpers =
         SetMessageId = (fun id metadata -> { metadata with MessageId = id })
     }
 
-    let emptyMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty }
+    let emptyMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }
 
     let nullStateBuilder = NamedStateBuilder.nullStateBuilder<SchoolReportMetadata>
     let inline simpleHandler s f = 
@@ -63,15 +64,26 @@ module SchoolReportHelpers =
         let withMetadata f = f >> (fun x -> (x, emptyMetadata))
         Eventful.AggregateActionBuilder.buildSimpleCmdHandler systemConfiguration s (withMetadata f)
     let inline onEvent fId s f = 
-        let withMetadata f = f >> Seq.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+        let withMetadata f = f >> Seq.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }))
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
     let inline linkEvent fId f = 
-        let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+        let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }))
         Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f emptyMetadata
 
 open SchoolReportHelpers
 
 module Teacher =
+    let eventCountStateBuilder =
+        UnitStateBuilder.Empty "EventCount" 0
+        |> UnitStateBuilder.allEventsHandler (fun (m : SchoolReportMetadata) -> { TeacherId.Id = m.AggregateId }) (fun (s, _, _) -> s + 1)
+
+    let isFirstCommand i =
+        match i with
+        | 0 -> Seq.empty
+        | _ -> [(None, "Must be the first command")] |> List.toSeq
+
+    let ensureFirstCommand x = addValidator (StateValidator (fun r -> r.Register eventCountStateBuilder isFirstCommand)) x 
+
     let stateBuilder = 
         UnitStateBuilder.Empty "TeacherId" { TeacherState.TeacherId = { TeacherId.Id = Guid.NewGuid() }}
         |> UnitStateBuilder.handler (fun (e:TeacherAddedEvent) _ -> e.TeacherId) (fun (s, e, _) -> { s with TeacherId = e.TeacherId })
