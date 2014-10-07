@@ -83,6 +83,7 @@
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventProcessingConfiguration.fs" />
     <Compile Include="EventfulHandlers.fs" />
+    <Compile Include="DocumentBuilder.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>

@@ -21,18 +21,11 @@ type EmergencyRoomTopShelfService () =
     let matchingKeys (message : EventStoreMessage) = seq {
         yield "EventCount/" + message.Event.GetType().ToString()
 
-        let isVisitEvent = 
-            Visit.visitDocumentBuilder.Types
-            |> List.exists (fun x -> 
-                                let areEqual = x = message.Event.GetType()
-                                printfn "areEqual %s %s %b" (x.Name) (message.Event.GetType().Name) areEqual
-                                areEqual
-                                )
+        let methodWithoutGeneric = Visit.visitDocumentBuilder2.GetType().GetMethod("GetKeysFromEvent", Reflection.BindingFlags.Public ||| Reflection.BindingFlags.Instance)
+        let genericMethod = methodWithoutGeneric.MakeGenericMethod([|message.Event.GetType()|])
+        let keys = genericMethod.Invoke(Visit.visitDocumentBuilder2, [|message.Event; message.EventContext|]) :?> string list
 
-        if isVisitEvent then    
-            printfn "is a visit event"
-            let visitId : VisitId = MagicMapper.magicId message.Event
-            yield "Visit/" + visitId.Id.ToString()
+        yield! keys
     }
 
     let processEventCount documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<'TMessage>) = async {
@@ -58,6 +51,11 @@ type EmergencyRoomTopShelfService () =
                         }
     }
 
+    let runMessage (docKey : string) (document : Visit.VisitDocument) (message : EventStoreMessage) =
+        let methodWithoutGeneric = Visit.visitDocumentBuilder2.GetType().GetMethod("ApplyEvent", Reflection.BindingFlags.Public ||| Reflection.BindingFlags.Instance)
+        let genericMethod = methodWithoutGeneric.MakeGenericMethod([|message.Event.GetType()|])
+        genericMethod.Invoke(Visit.visitDocumentBuilder2, [|docKey; document; message.Event; message.EventContext|]) :?> Visit.VisitDocument
+
     let processVisitEvent documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<EventStoreMessage>) = async {
                         let! doc = documentFetcher.GetDocument<Visit.VisitDocument>(docKey) |> Async.AwaitTask
                         let visitId : VisitId = 
@@ -75,11 +73,7 @@ type EmergencyRoomTopShelfService () =
 
                         let doc = 
                             messages
-                            |> Seq.map (fun x -> x.Event)
-                            |> Seq.fold Visit.visitDocumentBuilder.Run (Some doc)
-                            |> function
-                            | Some doc -> doc
-                            | None -> Visit.VisitDocument.NewDoc visitId
+                            |> Seq.fold (runMessage docKey) doc
 
                         return seq {
                             let write = {

@@ -137,6 +137,14 @@ module Visit =
         UnitStateBuilder.Empty "isRegistered" false
         |> UnitStateBuilder.handler (fun (e:PatientRegisteredEvent) m -> e.VisitId) (fun (s, e, m) -> true)
 
+    let registrationTime = 
+        UnitStateBuilder.Empty "registrationTime" None
+        |> UnitStateBuilder.handler (fun (e:PatientRegisteredEvent) m -> e.VisitId) (fun (s, e, m : EmergencyEventMetadata) -> Some m.EventTime)
+
+    let patientId = 
+        UnitStateBuilder.Empty "patientId" None
+        |> UnitStateBuilder.handler (fun (e:PatientRegisteredEvent) (m : EmergencyEventMetadata) -> e.VisitId) (fun (s, e, m) -> Some e.PatientId)
+
     let getStreamName () (visitId : VisitId) =
         sprintf "Visit-%s" <| visitId.Id.ToString("N")
 
@@ -230,6 +238,7 @@ module Visit =
     type VisitDocument = {
         VisitId : VisitId
         PatientId : PatientId option
+        IsRegistered : bool
         Registered : DateTime option
         PickedUp : DateTime option
         WaitingTime : TimeSpan option
@@ -238,6 +247,7 @@ module Visit =
             VisitId = visitId
             PatientId = None
             Registered = None
+            IsRegistered = false
             PickedUp = None
             WaitingTime = None
         }
@@ -265,3 +275,9 @@ module Visit =
             Some { doc with
                     PickedUp = Some evt.PickupTime;
                     WaitingTime = Some (evt.PickupTime - doc.Registered.Value) } )
+
+    let visitDocumentBuilder2 = 
+        DocumentBuilder.Empty<VisitId, VisitDocument> (fun x -> VisitDocument.NewDoc x) (fun x -> sprintf "VisitDocument/%s" (x.Id.ToString()))
+        |> DocumentBuilder.mapStateToProperty isRegistered (fun doc -> doc.IsRegistered) (fun value doc -> { doc with IsRegistered = value })
+        |> DocumentBuilder.mapStateToProperty patientId (fun doc -> doc.PatientId) (fun value doc -> { doc with PatientId = value })
+        |> DocumentBuilder.mapStateToProperty registrationTime (fun doc -> doc.Registered) (fun value doc -> { doc with Registered = value })

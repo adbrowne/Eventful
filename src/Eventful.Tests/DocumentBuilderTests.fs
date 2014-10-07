@@ -37,57 +37,12 @@ module DocumentBuilderTests =
         Name : string } 
     with static member Empty id = { WidgetId = id; Name = "" }
 
-    type IDocumentStateMap<'TDocument, 'TMetadata, 'TKey> =
-        abstract member GetKey<'TEvent> : 'TEvent * 'TMetadata -> 'TKey seq
-        abstract member Apply<'TEvent> : 'TKey * 'TDocument * 'TEvent * 'TMetadata -> 'TDocument
-
-    type DocumentBuilder<'TKey,'T, 'TMetadata when 'TKey : equality>(createDoc:'TKey -> 'T, getDocumentKey:'TKey -> string, stateMaps: IDocumentStateMap<'T, 'TMetadata, 'TKey> list) =
-        static member Empty<'TKey,'T> createDoc getDocumentKey = new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, getDocumentKey, [])
-        member x.AddStateMap stateMap =
-            new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, getDocumentKey, stateMap::stateMaps)
-        member x.GetDocumentKey = getDocumentKey
-        member x.GetKeysFromEvent (evt:'TEvent, metadata : 'TMetadata) : 'TKey list =
-            stateMaps 
-            |> List.map (fun x -> x.GetKey (evt, metadata))
-            |> Seq.collect id
-            |> Seq.distinct
-            |> List.ofSeq
-        member x.NewDocument key = createDoc key
-        member x.ApplyEvent (key : 'TKey, currentDocument : 'T, evt:'TEvent, metadata : 'TMetadata) : 'T = 
-            let applyStateMap doc (stateMap : IDocumentStateMap<'T, 'TMetadata, 'TKey>) =
-                stateMap.Apply (key, doc, evt, metadata)
-            List.fold applyStateMap currentDocument stateMaps
-
-    [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
-    module DocumentBuilder =
-        let mapStateToProperty (sb:UnitStateBuilder<'TProperty, 'TMetadata,'TKey>) (getter:'T -> 'TProperty) (setter:'TProperty -> 'T -> 'T) (builder : DocumentBuilder<'TKey,'T, 'TMetadata>)  =
-           let stateMap = 
-               {
-                   new IDocumentStateMap<'T, 'TMetadata, 'TKey> with 
-                       member this.Apply (key, document, evt, metadata) = 
-                            let currentValue = getter document
-                            let handlers = 
-                                sb.GetRunners<'TEvent>()
-                                |> Seq.map (fun (getKey,runner) -> (getKey evt metadata, runner))
-                                |> Seq.filter(fun (k, _) -> k = key)
-                                |> Seq.map snd
-
-                            let runHandler v h = h evt metadata v
-
-                            let updated = handlers |> Seq.fold runHandler currentValue
-                            setter updated document
-                       member this.GetKey<'TEvent>(evt : 'TEvent, metadata) = 
-                            sb.GetRunners<'TEvent>()
-                            |> Seq.map fst
-                            |> Seq.map (fun f -> f evt metadata)
-               }
-           builder.AddStateMap(stateMap)
-
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Can map state builders to documents`` () =
+        let getDocumentKey docId = sprintf "WidgetDocument/%s" (docId.ToString())
         let visitDocumentBuilder = 
-            DocumentBuilder.Empty<Guid, WidgetDocument> (fun x -> WidgetDocument.Empty x) (fun x -> sprintf "WidgetDocument/%s" (x.ToString()))
+            DocumentBuilder.Empty<Guid, WidgetDocument> (fun x -> WidgetDocument.Empty x) getDocumentKey
             |> DocumentBuilder.mapStateToProperty widgetNameStateBuilder (fun doc -> doc.Name) (fun name doc -> { doc with Name = name })
 
         // visitDocumentBuilder.EventTypes |> List.exists (fun x -> x = typeof<WidgetRenamedEvent>) |> should equal true
@@ -97,11 +52,11 @@ module DocumentBuilderTests =
         let newNameEvent = { WidgetId = guid; NewName = "New Name"}
         let metadata = { Tenancy = ""; AggregateId = guid }
         visitDocumentBuilder.GetKeysFromEvent (newNameEvent, metadata)
-        |> should equal [guid]
+        |> should equal ["WidgetDocument/75ca0d81-7a8e-4692-86ac-7f128deb75bd"]
 
         let emptyDocument = visitDocumentBuilder.NewDocument guid
         emptyDocument |> should equal { WidgetDocument.WidgetId = guid; Name = ""}
 
-        visitDocumentBuilder.ApplyEvent (guid,emptyDocument,newNameEvent, metadata) 
+        visitDocumentBuilder.ApplyEvent (getDocumentKey guid,emptyDocument,newNameEvent, metadata) 
         |> (fun x -> x.Name)
         |> should equal "New Name"
