@@ -3,8 +3,6 @@
 open System
 open Microsoft.FSharp.Core
 open Eventful
-open FSharpx
-open FSharpx.Collections
 open Eventful.Aggregate
 
 type PatientAddedToQueueEvent = {
@@ -26,6 +24,7 @@ module WaitQueue =
     | RemovedFromQueue of PatientRemovedFromQueueEvent
     | PatientWaitingTooLong of PatientWaitingTooLongEvent
 
+    let queueAggregateId = Guid.Parse("57495205-c054-4a54-972c-44afffa56b63")
     type WaitQueueState = {
         QueueStartTimes : Map<PatientId, DateTime>
     }
@@ -51,7 +50,7 @@ module WaitQueue =
     let evtHandlers = 
         seq {
            let onPatientRegistered (evt : PatientRegisteredEvent) = seq {
-               let context = Common.emptyMetadata()
+               let context = Common.emptyMetadata
                yield AddedToQueue {
                     PatientId = evt.PatientId
                }, context }
@@ -60,4 +59,4 @@ module WaitQueue =
         }
 
     let handlers =
-        toAggregateDefinition getStreamName getStreamName Seq.empty evtHandlers
+        toAggregateDefinition getStreamName getStreamName (fun _ -> queueAggregateId) Seq.empty evtHandlers

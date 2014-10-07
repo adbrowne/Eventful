@@ -7,7 +7,7 @@ open Topshelf.HostConfigurators
 let main argv = 
     let runService () =
         EmergencyRoomTopShelfService()
-        |> fun svc -> serviceControl (fun hc -> svc.Start() ; true) (fun hc -> svc.Stop() ; true)
+        |> fun svc -> serviceControl (fun hc -> svc.Start() |> ignore ; true) (fun hc -> svc.Stop() ; true)
 
     configureTopShelf <| fun conf ->
         conf |> dependsOnIIS

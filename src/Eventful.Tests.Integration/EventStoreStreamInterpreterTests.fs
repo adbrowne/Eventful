@@ -2,14 +2,11 @@
 
 open Xunit
 open System
-open EventStore.ClientAPI
 open FsUnit.Xunit
 open Eventful
 open Eventful.EventStream
 open Eventful.EventStore
 open Eventful.Testing
-
-open FSharpx.Option
 
 module EventStoreStreamInterpreterTests = 
 
@@ -18,10 +15,10 @@ module EventStoreStreamInterpreterTests =
     }
 
     let newId () : string =
-        System.Guid.NewGuid().ToString()
+        Guid.NewGuid().ToString()
 
     let event = { Name = "Andrew Browne" }
-    let metadata = { SourceMessageId = System.Guid.NewGuid().ToString(); MessageId = System.Guid.NewGuid() }
+    let metadata = { SourceMessageId = Guid.NewGuid().ToString(); MessageId = Guid.NewGuid(); AggregateId = Guid.NewGuid() }
 
     let eventNameMapping = 
         Bimap.Empty

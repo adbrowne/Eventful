@@ -223,8 +223,9 @@ module Visit =
            yield buildCmdHandler dischargePatient
         }
 
+    let visitIdGuid (visitId:VisitId) = visitId.Id
     let handlers =
-        toAggregateDefinition getStreamName getStreamName cmdHandlers Seq.empty
+        toAggregateDefinition getStreamName getStreamName visitIdGuid cmdHandlers Seq.empty
 
     type VisitDocument = {
         VisitId : VisitId

@@ -24,6 +24,7 @@ type TestId = {
 type TestEventMetadata = {
     MessageId: Guid
     SourceMessageId: string
+    AggregateId : Guid
 }
 
 [<CLIMutable>]
@@ -50,9 +51,17 @@ module TestAggregate =
 
     let stateBuilder = UnitStateBuilder.nullUnitStateBuilder<TestEventMetadata, TestId>
 
+    let inline buildMetadata aggregateId messageId sourceMessageId = { 
+            SourceMessageId = sourceMessageId 
+            MessageId = messageId 
+            AggregateId = aggregateId }
+
+    let inline withMetadata f cmd = 
+        let cmdResult = f cmd
+        (cmdResult, buildMetadata)
+
     let inline simpleHandler f = 
-        let withMetadata = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration stateBuilder withMetadata
+        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration stateBuilder (withMetadata f)
     
     let inline buildCmdHandler f =
         f
@@ -64,7 +73,7 @@ module TestAggregate =
             f a b c
             |> Choice.map (fun evts ->
                 evts 
-                |> List.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+                |> List.map (fun x -> (x, buildMetadata))
                 |> List.toSeq
             )
         Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
@@ -80,7 +89,7 @@ module TestAggregate =
         }
 
     let handlers =
-        toAggregateDefinition getStreamName getStreamName cmdHandlers Seq.empty
+        toAggregateDefinition getStreamName getStreamName (fun (x : TestId) -> x.Id) cmdHandlers Seq.empty
 
 module AggregateConfigurationErrorTests = 
 

@@ -20,19 +20,26 @@ module IntegrationHelpers =
         SetMessageId = (fun id metadata -> { metadata with MessageId = id })
     }
 
-    let emptyMetadata : Eventful.Testing.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty }
+    let emptyMetadata : Eventful.Testing.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
+
+    let inline buildMetadata aggregateId messageId sourceMessageId = { 
+            SourceMessageId = sourceMessageId 
+            MessageId = messageId 
+            AggregateId = aggregateId }
+
+    let inline withMetadata f cmd = 
+        let cmdResult = f cmd
+        (cmdResult, buildMetadata)
 
     let inline simpleHandler s f = 
-        let withMetadata f = f >> (fun x -> (x, emptyMetadata))
         Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s (withMetadata f)
     let inline buildSimpleCmdHandler s f = 
-        let withMetadata f = f >> (fun x -> (x, emptyMetadata))
         Eventful.AggregateActionBuilder.buildSimpleCmdHandler systemConfiguration s (withMetadata f)
     let inline onEvent fId s f = 
-        let withMetadata f = f >> Seq.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+        let withMetadata f = f >> Seq.map (fun x -> (x, buildMetadata))
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
     let inline linkEvent fId f = 
-        let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty }))
+        let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }))
         Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f emptyMetadata
 
 open IntegrationHelpers
@@ -79,7 +86,7 @@ module AggregateIntegrationTests =
                      |> buildCmd
             }
 
-    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getStreamName "Widget") widgetCmdHandlers Seq.empty
+    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getStreamName "Widget") (fun (x : WidgetId) -> x.Id) widgetCmdHandlers Seq.empty
 
     let widgetCounterEventHandlers =
         seq {
@@ -87,7 +94,7 @@ module AggregateIntegrationTests =
                 yield linkEvent getId WidgetCounterEvents.Counted
             }
 
-    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter") Seq.empty widgetCounterEventHandlers
+    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter") (fun (x : WidgetId) -> x.Id) Seq.empty widgetCounterEventHandlers
 
     let handlers =
         EventfulHandlers.empty

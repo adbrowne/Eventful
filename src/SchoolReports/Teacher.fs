@@ -56,19 +56,28 @@ module SchoolReportHelpers =
 
     let emptyMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }
 
+    let inline buildMetadata aggregateId messageId sourceMessageId = { 
+            SourceMessageId = sourceMessageId 
+            MessageId = messageId 
+            AggregateId = aggregateId }
+
     let nullStateBuilder = NamedStateBuilder.nullStateBuilder<SchoolReportMetadata>
-    let inline simpleHandler getId s f = 
-        let withMetadata f cmd = 
-            let teacherId : TeacherId = getId cmd
-            let metadata = { emptyMetadata with AggregateId = teacherId.Id} 
-            let cmdResult = f cmd
-            (cmdResult, metadata)
+
+    let inline withMetadata f cmd = 
+        let metadata aggregateId messageId sourceMessageId = { 
+            SourceMessageId = sourceMessageId 
+            MessageId = messageId 
+            AggregateId = aggregateId }
+
+        let cmdResult = f cmd
+        (cmdResult, metadata)
+
+    let inline simpleHandler s f = 
         Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s (withMetadata f)
     let inline buildSimpleCmdHandler s f = 
-        let withMetadata f = f >> (fun x -> (x, emptyMetadata))
         Eventful.AggregateActionBuilder.buildSimpleCmdHandler systemConfiguration s (withMetadata f)
     let inline onEvent fId s f = 
-        let withMetadata f = f >> Seq.map (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }))
+        let withMetadata f = f >> Seq.map (fun x -> (x, buildMetadata))
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
     let inline linkEvent fId f = 
         let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }))
@@ -95,6 +104,10 @@ module Teacher =
     let getStreamName () (id:TeacherId) =
         sprintf "Teacher-%s" (id.Id.ToString("N"))
 
+    let getAggregateId (id : TeacherId) = id.Id
+
+    let teacherIdToAggregateId (x : TeacherId) = x.Id
+
     let cmdHandlers = 
         seq {
                let addTeacher (cmd : AddTeacherCommand) =
@@ -105,14 +118,14 @@ module Teacher =
                }
 
                yield addTeacher
-                     |> simpleHandler (fun (cmd : AddTeacherCommand) -> cmd.TeacherId) stateBuilder
+                     |> simpleHandler stateBuilder
                      |> ensureFirstCommand 
                      |> addValidator (CommandValidator (notBlank (fun x -> x.FirstName) "FirstName"))
                      |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
                      |> buildCmd
             }
     let handlers =
-        toAggregateDefinition getStreamName getStreamName cmdHandlers Seq.empty
+        toAggregateDefinition getStreamName getStreamName teacherIdToAggregateId cmdHandlers Seq.empty
 
 type AddReportCommand = {
     ReportId : ReportId
@@ -141,8 +154,13 @@ type ReportEvents =
     | NameChanged of ReportNameChangedEvent
 
 module Report =
+    let inline getReportId (a: ^a) = 
+        (^a : (member ReportId: ReportId) (a))
+
     let getStreamName () (id:ReportId) =
         sprintf "Report-%s" (id.Id.ToString("N"))
+
+    let reportIdToAggregateId (x : ReportId) = x.Id
 
     let cmdHandlers =
         seq {
@@ -176,7 +194,7 @@ module Report =
         }
 
     let handlers =
-        toAggregateDefinition getStreamName getStreamName cmdHandlers evtHandlers
+        toAggregateDefinition getStreamName getStreamName reportIdToAggregateId cmdHandlers evtHandlers
 
 type TeacherReportEvents =
     | TeacherAdded of TeacherAddedEvent
@@ -192,7 +210,7 @@ module TeacherReport =
             yield linkEvent (fun (x:ReportAddedEvent) -> x.TeacherId) TeacherReportEvents.ReportAdded
         }
     let handlers =
-        toAggregateDefinition getStreamName getStreamName Seq.empty evtHandlers
+        toAggregateDefinition getStreamName getStreamName Teacher.teacherIdToAggregateId Seq.empty evtHandlers
 
 open Xunit
 open FsUnit.Xunit
