@@ -52,6 +52,11 @@ module DocumentBuilderTests =
             |> Seq.collect id
             |> Seq.distinct
             |> List.ofSeq
+        member x.NewDocument key = createDoc key
+        member x.ApplyEvent (key : 'TKey, currentDocument : 'T, evt:'TEvent, metadata : 'TMetadata) : 'T = 
+            let applyStateMap doc (stateMap : IDocumentStateMap<'T, 'TMetadata, 'TKey>) =
+                stateMap.Apply (key, doc, evt, metadata)
+            List.fold applyStateMap currentDocument stateMaps
 
     [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
     module DocumentBuilder =
@@ -89,5 +94,14 @@ module DocumentBuilderTests =
         let guid = Guid.Parse("75ca0d81-7a8e-4692-86ac-7f128deb75bd")
         visitDocumentBuilder.GetDocumentKey guid |> should equal "WidgetDocument/75ca0d81-7a8e-4692-86ac-7f128deb75bd"
 
-        visitDocumentBuilder.GetKeysFromEvent ({ WidgetId = guid; NewName = "New Name"}, { Tenancy = ""; AggregateId = guid })
+        let newNameEvent = { WidgetId = guid; NewName = "New Name"}
+        let metadata = { Tenancy = ""; AggregateId = guid }
+        visitDocumentBuilder.GetKeysFromEvent (newNameEvent, metadata)
         |> should equal [guid]
+
+        let emptyDocument = visitDocumentBuilder.NewDocument guid
+        emptyDocument |> should equal { WidgetDocument.WidgetId = guid; Name = ""}
+
+        visitDocumentBuilder.ApplyEvent (guid,emptyDocument,newNameEvent, metadata) 
+        |> (fun x -> x.Name)
+        |> should equal "New Name"
