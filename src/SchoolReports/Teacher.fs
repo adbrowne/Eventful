@@ -57,8 +57,12 @@ module SchoolReportHelpers =
     let emptyMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }
 
     let nullStateBuilder = NamedStateBuilder.nullStateBuilder<SchoolReportMetadata>
-    let inline simpleHandler s f = 
-        let withMetadata f = f >> (fun x -> (x, emptyMetadata))
+    let inline simpleHandler getId s f = 
+        let withMetadata f cmd = 
+            let teacherId : TeacherId = getId cmd
+            let metadata = { emptyMetadata with AggregateId = teacherId.Id} 
+            let cmdResult = f cmd
+            (cmdResult, metadata)
         Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s (withMetadata f)
     let inline buildSimpleCmdHandler s f = 
         let withMetadata f = f >> (fun x -> (x, emptyMetadata))
@@ -101,8 +105,8 @@ module Teacher =
                }
 
                yield addTeacher
-                     |> simpleHandler stateBuilder
-                     |> ensureFirstCommand // todo reinstate this
+                     |> simpleHandler (fun (cmd : AddTeacherCommand) -> cmd.TeacherId) stateBuilder
+                     |> ensureFirstCommand 
                      |> addValidator (CommandValidator (notBlank (fun x -> x.FirstName) "FirstName"))
                      |> addValidator (CommandValidator (notBlank (fun x -> x.LastName) "LastName"))
                      |> buildCmd
