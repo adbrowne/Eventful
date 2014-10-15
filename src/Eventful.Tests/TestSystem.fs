@@ -42,7 +42,7 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
         cmds
         |> List.fold (fun (s:TestSystem<'TMetadata>) cmd -> s.RunCommand cmd) x
 
-    member x.EvaluateState<'TState> (stream : string) (stateBuilder : StateBuilder<'TState>) =
+    member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 
             allEvents.Events 
             |> Map.tryFind stream
@@ -51,18 +51,22 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
                 events
             | None -> Vector.empty
 
+        let run s (evt : obj, metadata) : Map<string,obj> = 
+            AggregateStateBuilder.run stateBuilder.GetUnitBuilders identity evt metadata s
+        
         streamEvents
         |> Vector.map (function
-            | (position, Event { Body = obj }) ->
-                obj
+            | (position, Event { Body = body; Metadata = metadata }) ->
+                (body, metadata)
             | (position, EventLink (streamId, eventNumber, _)) ->
                 allEvents.Events
                 |> Map.find streamId
                 |> Vector.nth eventNumber
                 |> (function
-                        | (_, Event { Body = obj }) -> obj
+                        | (_, Event { Body = body; Metadata = metadata }) -> (body, metadata)
                         | _ -> failwith ("found link to a link")))
-        |> Vector.fold stateBuilder.Run stateBuilder.InitialState
+        |> Vector.fold run Map.empty
+        |> stateBuilder.GetState
 
     static member Empty handlers =
         new TestSystem<'TMetadata>(handlers, Choice1Of2 List.empty, TestEventStore.empty)

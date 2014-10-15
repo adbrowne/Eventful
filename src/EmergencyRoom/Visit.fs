@@ -122,16 +122,16 @@ module Visit =
             DischargeTime = None
             RegistrationTime = None }
 
-    let visitStateBuilder = 
-        StateBuilder.Empty VisitState.Empty
-        |> StateBuilder.addHandler (fun s (e:PatientTriagedEvent) ->
-            { s with CurrentTriageLevel = Some e.TriageLevel })
-        |> StateBuilder.addHandler (fun s (e:PatientRegisteredEvent) ->
-            { s with   
-                 Registered = true
-                 RegistrationTime = Some e.RegistrationTime })
-        |> StateBuilder.addHandler (fun s (e:PatientDischargedEvent) ->
-            { s with DischargeTime = Some e.DischargeTime })
+//    let visitStateBuilder = 
+//        StateBuilder.Empty VisitState.Empty
+//        |> StateBuilder.addHandler (fun s (e:PatientTriagedEvent) ->
+//            { s with CurrentTriageLevel = Some e.TriageLevel })
+//        |> StateBuilder.addHandler (fun s (e:PatientRegisteredEvent) ->
+//            { s with   
+//                 Registered = true
+//                 RegistrationTime = Some e.RegistrationTime })
+//        |> StateBuilder.addHandler (fun s (e:PatientDischargedEvent) ->
+//            { s with DischargeTime = Some e.DischargeTime })
         
     let isRegistered = 
         UnitStateBuilder.Empty "isRegistered" false
@@ -261,20 +261,20 @@ module Visit =
             VisitDocument.NewDoc visitId
         | Some doc, _ -> doc 
 
-    let visitDocumentBuilder = 
-        StateBuilder<VisitDocument option>.Empty None
-        |> StateBuilder.addHandler (fun doc (evt : PatientTriagedEvent) ->
-            doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId) |> Some)
-        |> StateBuilder.addHandler (fun doc (evt : PatientRegisteredEvent) ->
-            let doc = doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId)
-            Some { doc with 
-                    PatientId = Some evt.PatientId; 
-                    Registered = Some evt.RegistrationTime } )
-        |> StateBuilder.addHandler (fun doc (evt : PatientPickedUpEvent) ->
-            let doc = doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId)
-            Some { doc with
-                    PickedUp = Some evt.PickupTime;
-                    WaitingTime = Some (evt.PickupTime - doc.Registered.Value) } )
+//    let visitDocumentBuilder = 
+//        StateBuilder<VisitDocument option>.Empty None
+//        |> StateBuilder.addHandler (fun doc (evt : PatientTriagedEvent) ->
+//            doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId) |> Some)
+//        |> StateBuilder.addHandler (fun doc (evt : PatientRegisteredEvent) ->
+//            let doc = doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId)
+//            Some { doc with 
+//                    PatientId = Some evt.PatientId; 
+//                    Registered = Some evt.RegistrationTime } )
+//        |> StateBuilder.addHandler (fun doc (evt : PatientPickedUpEvent) ->
+//            let doc = doc |> Option.getOrElse (VisitDocument.NewDoc evt.VisitId)
+//            Some { doc with
+//                    PickedUp = Some evt.PickupTime;
+//                    WaitingTime = Some (evt.PickupTime - doc.Registered.Value) } )
 
     let visitDocumentBuilder2 = 
         DocumentBuilder.Empty<VisitId, VisitDocument> (fun x -> VisitDocument.NewDoc x) (fun x -> sprintf "VisitDocument/%s" (x.Id.ToString()))

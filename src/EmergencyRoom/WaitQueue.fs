@@ -31,12 +31,12 @@ module WaitQueue =
     with static member Empty = { 
             QueueStartTimes = Map.empty }
 
-    let queueStartTimesBuilder = 
-        StateBuilder.Empty WaitQueueState.Empty
-        |> StateBuilder.addHandler (fun s (e:PatientAddedToQueueEvent, c:EmergencyEventMetadata) ->
-            { s with QueueStartTimes = s.QueueStartTimes |> Map.add e.PatientId c.EventTime })
-        |> StateBuilder.addHandler (fun s (e:PatientRemovedFromQueueEvent, _) ->
-            { s with QueueStartTimes = s.QueueStartTimes |> Map.remove e.PatientId })
+//    let queueStartTimesBuilder = 
+//        StateBuilder.Empty WaitQueueState.Empty
+//        |> StateBuilder.addHandler (fun s (e:PatientAddedToQueueEvent, c:EmergencyEventMetadata) ->
+//            { s with QueueStartTimes = s.QueueStartTimes |> Map.add e.PatientId c.EventTime })
+//        |> StateBuilder.addHandler (fun s (e:PatientRemovedFromQueueEvent, _) ->
+//            { s with QueueStartTimes = s.QueueStartTimes |> Map.remove e.PatientId })
         
     let getStreamName () _ = "WaitQueue"
 

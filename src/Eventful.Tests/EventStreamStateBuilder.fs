@@ -10,12 +10,14 @@ open FSharpx.Collections
 module EventStreamStateBuilder = 
 
     type WidgetAddedEvent = {
+        Id : Guid
         Name : string
     }
 
     let stateBuilder =
-        StateBuilder.Empty List.empty
-        |> StateBuilder.addHandler (fun s (e:WidgetAddedEvent) -> e.Name::s)
+        UnitStateBuilder.Empty "names" List.empty
+        |> UnitStateBuilder.handler (fun (e:WidgetAddedEvent) (m:TestMetadata) -> e.Id) (fun (s, (e:WidgetAddedEvent), _) -> e.Name::s)
+        |> (fun x -> x :> IStateBuilder<string list, TestMetadata, Guid>)
 
     let runProgram eventStoreState p = 
         TestInterpreter.interpret p eventStoreState Bimap.Empty Map.empty Vector.empty |> snd
@@ -31,12 +33,13 @@ module EventStreamStateBuilder =
             }
 
         let streamName = "TestStream-1"
+        let widgetId = Guid.NewGuid()
  
         let eventStoreState = 
             TestEventStore.empty       
-            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1" }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1"; Id = widgetId }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
 
-        let program = stateBuilder |> StateBuilder.toStreamProgram streamName
+        let program = stateBuilder |> AggregateStateBuilder.toStreamProgram streamName widgetId
         let result = runProgram eventStoreState program
 
         result |> should equal (1, Some ["Widget1"])
@@ -54,16 +57,18 @@ module EventStreamStateBuilder =
             }
 
         let streamName = "TestStream-1"
+        let widgetId = Guid.NewGuid()
  
         let eventStoreState = 
             TestEventStore.empty       
-            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1" }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
-            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget2" }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1"; Id = widgetId  }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget2"; Id = widgetId  }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
 
-        let program = stateBuilder |> StateBuilder.toStreamProgram streamName
+        let program = stateBuilder |> AggregateStateBuilder.toStreamProgram streamName widgetId
 
-        let result = runProgram eventStoreState program
+        let (count, state) = runProgram eventStoreState program
 
-        result |> should equal (2, Some ["Widget2";"Widget1"])
+        count |> should equal 2
+        stateBuilder.GetState state |> should equal (Some ["Widget2";"Widget1"])
 
         ()

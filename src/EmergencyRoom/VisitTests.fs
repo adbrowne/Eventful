@@ -21,11 +21,11 @@ module VisitTests =
         |> EventfulHandlers.addAggregate Visit.handlers
         |> TestSystem.Empty
 
-    let runCommandsAndApplyEventsToViewModel (cmds : seq<obj>) (visitId : VisitId) =
-        let streamName = Visit.getStreamName () visitId
-        let applyCommand = flip TestSystem.runCommand
-        let finalTestSystem = cmds |> Seq.fold applyCommand emptyTestSystem
-        finalTestSystem.EvaluateState streamName Visit.visitDocumentBuilder |> ignore
+//    let runCommandsAndApplyEventsToViewModel (cmds : seq<obj>) (visitId : VisitId) =
+//        let streamName = Visit.getStreamName () visitId
+//        let applyCommand = flip TestSystem.runCommand
+//        let finalTestSystem = cmds |> Seq.fold applyCommand emptyTestSystem
+//        finalTestSystem.EvaluateState streamName Visit.visitDocumentBuilder |> ignore
 
     [<Fact>]
     let ``Given empty visit When Register Patient Then Patient Registered Event emitted - equality`` () : unit =
@@ -100,11 +100,11 @@ module VisitTests =
         
         result |> should beSuccessWithEvent<VisitEvents> expectedEvent
 
-    [<Property>]
-    let ``All valid command sequences successfully apply to the Read Model`` 
-        (visitId : VisitId) =
-        Prop.forAll 
-            (TestHelpers.getCommandsForAggregate Visit.handlers ("VisitId",visitId)) 
-            (fun cmds -> 
-                runCommandsAndApplyEventsToViewModel cmds visitId |> ignore
-                true)
+//    [<Property>]
+//    let ``All valid command sequences successfully apply to the Read Model`` 
+//        (visitId : VisitId) =
+//        Prop.forAll 
+//            (TestHelpers.getCommandsForAggregate Visit.handlers ("VisitId",visitId)) 
+//            (fun cmds -> 
+//                runCommandsAndApplyEventsToViewModel cmds visitId |> ignore
+//                true)

@@ -61,8 +61,6 @@ module SchoolReportHelpers =
             MessageId = messageId 
             AggregateId = aggregateId }
 
-    let nullStateBuilder = NamedStateBuilder.nullStateBuilder<SchoolReportMetadata>
-
     let inline withMetadata f cmd = 
         let metadata aggregateId messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
@@ -323,12 +321,12 @@ module TeacherTests =
             |> TestSystem.runCommand command
 
         let stateBuilder = 
-            StateBuilder.Empty None
-            |> StateBuilder.addHandler (fun _ (evt : ReportAddedEvent) -> Some evt.Name)
+            UnitStateBuilder.Empty "reportName" None
+            |> UnitStateBuilder.handler (fun (evt : ReportAddedEvent) (m : SchoolReportMetadata) -> evt.TeacherId) (fun (s, (evt : ReportAddedEvent), m) -> Some evt.Name)
 
         let stream = Report.getStreamName () { Id = teacherId.Id }
 
-        let reportName = result.EvaluateState stream stateBuilder
+        let reportName = result.EvaluateState stream teacherId stateBuilder
         reportName |> should equal (Some "Custom teacher report")
 
     [<Fact>]
@@ -349,11 +347,11 @@ module TeacherTests =
                     Name = "Test Report" }]
 
         let stateBuilder = 
-            StateBuilder.Empty 0
-            |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> s + 1)
+            UnitStateBuilder.Empty "reportCount" 0
+            |> UnitStateBuilder.handler (fun (e:ReportAddedEvent) m -> e.ReportId) (fun (s, (e:ReportAddedEvent), m) -> s + 1)
 
         let stream = Report.getStreamName () reportId
-        let state = result.EvaluateState stream stateBuilder
+        let state = result.EvaluateState stream reportId stateBuilder
 
         state |> should equal 1
 
@@ -371,12 +369,12 @@ module TeacherTests =
                     Name = "Test Report" }]
 
         let stateBuilder = 
-            StateBuilder.Empty None
-            |> StateBuilder.addHandler (fun s (e:ReportAddedEvent) -> Some e.Name)
-            |> StateBuilder.addHandler (fun s (e:ReportNameChangedEvent) -> Some e.Name)
+            UnitStateBuilder.Empty "reportName" None
+            |> UnitStateBuilder.handler (fun (e:ReportAddedEvent) m -> e.ReportId) (fun (s, (e:ReportAddedEvent), m) -> Some e.Name)
+            |> UnitStateBuilder.handler (fun (e:ReportNameChangedEvent) m -> e.ReportId) (fun (s, (e:ReportNameChangedEvent), m) -> Some e.Name)
 
         let stream = Report.getStreamName () reportId
-        let state = result.EvaluateState stream stateBuilder
+        let state = result.EvaluateState stream reportId stateBuilder
 
         state |> should equal (Some "Test Report")
 

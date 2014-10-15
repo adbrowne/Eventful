@@ -171,20 +171,6 @@ module AggregateActionBuilder =
             sb.GetId context cmd
         | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
 
-    let getUntypedChildState (combinedState : Map<string,obj> option) (childStateBuilder : IUntypedStateBuilder<'TMetadata>) = eventStream {
-            let childState = 
-                Option.maybe {
-                    let! stateValue = combinedState
-                    match stateValue |> Map.tryFind childStateBuilder.Name with
-                    | Some hasValue ->
-                        return hasValue
-                    | None ->
-                        return childStateBuilder.InitialState
-                }
-
-            return childState
-        }
-
     let inline runCommand stream (eventsConsumed, combinedState) (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, 'TId>) (id : Guid) f = 
         let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
 

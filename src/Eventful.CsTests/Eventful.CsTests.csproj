@@ -57,7 +57,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DocumentStateTests.cs" />
     <Compile Include="MyCountingDoc.cs" />
     <Compile Include="ParellelInOrderTransformerTest.cs" />
     <Compile Include="WorktrackingQueueTests.cs" />
