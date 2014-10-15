@@ -49,7 +49,7 @@ namespace EmergencyRoom.Web.Controllers
             }
             else
             {
-                FSharpChoice<FSharpList<Tuple<string, object, EmergencyEventMetadata>>, NonEmptyList<CommandFailure>> result = await _system.RunCommand(command);
+                var result = await _system.RunCommand(command);
                 if (result.IsChoice1Of2)
                 {
                     return View("Success");
