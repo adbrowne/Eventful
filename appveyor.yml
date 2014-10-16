@@ -41,7 +41,7 @@
   #---------------------------------#
   artifacts:
     - path: .\build\output.nupkg
-    - name: nuget
+      name: nuget
     
   #---------------------------------#
   #     deployment configuration    #
@@ -96,7 +96,7 @@
   #---------------------------------#
   artifacts:
     - path: .\build\output.nupkg
-    - name: nuget
+      name: nuget
     
   #---------------------------------#
   #     deployment configuration    #
