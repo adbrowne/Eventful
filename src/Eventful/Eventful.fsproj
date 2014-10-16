@@ -77,7 +77,6 @@
     <Compile Include="MagicMapper.fs" />
     <Compile Include="EventPosition.fs" />
     <Compile Include="EventStream.fs" />
-    <Compile Include="StateFolding.fs" />
     <Compile Include="Validation.fs" />
     <Compile Include="AggregateStateBuilder.fs" />
     <Compile Include="AggregateBuilder.fs" />
