@@ -1,0 +1,65 @@
+# configuration for "master" branch
+# build in Release mode and deploy to Azure
+-
+  branches:
+    only:
+      - master
+
+  version: 0.0.2.{build}
+
+# configuration for all branches starting from "dev-"
+# build in Debug mode and deploy locally for testing
+-
+  branches:
+    only:
+      - dev
+      
+  version: 0.0.2.{build}
+  configuration: Debug
+
+assembly_info:
+  patch: true
+  file: AssemblyInfo.*
+  
+configuration: Release
+
+#---------------------------------#
+#    environment configuration    #
+#---------------------------------#
+
+# Operating system (build VM template)
+os: Windows Server 2012
+
+#---------------------------------#
+#             build               #
+#---------------------------------#
+before_build: .\build\build.ps1 RestorePackages
+after_build: .\build\build.ps1 CreateNugetPackage
+
+#---------------------------------#
+#             tests               #
+#---------------------------------#
+test:
+  assemblies:
+    - Eventful.Tests.dll
+    - SchoolReports.dll
+    - EmergencyRoom.dll
+  categories:
+    - unit
+    
+#---------------------------------#
+#          artifacts              #
+#---------------------------------#
+artifacts:
+  - path: .\build\output.nupkg
+  - name: nuget
+  
+#---------------------------------#
+#     deployment configuration    #
+#---------------------------------#
+deploy:
+    # Deploying to NuGet feed
+  - provider: NuGet
+    api_key:
+      secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
+    artifact: output.nupkg
