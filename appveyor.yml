@@ -16,6 +16,7 @@
       
   version: 0.0.2.{build}
   configuration: Debug
+-
 
 assembly_info:
   patch: true
