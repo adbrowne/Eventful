@@ -40,10 +40,10 @@ module EventStreamStateBuilder =
             |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1"; Id = widgetId }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
 
         let program = stateBuilder |> AggregateStateBuilder.toStreamProgram streamName widgetId
-        let result = runProgram eventStoreState program
+        let (count, state) = runProgram eventStoreState program
 
-        result |> should equal (1, Some ["Widget1"])
-
+        count |> should equal 1
+        stateBuilder.GetState state |> should equal (["Widget1"])
         ()
 
     [<Fact>]
@@ -69,6 +69,6 @@ module EventStreamStateBuilder =
         let (count, state) = runProgram eventStoreState program
 
         count |> should equal 2
-        stateBuilder.GetState state |> should equal (Some ["Widget2";"Widget1"])
+        stateBuilder.GetState state |> should equal (["Widget2";"Widget1"])
 
         ()

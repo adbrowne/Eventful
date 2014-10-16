@@ -52,7 +52,7 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
             | None -> Vector.empty
 
         let run s (evt : obj, metadata) : Map<string,obj> = 
-            AggregateStateBuilder.run stateBuilder.GetUnitBuilders identity evt metadata s
+            AggregateStateBuilder.dynamicRun stateBuilder.GetUnitBuilders identity evt metadata s
         
         streamEvents
         |> Vector.map (function

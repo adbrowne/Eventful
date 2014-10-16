@@ -384,6 +384,6 @@ module TeacherTests =
                     ChangeReportNameCommand.ReportId = reportId
                     Name = "New Name" }]
 
-        let state = result.EvaluateState stream stateBuilder
+        let state = result.EvaluateState stream reportId stateBuilder
 
         state |> should equal (Some "New Name")

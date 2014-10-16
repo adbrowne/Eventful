@@ -163,7 +163,7 @@ module AggregateStateBuilder =
     let ofStateBuilderList (builders : IUnitStateBuilder<'TMetadata, 'TKey> list) =
         new AggregateStateBuilder<Map<string,obj>,'TMetadata, 'TKey>(builders, id)
 
-    let run (unitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
+    let run<'TMetadata, 'TKey, 'TEvent when 'TKey : equality> (unitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
         let runBuilder unitStates (builder : IUnitStateBuilder<'TMetadata, 'TKey>) = 
             let keyHandlers = 
                 builder.GetRunners<'TEvent>()
@@ -179,6 +179,17 @@ module AggregateStateBuilder =
 
         unitBuilders |> List.fold runBuilder currentUnitStates
 
+    let genericRunMethod = 
+        let moduleInfo = 
+          System.Reflection.Assembly.GetExecutingAssembly().GetTypes()
+          |> Seq.find (fun t -> t.FullName = "Eventful.AggregateStateBuilderModule")
+        let name = "run"
+        moduleInfo.GetMethod(name)
+
+    let dynamicRun (unitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
+        let specializedMethod = genericRunMethod.MakeGenericMethod(typeof<'TMetadata>, typeof<'TKey>, evt.GetType())
+        specializedMethod.Invoke(null, [| unitBuilders; key; evt; metadata; currentUnitStates |]) :?> Map<string, obj>
+
     let map (f : 'T1 -> 'T2) (stateBuilder: IStateBuilder<'T1, 'TMetadata, 'TKey>) =
         let extract unitStates = stateBuilder.GetState unitStates |> f
         new AggregateStateBuilder<'T2, 'TMetadata, 'TKey>(stateBuilder.GetUnitBuilders, extract) :> IStateBuilder<'T2, 'TMetadata, 'TKey>
@@ -189,7 +200,8 @@ module AggregateStateBuilder =
             match token with
             | Some token -> 
                 let! (value, metadata) = EventStream.readValue token
-                let state' = run stateBuilder.GetUnitBuilders key value metadata currentState
+                let eventType = value.GetType()
+                let state' = dynamicRun stateBuilder.GetUnitBuilders key value metadata currentState
                 return! loop (eventsConsumed + 1) state'
             | None -> 
                 return (eventsConsumed, currentState) }
