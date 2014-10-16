@@ -42,23 +42,16 @@ type Client (connection : IEventStoreConnection) =
     }
 
     member x.append streamId expectedVersion eventData = async {
-        let toWriteResult (t:System.Threading.Tasks.Task) =
-            if (t.IsFaulted) then
-                if(t.Exception <> null) then
-                   if (t.Exception.InnerException <> null) then
-                        match t.Exception.InnerException with
-                        | :? EventStore.ClientAPI.Exceptions.WrongExpectedVersionException -> WrongExpectedVersion
-                        | _ -> WriteError t.Exception 
-                   else
-                        WriteError t.Exception
+        try
+            let! result = connection.AppendToStreamAsync(streamId, expectedVersion, eventData) |> Async.AwaitTask
+            return WriteResult.WriteSuccess
+        with 
+            | :? AggregateException as ex ->
+                if(ex.InnerException <> null && ex.InnerException.GetType() = typeof<EventStore.ClientAPI.Exceptions.WrongExpectedVersionException>) then
+                    return WriteResult.WrongExpectedVersion
                 else
-                    WriteError t.Exception
-            else if t.IsCanceled then
-                WriteCancelled
-            else
-                WriteSuccess
-              
-        return! connection.AppendToStreamAsync(streamId, expectedVersion, eventData).ContinueWith(toWriteResult) |> Async.AwaitTask
+                    return WriteResult.WriteError ex 
+            | ex -> return WriteResult.WriteError ex
     }
 
     member x.getNextPosition () = async {
@@ -71,7 +64,7 @@ type Client (connection : IEventStoreConnection) =
         let! (metadata : StreamMetadataResult) = (connection.GetStreamMetadataAsync(streamId) |> Async.AwaitTask)
         if (metadata.MetastreamVersion = ExpectedVersion.EmptyStream) then
             try 
-                do! ((connection.SetStreamMetadataAsync(streamId, ExpectedVersion.EmptyStream, data).ContinueWith((fun x -> true))) |> Async.AwaitTask |> Async.Ignore)
+                do! connection.SetStreamMetadataAsync(streamId, ExpectedVersion.EmptyStream, data) |> Async.AwaitTask |> Async.Ignore
             with
             | :? EventStore.ClientAPI.Exceptions.WrongExpectedVersionException -> return ()
         else

@@ -116,6 +116,7 @@ module AggregateIntegrationTests =
     let eventCounterStateBuilder =
         UnitStateBuilder.Empty "eventCount" 0
         |> UnitStateBuilder.handler (fun (e : WidgetCreatedEvent) (m : TestMetadata) -> e.WidgetId)  (fun (s, (e : WidgetCreatedEvent),m) -> s + 1)
+        |> (fun x -> x :> IStateBuilder<_, _, _>)
 
     [<Fact>]
     [<Trait("requires", "eventstore")>]
@@ -163,7 +164,7 @@ module AggregateIntegrationTests =
                 let countsEventProgram = eventCounterStateBuilder |> AggregateStateBuilder.toStreamProgram counterStream widgetId
                 let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
 
-                count |> should equal (Some 1)
+                eventCounterStateBuilder.GetState count |> should equal 1
                 return ()
             | x ->
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)
@@ -192,7 +193,7 @@ module AggregateIntegrationTests =
 
             let widgetId = { WidgetId.Id = Guid.NewGuid() }
 
-            for _ in [1..1000] do
+            for _ in [1..10] do
                 let! cmdResult = 
                     system.RunCommand
                         ()
@@ -211,12 +212,11 @@ module AggregateIntegrationTests =
                 Name = "Mine"
             }
 
-            do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 999)
+            do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 9)
             let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
 
             let countsEventProgram = eventCounterStateBuilder |> AggregateStateBuilder.toStreamProgram counterStream widgetId
             let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
-
-            count |> should equal (Some 1)
+            eventCounterStateBuilder.GetState count |> should equal 1
 
         } |> Async.RunSynchronously

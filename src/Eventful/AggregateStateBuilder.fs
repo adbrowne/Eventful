@@ -199,8 +199,7 @@ module AggregateStateBuilder =
             let! token = EventStream.readFromStream streamName eventsConsumed
             match token with
             | Some token -> 
-                let! (value, metadata) = EventStream.readValue token
-                let eventType = value.GetType()
+                let! (value, metadata : 'TMetadata) = EventStream.readValue token
                 let state' = dynamicRun stateBuilder.GetUnitBuilders key value metadata currentState
                 return! loop (eventsConsumed + 1) state'
             | None -> 

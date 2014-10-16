@@ -88,7 +88,7 @@ module EventStoreStreamInterpreterTests =
                     return! writeToStream stream wrongExpectedVersion writes
                 } |> run
 
-            writeResult |> should equal WrongExpectedVersion
+            writeResult |> should equal WriteResult.WrongExpectedVersion
         } |> Async.RunSynchronously
 
     [<Fact>]

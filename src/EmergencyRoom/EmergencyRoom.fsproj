@@ -84,7 +84,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="EventStore.ClientAPI">
-      <HintPath>..\packages\EventStore.Client.2.0.2\lib\net40\EventStore.ClientAPI.dll</HintPath>
+      <HintPath>..\packages\EventStore.Client.3.0.0\lib\net40\EventStore.ClientAPI.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="FsCheck">

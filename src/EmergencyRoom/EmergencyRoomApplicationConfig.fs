@@ -35,17 +35,16 @@ module EmergencyRoomApplicationConfig =
     let getConnection () : Async<IEventStoreConnection> =
         async {
             let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
-            let tcs = new System.Threading.Tasks.TaskCompletionSource<unit>()
             let connectionSettingsBuilder = 
                 ConnectionSettings
                     .Create()
-                    .OnConnected(fun _ _ -> printf "Connected"; )
-                    .OnErrorOccurred(fun _ ex -> printfn "Error: %A" ex)
-                    .OnDisconnected(fun _ _ -> printfn "Disconnectiong")
                     .SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit"))
             let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
 
             let connection = EventStoreConnection.Create(connectionSettings, ipEndPoint)
+            connection.Connected.Add(fun _ ->  printf "Connected" )
+            connection.ErrorOccurred.Add(fun e -> printfn "Error: %A" e.Exception )
+            connection.Disconnected.Add(fun _ ->  printf "Disconnectiong" )
 
             return! connection.ConnectAsync().ContinueWith(fun t -> connection) |> Async.AwaitTask
         }
