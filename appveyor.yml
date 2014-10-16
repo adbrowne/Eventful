@@ -77,7 +77,7 @@
   #---------------------------------#
   #             build               #
   #---------------------------------#
-  before_build: .\build\build.ps1 RestorePackages
+  nuget restore src\Eventful.sln
   after_build: .\build\build.ps1 CreateNugetPackage
 
   #---------------------------------#
