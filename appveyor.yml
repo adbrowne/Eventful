@@ -78,7 +78,8 @@
   #             build               #
   #---------------------------------#
   before_build: nuget restore src\Eventful.sln
-  after_build: .\build\build.ps1 CreateNugetPackage
+  after_build: 
+    ps: .\build\build.ps1 CreateNugetPackage
 
   #---------------------------------#
   #             tests               #
