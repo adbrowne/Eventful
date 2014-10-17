@@ -43,6 +43,7 @@ module AggregateStateBuilderTests =
     let metadata = { Tenancy = "Blue"; AggregateId = widgetId }
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can calculate simple state`` () =
         (widgetNameStateBuilder, widgetNameStateBuilder.InitialState)
         |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
@@ -50,6 +51,7 @@ module AggregateStateBuilderTests =
         |> should equal "My Widget Name"
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can run multiple events`` () =
         (widgetNameStateBuilder, widgetNameStateBuilder.InitialState)
         |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
@@ -58,6 +60,7 @@ module AggregateStateBuilderTests =
         |> should equal "My NEW Widget Name"
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can use previous state`` () =
         (widgetNameStateBuilder, widgetNameStateBuilder.InitialState)
         |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
@@ -66,6 +69,7 @@ module AggregateStateBuilderTests =
         |> should equal "My Widget NameMy Suffix"
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can Get Keys From Event`` () =
         let evt = { WidgetId = widgetId; Name = "My Widget Name"}
         widgetNameStateBuilder
@@ -74,6 +78,7 @@ module AggregateStateBuilderTests =
         |> should equal [widgetId]
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can count events`` () =
         (widgetEventCountBuilder, widgetEventCountBuilder.InitialState)
         |> UnitStateBuilder.run widgetId { WidgetId = widgetId; Name = "My Widget Name"} metadata
@@ -82,6 +87,7 @@ module AggregateStateBuilderTests =
         |> should equal 2
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can combine state`` () =
         let tupledState = AggregateStateBuilder.tuple2 widgetNameStateBuilder widgetEventCountBuilder
 

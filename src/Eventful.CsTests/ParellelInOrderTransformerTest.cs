@@ -9,6 +9,7 @@ namespace Eventful.CsTests
     public class ParellelInOrderTransformerTest
     {
         [Fact]
+        [Trait("category", "unit")]
         public async Task CanRunItemsInParallel()
         {
             var rnd = new Random();

@@ -99,6 +99,7 @@ module AggregateConfigurationErrorTests =
         |> TestSystem.Empty
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Null command id returns error`` () =
         let cmdWithNullId : TestCommand = System.Activator.CreateInstance(typeof<TestCommand>) :?> TestCommand
 
