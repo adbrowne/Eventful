@@ -34,11 +34,17 @@ task Package -depends Clean, RestorePackages, MsBuildRelease, CreateNugetPackage
 task CreateNugetPackage {
   # $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
   $version = "0.0.2-beta"
+  Write-Host "Creating directory"
   New-Item -force .\package\lib\net45 -itemtype directory
+  Write-Host "Copying .\Release\Eventful.dll"
   Copy-Item .\Release\Eventful.dll .\package\lib\net45
+  Write-Host "Copying .\Release\Eventful.EventStore.dll"
   Copy-Item .\Release\Eventful.EventStore.dll .\package\lib\net45
+  Write-Host "Copying .\Release\Eventful.RavenDB.dll"
   Copy-Item .\Release\Eventful.RavenDB.dll .\package\lib\net45
-  exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version $version }}
+  Write-Host "Running nuget"
+  exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version $version -Verbosity detailed}}
+  Write-Host "Copying output"
   Copy-Item Eventful.$version.nupkg output.nupkg
 }
 
