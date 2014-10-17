@@ -60,7 +60,7 @@
     only:
       - dev
       
-  version: 0.0.2.{build}-beta
+  version: 0.0.2.{build}
   assembly_info:
     patch: true
     file: AssemblyInfo.*
