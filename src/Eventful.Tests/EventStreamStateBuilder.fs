@@ -15,8 +15,8 @@ module EventStreamStateBuilder =
     }
 
     let stateBuilder =
-        UnitStateBuilder.Empty "names" List.empty
-        |> UnitStateBuilder.handler (fun (e:WidgetAddedEvent) (m:TestMetadata) -> e.Id) (fun (s, (e:WidgetAddedEvent), _) -> e.Name::s)
+        StateBuilder.Empty "names" List.empty
+        |> StateBuilder.handler (fun (e:WidgetAddedEvent) (m:TestMetadata) -> e.Id) (fun (s, (e:WidgetAddedEvent), _) -> e.Name::s)
         |> (fun x -> x :> IStateBuilder<string list, TestMetadata, Guid>)
 
     let runProgram eventStoreState p = 

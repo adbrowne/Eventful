@@ -10,25 +10,25 @@ type HandlerFunction<'TState, 'TMetadata, 'TEvent> = 'TState * 'TEvent * 'TMetad
 type GetAllEventsKey<'TMetadata, 'TKey> = 'TMetadata -> 'TKey
 type GetEventKey<'TMetadata, 'TEvent, 'TKey> = 'TEvent -> 'TMetadata -> 'TKey
 
-type IUnitStateBuilder<'TMetadata, 'TKey> = 
+type IStateBlockBuilder<'TMetadata, 'TKey> = 
     abstract Type : Type
     abstract Name : string
     abstract InitialState : obj
     abstract GetRunners<'TEvent> : unit -> (GetEventKey<'TMetadata, 'TEvent, 'TKey> * StateRunner<'TMetadata, Map<string,obj>, 'TEvent>) seq
 
 type IStateBuilder<'TState, 'TMetadata, 'TKey> = 
-    abstract GetUnitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list
+    abstract GetBlockBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list
     abstract GetState : Map<string, obj> -> 'TState
 
-type UnitStateBuilderHandler<'TState, 'TMetadata, 'TKey> = 
+type StateBuilderHandler<'TState, 'TMetadata, 'TKey> = 
     | AllEvents of GetAllEventsKey<'TMetadata, 'TKey> * HandlerFunction<'TState, 'TMetadata, obj>
     | SingleEvent of Type * GetEventKey<'TMetadata, obj, 'TKey> * HandlerFunction<'TState, 'TMetadata, obj>
 
-type UnitStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
+type StateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
     (
         name: string, 
         initialState : 'TState, 
-        handlers : UnitStateBuilderHandler<'TState, 'TMetadata, 'TKey> list
+        handlers : StateBuilderHandler<'TState, 'TMetadata, 'TKey> list
     ) = 
 
     let getStateFromMap (stateMap : Map<string,obj>) =
@@ -37,12 +37,12 @@ type UnitStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
        |> Option.map (fun s -> s :?> 'TState)
        |> Option.getOrElse initialState 
 
-    static member Empty name initialState = new UnitStateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, List.empty)
+    static member Empty name initialState = new StateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, List.empty)
 
     member x.InitialState = initialState
 
-    member x.AddHandler<'T> (h:UnitStateBuilderHandler<'TState, 'TMetadata, 'TKey>) =
-        new UnitStateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, h::handlers)
+    member x.AddHandler<'T> (h:StateBuilderHandler<'TState, 'TMetadata, 'TKey>) =
+        new StateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, h::handlers)
 
     member x.GetRunners<'TEvent> () : (GetEventKey<'TMetadata, 'TEvent, 'TKey> * StateRunner<'TMetadata, 'TState, 'TEvent>) seq = 
         seq {
@@ -61,7 +61,7 @@ type UnitStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
                         yield (getKey, stateRunner)
         }
 
-    interface IUnitStateBuilder<'TMetadata, 'TKey> with
+    interface IStateBlockBuilder<'TMetadata, 'TKey> with
         member x.Name = name
         member x.Type = typeof<'TState>
         member x.InitialState = initialState :> obj
@@ -78,13 +78,13 @@ type UnitStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
                 )
 
     interface IStateBuilder<'TState, 'TMetadata, 'TKey> with
-        member x.GetUnitBuilders = [x :> IUnitStateBuilder<'TMetadata, 'TKey>]
+        member x.GetBlockBuilders = [x :> IStateBlockBuilder<'TMetadata, 'TKey>]
         member x.GetState stateMap = getStateFromMap stateMap
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
-module UnitStateBuilder =
-    let nullUnitStateBuilder<'TMetadata, 'TKey when 'TKey : equality> =
-        UnitStateBuilder<unit, 'TMetadata, 'TKey>.Empty "$Empty" ()
+module StateBuilder =
+    let nullStateBuilder<'TMetadata, 'TKey when 'TKey : equality> =
+        StateBuilder<unit, 'TMetadata, 'TKey>.Empty "$Empty" ()
 
     let untypedHandler f (state, (evt : obj), metadata) = 
         match evt with
@@ -98,13 +98,13 @@ module UnitStateBuilder =
             f evt metadata
         | _ -> failwith <| sprintf "Expecting type: %s but got type: %s" typeof<'TEvent>.FullName (evt.GetType().FullName)
 
-    let handler (getKey : GetEventKey<'TMetadata, 'TEvent, 'TKey>) (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : UnitStateBuilder<'TState, 'TMetadata, 'TKey>) =
+    let handler (getKey : GetEventKey<'TMetadata, 'TEvent, 'TKey>) (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| SingleEvent (typeof<'TEvent>, untypedGetKey getKey, untypedHandler f)
 
-    let allEventsHandler getKey f (b : UnitStateBuilder<'TState, 'TMetadata, 'TKey>) =
+    let allEventsHandler getKey f (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| AllEvents (getKey, untypedHandler f)
 
-    let run (key : 'TKey) (evt : 'TEvent) (metadata : 'TMetadata) (builder: UnitStateBuilder<'TState, 'TMetadata, 'TKey> , currentState : 'TState) =
+    let run (key : 'TKey) (evt : 'TEvent) (metadata : 'TMetadata) (builder: StateBuilder<'TState, 'TMetadata, 'TKey> , currentState : 'TState) =
         let keyHandlers = 
             builder.GetRunners<'TEvent>()
             |> Seq.map (fun (getKey, handler) -> (getKey evt metadata, handler))
@@ -117,21 +117,21 @@ module UnitStateBuilder =
         let state' = keyHandlers |> Seq.fold acc currentState
         (builder, state')
 
-    let getKeys (evt : 'TEvent) (metadata : 'TMetadata) (builder: UnitStateBuilder<'TState, 'TMetadata, 'TKey>) =
+    let getKeys (evt : 'TEvent) (metadata : 'TMetadata) (builder: StateBuilder<'TState, 'TMetadata, 'TKey>) =
         builder.GetRunners<'TEvent>()
         |> Seq.map (fun (getKey, _) -> (getKey evt metadata))
         |> Seq.distinct
 
 type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
     (
-        unitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list,
+        unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list,
         extract : Map<string, obj> -> 'TState
     ) = 
 
-    static member Empty name initialState = new UnitStateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, List.empty)
+    static member Empty name initialState = new StateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, List.empty)
 
     member x.InitialState = 
-        let acc s (b : IUnitStateBuilder<'TMetadata, 'TKey>) =
+        let acc s (b : IStateBlockBuilder<'TMetadata, 'TKey>) =
             s |> Map.add b.Name b.InitialState
 
         unitBuilders 
@@ -139,14 +139,14 @@ type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
         |> extract
 
     interface IStateBuilder<'TState, 'TMetadata, 'TKey> with
-        member x.GetUnitBuilders = unitBuilders
+        member x.GetBlockBuilders = unitBuilders
         member x.GetState unitStates = extract unitStates
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module AggregateStateBuilder =
     let combine f (b1 : IStateBuilder<'TState1, 'TMetadata, 'TKey>) (b2 : IStateBuilder<'TState2, 'TMetadata, 'TKey>) : IStateBuilder<'TStateCombined, 'TMetadata, 'TKey> =
         let combinedUnitBuilders = 
-            Seq.append b1.GetUnitBuilders b2.GetUnitBuilders 
+            Seq.append b1.GetBlockBuilders b2.GetBlockBuilders 
             |> Seq.distinct
             |> List.ofSeq
 
@@ -155,16 +155,16 @@ module AggregateStateBuilder =
 
         new AggregateStateBuilder<'TStateCombined, 'TMetadata, 'TKey>(combinedUnitBuilders, extract) :> IStateBuilder<'TStateCombined, 'TMetadata, 'TKey>
 
-    let combineHandlers (h1 : IUnitStateBuilder<'TMetadata, 'TId> list) (h2 : IUnitStateBuilder<'TMetadata, 'TId> list) =
+    let combineHandlers (h1 : IStateBlockBuilder<'TMetadata, 'TId> list) (h2 : IStateBlockBuilder<'TMetadata, 'TId> list) =
         List.append h1 h2 
         |> Seq.distinct
         |> List.ofSeq
 
-    let ofStateBuilderList (builders : IUnitStateBuilder<'TMetadata, 'TKey> list) =
+    let ofStateBuilderList (builders : IStateBlockBuilder<'TMetadata, 'TKey> list) =
         new AggregateStateBuilder<Map<string,obj>,'TMetadata, 'TKey>(builders, id)
 
-    let run<'TMetadata, 'TKey, 'TEvent when 'TKey : equality> (unitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
-        let runBuilder unitStates (builder : IUnitStateBuilder<'TMetadata, 'TKey>) = 
+    let run<'TMetadata, 'TKey, 'TEvent when 'TKey : equality> (unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
+        let runBuilder unitStates (builder : IStateBlockBuilder<'TMetadata, 'TKey>) = 
             let keyHandlers = 
                 builder.GetRunners<'TEvent>()
                 |> Seq.map (fun (getKey, handler) -> (getKey evt metadata, handler))
@@ -186,13 +186,13 @@ module AggregateStateBuilder =
         let name = "run"
         moduleInfo.GetMethod(name)
 
-    let dynamicRun (unitBuilders : IUnitStateBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
+    let dynamicRun (unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
         let specializedMethod = genericRunMethod.MakeGenericMethod(typeof<'TMetadata>, typeof<'TKey>, evt.GetType())
         specializedMethod.Invoke(null, [| unitBuilders; key; evt; metadata; currentUnitStates |]) :?> Map<string, obj>
 
     let map (f : 'T1 -> 'T2) (stateBuilder: IStateBuilder<'T1, 'TMetadata, 'TKey>) =
         let extract unitStates = stateBuilder.GetState unitStates |> f
-        new AggregateStateBuilder<'T2, 'TMetadata, 'TKey>(stateBuilder.GetUnitBuilders, extract) :> IStateBuilder<'T2, 'TMetadata, 'TKey>
+        new AggregateStateBuilder<'T2, 'TMetadata, 'TKey>(stateBuilder.GetBlockBuilders, extract) :> IStateBuilder<'T2, 'TMetadata, 'TKey>
 
     let toStreamProgram streamName key (stateBuilder:IStateBuilder<'TState, 'TMetadata, 'TKey>) = EventStream.eventStream {
         let rec loop eventsConsumed currentState = EventStream.eventStream {
@@ -200,7 +200,7 @@ module AggregateStateBuilder =
             match token with
             | Some token -> 
                 let! (value, metadata : 'TMetadata) = EventStream.readValue token
-                let state' = dynamicRun stateBuilder.GetUnitBuilders key value metadata currentState
+                let state' = dynamicRun stateBuilder.GetBlockBuilders key value metadata currentState
                 return! loop (eventsConsumed + 1) state'
             | None -> 
                 return (eventsConsumed, currentState) }

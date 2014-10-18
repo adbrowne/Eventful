@@ -82,7 +82,7 @@ module AggregateIntegrationTests =
                } 
 
                yield addWidget
-                     |> simpleHandler UnitStateBuilder.nullUnitStateBuilder
+                     |> simpleHandler StateBuilder.nullStateBuilder
                      |> buildCmd
             }
 
@@ -114,8 +114,8 @@ module AggregateIntegrationTests =
         }
 
     let eventCounterStateBuilder =
-        UnitStateBuilder.Empty "eventCount" 0
-        |> UnitStateBuilder.handler (fun (e : WidgetCreatedEvent) (m : TestMetadata) -> e.WidgetId)  (fun (s, (e : WidgetCreatedEvent),m) -> s + 1)
+        StateBuilder.Empty "eventCount" 0
+        |> StateBuilder.handler (fun (e : WidgetCreatedEvent) (m : TestMetadata) -> e.WidgetId)  (fun (s, (e : WidgetCreatedEvent),m) -> s + 1)
         |> (fun x -> x :> IStateBuilder<_, _, _>)
 
     [<Fact>]

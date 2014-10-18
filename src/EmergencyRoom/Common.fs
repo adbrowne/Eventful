@@ -24,7 +24,7 @@ module Common =
         SetMessageId = (fun id metadata -> { metadata with MessageId = id })
     }
 
-    let stateBuilder<'TId when 'TId : equality> = UnitStateBuilder.nullUnitStateBuilder<EmergencyEventMetadata, 'TId>
+    let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<EmergencyEventMetadata, 'TId>
 
     let emptyMetadata aggregateId messageId sourceMessageId = { SourceMessageId = sourceMessageId; MessageId = messageId; EventTime = DateTime.UtcNow; AggregateId = aggregateId }
 

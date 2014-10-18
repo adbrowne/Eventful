@@ -85,8 +85,8 @@ open SchoolReportHelpers
 
 module Teacher =
     let eventCountStateBuilder =
-        UnitStateBuilder.Empty "EventCount" 0
-        |> UnitStateBuilder.allEventsHandler (fun (m : SchoolReportMetadata) -> { TeacherId.Id = m.AggregateId }) (fun (s, _, _) -> s + 1)
+        StateBuilder.Empty "EventCount" 0
+        |> StateBuilder.allEventsHandler (fun (m : SchoolReportMetadata) -> { TeacherId.Id = m.AggregateId }) (fun (s, _, _) -> s + 1)
 
     let isFirstCommand i =
         match i with
@@ -96,8 +96,8 @@ module Teacher =
     let ensureFirstCommand x = addValidator (StateValidator (fun r -> r.Register eventCountStateBuilder isFirstCommand)) x 
 
     let stateBuilder = 
-        UnitStateBuilder.Empty "TeacherId" { TeacherState.TeacherId = { TeacherId.Id = Guid.NewGuid() }}
-        |> UnitStateBuilder.handler (fun (e:TeacherAddedEvent) _ -> e.TeacherId) (fun (s, e, _) -> { s with TeacherId = e.TeacherId })
+        StateBuilder.Empty "TeacherId" { TeacherState.TeacherId = { TeacherId.Id = Guid.NewGuid() }}
+        |> StateBuilder.handler (fun (e:TeacherAddedEvent) _ -> e.TeacherId) (fun (s, e, _) -> { s with TeacherId = e.TeacherId })
 
     let getStreamName () (id:TeacherId) =
         sprintf "Teacher-%s" (id.Id.ToString("N"))
@@ -167,13 +167,13 @@ module Report =
                        TeacherId = x.TeacherId
                        Name = x.Name } 
 
-            yield buildSimpleCmdHandler UnitStateBuilder.nullUnitStateBuilder addReport
+            yield buildSimpleCmdHandler StateBuilder.nullStateBuilder addReport
 
             let changeName (x : ChangeReportNameCommand) =
                 NameChanged { ReportId = x.ReportId
                               Name = x.Name }
 
-            yield buildSimpleCmdHandler UnitStateBuilder.nullUnitStateBuilder changeName
+            yield buildSimpleCmdHandler StateBuilder.nullStateBuilder changeName
         }
 
     let evtHandlers =
@@ -188,7 +188,7 @@ module Report =
                     }
                 }
 
-            yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) UnitStateBuilder.nullUnitStateBuilder createTeacherReport
+            yield onEvent (fun (x:TeacherAddedEvent) -> { Id = x.TeacherId.Id }) StateBuilder.nullStateBuilder createTeacherReport
         }
 
     let handlers =
@@ -321,8 +321,8 @@ module TeacherTests =
             |> TestSystem.runCommand command
 
         let stateBuilder = 
-            UnitStateBuilder.Empty "reportName" None
-            |> UnitStateBuilder.handler (fun (evt : ReportAddedEvent) (m : SchoolReportMetadata) -> evt.TeacherId) (fun (s, (evt : ReportAddedEvent), m) -> Some evt.Name)
+            StateBuilder.Empty "reportName" None
+            |> StateBuilder.handler (fun (evt : ReportAddedEvent) (m : SchoolReportMetadata) -> evt.TeacherId) (fun (s, (evt : ReportAddedEvent), m) -> Some evt.Name)
 
         let stream = Report.getStreamName () { Id = teacherId.Id }
 
@@ -347,8 +347,8 @@ module TeacherTests =
                     Name = "Test Report" }]
 
         let stateBuilder = 
-            UnitStateBuilder.Empty "reportCount" 0
-            |> UnitStateBuilder.handler (fun (e:ReportAddedEvent) m -> e.ReportId) (fun (s, (e:ReportAddedEvent), m) -> s + 1)
+            StateBuilder.Empty "reportCount" 0
+            |> StateBuilder.handler (fun (e:ReportAddedEvent) m -> e.ReportId) (fun (s, (e:ReportAddedEvent), m) -> s + 1)
 
         let stream = Report.getStreamName () reportId
         let state = result.EvaluateState stream reportId stateBuilder
@@ -369,9 +369,9 @@ module TeacherTests =
                     Name = "Test Report" }]
 
         let stateBuilder = 
-            UnitStateBuilder.Empty "reportName" None
-            |> UnitStateBuilder.handler (fun (e:ReportAddedEvent) m -> e.ReportId) (fun (s, (e:ReportAddedEvent), m) -> Some e.Name)
-            |> UnitStateBuilder.handler (fun (e:ReportNameChangedEvent) m -> e.ReportId) (fun (s, (e:ReportNameChangedEvent), m) -> Some e.Name)
+            StateBuilder.Empty "reportName" None
+            |> StateBuilder.handler (fun (e:ReportAddedEvent) m -> e.ReportId) (fun (s, (e:ReportAddedEvent), m) -> Some e.Name)
+            |> StateBuilder.handler (fun (e:ReportNameChangedEvent) m -> e.ReportId) (fun (s, (e:ReportNameChangedEvent), m) -> Some e.Name)
 
         let stream = Report.getStreamName () reportId
         let state = result.EvaluateState stream reportId stateBuilder

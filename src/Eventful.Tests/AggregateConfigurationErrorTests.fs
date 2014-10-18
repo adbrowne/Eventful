@@ -49,7 +49,7 @@ module TestAggregate =
         SetMessageId = (fun id metadata -> { metadata with MessageId = id })
     }
 
-    let stateBuilder = UnitStateBuilder.nullUnitStateBuilder<TestEventMetadata, TestId>
+    let stateBuilder = StateBuilder.nullStateBuilder<TestEventMetadata, TestId>
 
     let inline buildMetadata aggregateId messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 

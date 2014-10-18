@@ -24,7 +24,7 @@ type DocumentBuilder<'TKey,'T, 'TMetadata when 'TKey : equality>(createDoc:'TKey
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module DocumentBuilder =
-    let mapStateToProperty (sb:UnitStateBuilder<'TProperty, 'TMetadata,'TKey>) (getter:'T -> 'TProperty) (setter:'TProperty -> 'T -> 'T) (builder : DocumentBuilder<'TKey,'T, 'TMetadata>)  =
+    let mapStateToProperty (sb:StateBuilder<'TProperty, 'TMetadata,'TKey>) (getter:'T -> 'TProperty) (setter:'TProperty -> 'T -> 'T) (builder : DocumentBuilder<'TKey,'T, 'TMetadata>)  =
        let stateMap = 
            {
                new IDocumentStateMap<'T, 'TMetadata, 'TKey> with 

@@ -27,10 +27,10 @@ module DocumentBuilderTests =
     let inline getWidgetId (a: ^a) _ = 
         (^a : (member WidgetId: Guid) (a))
 
-    let widgetNameStateBuilder : UnitStateBuilder<string,SampleMetadata,Guid> = 
-        UnitStateBuilder.Empty "WidgetName" ""
-        |> UnitStateBuilder.handler getWidgetId (fun (s, (e:WidgetCreatedEvent), m) -> e.Name)
-        |> UnitStateBuilder.handler getWidgetId (fun (s, (e:WidgetRenamedEvent), m) -> e.NewName)
+    let widgetNameStateBuilder : StateBuilder<string,SampleMetadata,Guid> = 
+        StateBuilder.Empty "WidgetName" ""
+        |> StateBuilder.handler getWidgetId (fun (s, (e:WidgetCreatedEvent), m) -> e.Name)
+        |> StateBuilder.handler getWidgetId (fun (s, (e:WidgetRenamedEvent), m) -> e.NewName)
 
     type WidgetDocument = {
         WidgetId : Guid

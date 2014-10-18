@@ -20,7 +20,7 @@ type EventResult = unit
 type AggregateConfiguration<'TCommandContext, 'TEventContext, 'TAggregateId, 'TMetadata> = {
     // the combination of all the named state builders
     // for commands and events
-    StateBuilder : IUnitStateBuilder<'TMetadata, 'TAggregateId> list
+    StateBuilder : IStateBlockBuilder<'TMetadata, 'TAggregateId> list
 
     GetCommandStreamName : 'TCommandContext -> 'TAggregateId -> string
     GetEventStreamName : 'TEventContext -> 'TAggregateId -> string
@@ -29,14 +29,14 @@ type AggregateConfiguration<'TCommandContext, 'TEventContext, 'TAggregateId, 'TM
 
 type ICommandHandler<'TEvent,'TId,'TCommandContext, 'TMetadata> =
     abstract member CmdType : Type
-    abstract member AddStateBuilder : IUnitStateBuilder<'TMetadata, 'TId> list -> IUnitStateBuilder<'TMetadata, 'TId> list
+    abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, 'TId> list -> IStateBlockBuilder<'TMetadata, 'TId> list
     abstract member GetId : 'TCommandContext-> obj -> 'TId
                     // AggregateType -> Cmd -> Source Stream -> EventNumber -> Program
     abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId, 'TMetadata> -> 'TCommandContext -> obj -> EventStreamProgram<CommandResult<'TMetadata>,'TMetadata>
     abstract member Visitable : IRegistrationVisitable
 
 type IEventHandler<'TEvent,'TId,'TMetadata> =
-    abstract member AddStateBuilder : IUnitStateBuilder<'TMetadata, 'TId> list -> IUnitStateBuilder<'TMetadata, 'TId> list
+    abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, 'TId> list -> IStateBlockBuilder<'TMetadata, 'TId> list
     abstract member EventType : Type
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
     abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId, 'TMetadata> -> 'TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> EventStreamProgram<EventResult,'TMetadata>
@@ -69,15 +69,15 @@ open FSharpx
 open Eventful.Validation
 
 type IStateValidatorRegistration<'TMetadata,'TKey> =
-    abstract member Register<'TState> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TState -> seq<ValidationFailure>) -> (IUnitStateBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>))
+    abstract member Register<'TState> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TState -> seq<ValidationFailure>) -> (IStateBlockBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>))
 
 type ICombinedValidatorRegistration<'TMetadata,'TKey> =
-    abstract member Register<'TState,'TInput> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TInput -> 'TState -> seq<ValidationFailure>) -> (IUnitStateBuilder<'TMetadata, 'TKey> list * ('TInput -> Map<string,obj> -> seq<ValidationFailure>))
+    abstract member Register<'TState,'TInput> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TInput -> 'TState -> seq<ValidationFailure>) -> (IStateBlockBuilder<'TMetadata, 'TKey> list * ('TInput -> Map<string,obj> -> seq<ValidationFailure>))
 
 type Validator<'TCmd,'TState, 'TMetadata, 'TKey> = 
 | CommandValidator of ('TCmd -> seq<ValidationFailure>)
-| StateValidator of (IStateValidatorRegistration<'TMetadata,'TKey> -> (IUnitStateBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>)))
-| CombinedValidator of (ICombinedValidatorRegistration<'TMetadata,'TKey> -> (IUnitStateBuilder<'TMetadata, 'TKey> list * ('TCmd -> Map<string,obj> -> seq<ValidationFailure>)))
+| StateValidator of (IStateValidatorRegistration<'TMetadata,'TKey> -> (IStateBlockBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>)))
+| CombinedValidator of (ICombinedValidatorRegistration<'TMetadata,'TKey> -> (IStateBlockBuilder<'TMetadata, 'TKey> list * ('TCmd -> Map<string,obj> -> seq<ValidationFailure>)))
 
 type SystemConfiguration<'TMetadata> = {
     SetSourceMessageId : string -> 'TMetadata -> 'TMetadata
@@ -141,7 +141,7 @@ module AggregateActionBuilder =
                                             let state = stateBuilder.GetState unitValueMap
                                             validator state
 
-                                        (stateBuilder.GetUnitBuilders, runValidation)
+                                        (stateBuilder.GetBlockBuilders, runValidation)
                                 }
 
                             let (unitBuilders, runValidation) = validatorRegistration registration
@@ -155,7 +155,7 @@ module AggregateActionBuilder =
                                             let state = stateBuilder.GetState unitValueMap
                                             validator cmd state
 
-                                        (stateBuilder.GetUnitBuilders, runValidation)
+                                        (stateBuilder.GetBlockBuilders, runValidation)
                                 }
 
                             let (unitBuilders, runValidation) = validatorRegistration registration
@@ -225,7 +225,7 @@ module AggregateActionBuilder =
                             let state = stateBuilder.GetState unitValueMap
                             validator state
 
-                        (stateBuilder.GetUnitBuilders, runValidation)
+                        (stateBuilder.GetBlockBuilders, runValidation)
                 }
 
             let (unitBuilders, _) = validatorRegistration registration
@@ -239,7 +239,7 @@ module AggregateActionBuilder =
                             let state = stateBuilder.GetState unitValueMap
                             validator cmd state
 
-                        (stateBuilder.GetUnitBuilders, runValidation)
+                        (stateBuilder.GetBlockBuilders, runValidation)
                 }
 
             let (unitBuilders, _) = validatorRegistration registration
@@ -301,7 +301,7 @@ module AggregateActionBuilder =
         new ICommandHandler<'TEvent,'TId,'TCommandContext,'TMetadata> with 
              member this.GetId context cmd = untypedGetId sb context cmd
              member this.CmdType = typeof<'TCmd>
-             member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers sb.StateBuilder.GetUnitBuilders builders
+             member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers sb.StateBuilder.GetBlockBuilders builders
              member this.Handler aggregateConfig commandContext cmd = handleCommand sb aggregateConfig commandContext cmd
              member this.Visitable = {
                 new IRegistrationVisitable with

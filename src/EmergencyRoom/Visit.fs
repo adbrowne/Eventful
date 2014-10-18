@@ -134,16 +134,16 @@ module Visit =
 //            { s with DischargeTime = Some e.DischargeTime })
         
     let isRegistered = 
-        UnitStateBuilder.Empty "isRegistered" false
-        |> UnitStateBuilder.handler (fun (e:PatientRegisteredEvent) m -> e.VisitId) (fun (s, e, m) -> true)
+        StateBuilder.Empty "isRegistered" false
+        |> StateBuilder.handler (fun (e:PatientRegisteredEvent) m -> e.VisitId) (fun (s, e, m) -> true)
 
     let registrationTime = 
-        UnitStateBuilder.Empty "registrationTime" None
-        |> UnitStateBuilder.handler (fun (e:PatientRegisteredEvent) m -> e.VisitId) (fun (s, e, m : EmergencyEventMetadata) -> Some m.EventTime)
+        StateBuilder.Empty "registrationTime" None
+        |> StateBuilder.handler (fun (e:PatientRegisteredEvent) m -> e.VisitId) (fun (s, e, m : EmergencyEventMetadata) -> Some m.EventTime)
 
     let patientId = 
-        UnitStateBuilder.Empty "patientId" None
-        |> UnitStateBuilder.handler (fun (e:PatientRegisteredEvent) (m : EmergencyEventMetadata) -> e.VisitId) (fun (s, e, m) -> Some e.PatientId)
+        StateBuilder.Empty "patientId" None
+        |> StateBuilder.handler (fun (e:PatientRegisteredEvent) (m : EmergencyEventMetadata) -> e.VisitId) (fun (s, e, m) -> Some e.PatientId)
 
     let getStreamName () (visitId : VisitId) =
         sprintf "Visit-%s" <| visitId.Id.ToString("N")
