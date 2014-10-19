@@ -19,16 +19,22 @@ type BookAddedEvent = {
     Title : string
 }
 
-type Event = Event of obj
+type BookEvents = 
+    | Added of BookAddedEvent
 
 module Book =
     let getStreamName () (bookId : BookId) =
         sprintf "Book-%s" <| bookId.Id.ToString("N")
 
+    let validateCommand (cmd : AddBookCommand) : seq<string option * string> =
+       match (Choice1Of2 "andrew") with
+       | Choice1Of2 _ -> Seq.empty
+       | Choice2Of2 errors -> errors |> FSharpx.Collections.NonEmptyList.toSeq
+
     let cmdHandlers = 
         seq {
            let addBook (cmd : AddBookCommand) =
-               Event { 
+               Added { 
                    BookAddedEvent.BookId = cmd.BookId
                    Title = cmd.Title
                }
