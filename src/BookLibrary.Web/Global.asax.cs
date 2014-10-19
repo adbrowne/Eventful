@@ -1,23 +1,39 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.Mvc;
-using System.Web.Routing;
-using System.Web.Security;
-using System.Web.SessionState;
 using System.Web.Http;
+using System.Web.Mvc;
+using System.Web.Optimization;
+using System.Web.Routing;
+using Autofac;
+using Autofac.Integration.WebApi;
 
 namespace BookLibrary.Web
 {
-    public class Global : HttpApplication
+    public class WebApiApplication : System.Web.HttpApplication
     {
-        void Application_Start(object sender, EventArgs e)
+        protected void Application_Start()
         {
-            // Code that runs on application startup
+            var dummy = new BookLibrary.AddBookCommand(new BookId(Guid.Empty), "test");
+            // Create the container builder.
+            var builder = new ContainerBuilder();
+
+            // Register the Web API controllers.
+            builder.RegisterApiControllers(typeof(BooksController).Assembly);
+
+            // Build the container.
+            var container = builder.Build();
+
+            // Create the depenedency resolver.
+            var resolver = new AutofacWebApiDependencyResolver(container);
+
+            // Configure Web API with the dependency resolver.
+            GlobalConfiguration.Configuration.DependencyResolver = resolver;
+            
             AreaRegistration.RegisterAllAreas();
-            GlobalConfiguration.Configure(WebApiConfig.Register);
-            RouteConfig.RegisterRoutes(RouteTable.Routes);            
+            GlobalConfiguration.Configure(config => WebApiConfig.Register(config, resolver));
+            FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
+            RouteConfig.RegisterRoutes(RouteTable.Routes);
+            BundleConfig.RegisterBundles(BundleTable.Bundles);
+
         }
     }
 }

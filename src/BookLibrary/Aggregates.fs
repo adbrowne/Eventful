@@ -10,7 +10,7 @@ type AggregateType =
 | Book
 | BookCopy
 
-type EmergencyEventMetadata = {
+type BookLibraryEventMetadata = {
     MessageId: Guid
     AggregateId : Guid
     SourceMessageId: string
@@ -23,7 +23,7 @@ module Aggregates =
         SetMessageId = (fun id metadata -> { metadata with MessageId = id })
     }
 
-    let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<EmergencyEventMetadata, 'TId>
+    let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<BookLibraryEventMetadata, 'TId>
 
     let emptyMetadata aggregateId messageId sourceMessageId = { SourceMessageId = sourceMessageId; MessageId = messageId; EventTime = DateTime.UtcNow; AggregateId = aggregateId }
 

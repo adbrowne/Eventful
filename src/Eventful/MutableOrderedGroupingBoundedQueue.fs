@@ -85,8 +85,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         | Some c -> new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>(c)
         | None -> new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>()
     
-    let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, state.GetGroupItemsCount >> float, Metrics.Unit.Items)
-    let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, state.GetWorkQueueCount >> float, Metrics.Unit.Items)
+    let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, (fun () -> state.GetGroupItemsCount () |> float), Metrics.Unit.Items)
+    let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, (fun () -> state.GetWorkQueueCount () |> float), Metrics.Unit.Items)
 
     let lastCompleteTracker = 
         match name with
