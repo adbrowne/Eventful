@@ -76,14 +76,12 @@ type TopShelfService () =
             let system = ApplicationConfig.buildEventStoreSystem c
             system.Start() |> Async.StartAsTask |> ignore
 
-            let documentStore = new Raven.Client.Document.DocumentStore(Url = "http://localhost:8080")
-            documentStore.Initialize() |> ignore
-            let dbName = "BookLibrary"
+            let documentStore = ApplicationConfig.buildDocumentStore()
 
             let documentProcessor = {
                 MatchingKeys = matchingKeys
                 Process = processDocuments documentStore
-            } 
+            }
 
             let cache = new System.Runtime.Caching.MemoryCache("myCache")
 
@@ -95,7 +93,7 @@ type TopShelfService () =
                     (
                         documentStore,
                         documentProcessor,
-                        dbName, 
+                        ApplicationConfig.dbName, 
                         100000, 
                         1000, 
                         (fun _ -> async { () }), Async.DefaultCancellationToken,  

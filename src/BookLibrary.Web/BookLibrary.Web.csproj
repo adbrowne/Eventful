@@ -78,7 +78,16 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Newtonsoft.Json.6.0.5\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
+    <Reference Include="Raven.Abstractions, Version=2.5.0.0, Culture=neutral, PublicKeyToken=37f41c7f99471593, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\RavenDB.Client.2.5.2935\lib\net45\Raven.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Raven.Client.Lightweight, Version=2.5.0.0, Culture=neutral, PublicKeyToken=37f41c7f99471593, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\RavenDB.Client.2.5.2935\lib\net45\Raven.Client.Lightweight.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
+    <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Net.Http.Formatting, Version=5.2.2.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
@@ -253,11 +262,20 @@
     <Content Include="Scripts\jquery-2.1.1.min.map" />
     <Content Include="Views\Books\Index.cshtml" />
     <Content Include="Views\Books\Create.cshtml" />
+    <Content Include="Views\Books\Edit.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BookLibrary\BookLibrary.fsproj">
       <Project>{fe210063-72a2-4653-b299-26a088a12c6e}</Project>
       <Name>BookLibrary</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
+      <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
+      <Name>Eventful.EventStore</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.RavenDb\Eventful.RavenDb.fsproj">
+      <Project>{639b7247-67ae-4a1f-8b09-28bcf23bce20}</Project>
+      <Name>Eventful.RavenDb</Name>
     </ProjectReference>
     <ProjectReference Include="..\Eventful\Eventful.fsproj">
       <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>

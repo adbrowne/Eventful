@@ -20,8 +20,21 @@ type BookAddedEvent = {
     Title : string
 }
 
+[<CLIMutable>]
+type UpdateBookTitleCommand = {
+    BookId : BookId
+    Title : string
+}
+
+[<CLIMutable>]
+type BookTitleUpdatedEvent = {
+    BookId : BookId
+    Title : string
+}
+
 type BookEvents = 
     | Added of BookAddedEvent
+    | TitleUpdated of BookTitleUpdatedEvent
 
 module Book =
     let getStreamName () (bookId : BookId) =
@@ -38,6 +51,7 @@ module Book =
     let bookTitle = 
         StateBuilder.Empty "bookTitle" ""
         |> StateBuilder.handler getBookId (fun (_, (e : BookAddedEvent), _) -> e.Title)
+        |> StateBuilder.handler getBookId (fun (_, (e : BookTitleUpdatedEvent), _) -> e.Title)
 
     let cmdHandlers = 
         seq {
@@ -48,6 +62,13 @@ module Book =
                }
 
            yield buildCmdHandler addBook
+
+           yield buildCmdHandler (fun (cmd : UpdateBookTitleCommand) -> 
+               TitleUpdated {
+                    BookId = cmd.BookId
+                    Title = cmd.Title
+               }
+           )
         }
 
     let bookIdGuid (bookId : BookId) = bookId.Id

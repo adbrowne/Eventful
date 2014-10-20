@@ -8,16 +8,19 @@ using FSharpx;
 using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
 using FSharpx.Collections;
+using Raven.Client;
 
 namespace BookLibrary.Web.Controllers
 {
     public class BooksController : Controller
     {
         private readonly BookLibrarySystem _system;
+        private readonly IAsyncDocumentSession _documentSession;
 
-        public BooksController(BookLibrarySystem system)
+        public BooksController(BookLibrarySystem system, IAsyncDocumentSession documentSession)
         {
             _system = system;
+            _documentSession = documentSession;
         }
 
         // GET: Books
@@ -29,6 +32,28 @@ namespace BookLibrary.Web.Controllers
         public ActionResult Create()
         {
             return View();
+        }
+
+        public async Task<ActionResult> Edit(Guid id)
+        {
+            var doc = await _documentSession.LoadAsync<Book.BookDocument>("Book/" + id);
+            return View(doc);
+        }
+
+        [AcceptVerbs(HttpVerbs.Post)]
+        public async Task<ActionResult> Edit(Guid id, UpdateBookTitleCommand cmd)
+        {
+            cmd.BookId = new BookId(id);
+
+            var result = await _system.RunCommand(cmd);
+            if (result.IsChoice1Of2)
+            {
+                return RedirectToAction("Edit"); // View("View");
+            }
+            else
+            {
+                return View();
+            }
         }
 
         [AcceptVerbs(HttpVerbs.Post)]
@@ -52,7 +77,8 @@ namespace BookLibrary.Web.Controllers
                 var result = await _system.RunCommand(cmd);
                 if (result.IsChoice1Of2)
                 {
-                    return View("Success");
+                    var routeValues = new { cmd.BookId.Id };
+                    return RedirectToAction("Edit", "Books", routeValues);// View("View");
                 }
                 else
                 {

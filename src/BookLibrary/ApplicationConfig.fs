@@ -63,3 +63,11 @@ module ApplicationConfig =
             let system = buildEventStoreSystem client
             return new BookLibrarySystem(system)
         } |> Async.StartAsTask
+
+    let dbName = "BookLibrary"
+
+    let buildDocumentStore() =
+        let documentStore = new Raven.Client.Document.DocumentStore(Url = "http://localhost:8080/")
+        documentStore.DefaultDatabase <- dbName
+        documentStore.Initialize() |> ignore
+        documentStore
