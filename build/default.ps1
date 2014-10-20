@@ -32,8 +32,8 @@ task Package -depends Clean, RestorePackages, MsBuildRelease, CreateNugetPackage
 }
 
 task CreateNugetPackage {
-  # $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
-  $version = "0.0.2-beta"
+  $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
+  $version = "$version-beta"
   Write-Host "Creating directory"
   New-Item -force .\package\lib\net45 -itemtype directory
   Write-Host "Copying .\Release\Eventful.dll"
@@ -49,8 +49,8 @@ task CreateNugetPackage {
 }
 
 task PackagePush -depends Package {
-  # $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
-  $version = "0.0.2-beta"
+  $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
+  $version = "$version-beta"
   exec { & {.\tools\nuget\nuget.exe push Eventful.$version.nupkg }}
 }
 
