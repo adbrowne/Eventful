@@ -3,6 +3,9 @@
 open System
 open BookLibrary.Aggregates
 open Eventful
+open FSharpx.Validation
+open FSharpx.Choice
+open FSharpx.Collections
 
 type BookId = {
     Id : Guid
@@ -53,6 +56,14 @@ module Book =
         |> StateBuilder.handler getBookId (fun (_, (e : BookAddedEvent), _) -> e.Title)
         |> StateBuilder.handler getBookId (fun (_, (e : BookTitleUpdatedEvent), _) -> e.Title)
 
+    let doesNotEqual err other value =
+        if other = value then
+            err
+            |> NonEmptyList.singleton 
+            |> Choice2Of2
+        else
+            Choice1Of2 value
+
     let cmdHandlers = 
         seq {
            let addBook (cmd : AddBookCommand) =
@@ -63,11 +74,16 @@ module Book =
 
            yield buildCmdHandler addBook
 
-           yield buildCmdHandler (fun (cmd : UpdateBookTitleCommand) -> 
-               TitleUpdated {
-                    BookId = cmd.BookId
-                    Title = cmd.Title
-               }
+           yield fullHandler bookTitle (fun currentTitle m (cmd : UpdateBookTitleCommand) ->
+               let updateTitle newTitle =
+                   [TitleUpdated {
+                       BookId = cmd.BookId
+                       Title = newTitle
+                   }]
+
+               let newTitle = doesNotEqual (Some "title", "Cannot update title to the same value") currentTitle cmd.Title
+
+               updateTitle <!> newTitle
            )
         }
 

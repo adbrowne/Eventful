@@ -45,5 +45,6 @@ module Aggregates =
                 |> List.toSeq
             )
         Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
+        |> buildCmd
 
     let toAggregateDefinition = Eventful.Aggregate.toAggregateDefinition
