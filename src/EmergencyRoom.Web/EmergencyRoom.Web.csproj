@@ -281,10 +281,6 @@
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\EmergencyRoom\EmergencyRoom.fsproj">
-      <Project>{58d3d665-0343-4d8c-90f2-bd46fe91aff1}</Project>
-      <Name>EmergencyRoom</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
       <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
       <Name>Eventful.EventStore</Name>
