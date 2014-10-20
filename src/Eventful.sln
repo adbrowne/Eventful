@@ -31,6 +31,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "BookLibrary", "BookLibrary\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookLibrary.Web", "BookLibrary.Web\BookLibrary.Web.csproj", "{87FAB9FB-FDCC-49D4-9201-3F7542095469}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "BookLibrary.Service", "BookLibrary.Service\BookLibrary.Service.fsproj", "{3ECADA97-8602-4909-9665-BCD5DFBF4A46}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,10 @@ Global
 		{87FAB9FB-FDCC-49D4-9201-3F7542095469}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{87FAB9FB-FDCC-49D4-9201-3F7542095469}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{87FAB9FB-FDCC-49D4-9201-3F7542095469}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3ECADA97-8602-4909-9665-BCD5DFBF4A46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3ECADA97-8602-4909-9665-BCD5DFBF4A46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3ECADA97-8602-4909-9665-BCD5DFBF4A46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3ECADA97-8602-4909-9665-BCD5DFBF4A46}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -80,5 +86,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{FE210063-72A2-4653-B299-26A088A12C6E} = {35981068-F93F-407E-9580-0CB68919E4D0}
 		{87FAB9FB-FDCC-49D4-9201-3F7542095469} = {35981068-F93F-407E-9580-0CB68919E4D0}
+		{3ECADA97-8602-4909-9665-BCD5DFBF4A46} = {35981068-F93F-407E-9580-0CB68919E4D0}
 	EndGlobalSection
 EndGlobal

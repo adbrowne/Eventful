@@ -34,7 +34,7 @@ module ApplicationConfig =
 
     let getConnection () : Async<IEventStoreConnection> =
         async {
-            let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
+            let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("192.168.59.103"), 1113)
             let connectionSettingsBuilder = 
                 ConnectionSettings
                     .Create()

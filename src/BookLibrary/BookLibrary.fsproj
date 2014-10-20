@@ -62,8 +62,6 @@
     <Compile Include="ApplicationEvent.fs" />
     <Compile Include="ApplicationConfig.fs" />
     <Compile Include="Application.fs" />
-    <Compile Include="Topshelf.fs" />
-    <Compile Include="Program.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
   </ItemGroup>
@@ -136,14 +134,6 @@
     <Reference Include="System.Runtime.Caching" />
     <Reference Include="System.Web.Http">
       <HintPath>..\packages\Microsoft.AspNet.WebApi.Core.5.2.2\lib\net45\System.Web.Http.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Topshelf">
-      <HintPath>..\packages\Topshelf.3.1.4\lib\net40-full\Topshelf.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Topshelf.Common.Logging">
-      <HintPath>..\packages\Topshelf.Common.Logging.1.0\lib\net40\Topshelf.Common.Logging.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="xunit">
