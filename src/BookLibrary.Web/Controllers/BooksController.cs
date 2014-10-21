@@ -1,7 +1,6 @@
 ﻿extern alias fsharpxcore;
 
 using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Web.Mvc;
 using Eventful;

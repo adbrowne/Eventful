@@ -69,8 +69,31 @@
     <Content Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
+      <Name>Eventful.EventStore</Name>
+      <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.RavenDb\Eventful.RavenDb.fsproj">
+      <Name>Eventful.RavenDb</Name>
+      <Project>{639b7247-67ae-4a1f-8b09-28bcf23bce20}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful\Eventful.fsproj">
+      <Name>Eventful</Name>
+      <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <Reference Include="Common.Logging">
       <HintPath>..\packages\Common.Logging.2.0.0\lib\2.0\Common.Logging.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="FSharpx.Collections">
+      <HintPath>..\packages\FSharpx.Collections.1.9.4\lib\net35\FSharpx.Collections.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="FSharpx.Core">
+      <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />
