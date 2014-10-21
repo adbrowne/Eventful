@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http.Formatting;
 using System.Reflection;
 using System.Web.Http;
 using System.Web.Http.Dispatcher;
 using System.Web.Http.Tracing;
 using Autofac.Integration.WebApi;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
 namespace BookLibrary.Web
@@ -17,7 +19,7 @@ namespace BookLibrary.Web
             // Web API configuration and services
             config.DependencyResolver = resolver;
             config.Services.Replace(typeof(IAssembliesResolver), new MyAssemblyResolver());
-            config.Formatters.JsonFormatter.SerializerSettings.ContractResolver = new DefaultContractResolver();
+            config.Formatters.JsonFormatter.SerializerSettings.ContractResolver = new EventfulContractResolver();
             var tracer = config.EnableSystemDiagnosticsTracing();
             tracer.MinimumLevel = TraceLevel.Debug;
 
@@ -29,6 +31,17 @@ namespace BookLibrary.Web
                 routeTemplate: "api/{controller}/{id}",
                 defaults: new { id = RouteParameter.Optional }
             );
+        }
+    }
+
+    public class EventfulContractResolver : DefaultContractResolver
+    {
+        protected override JsonProperty CreateProperty(MemberInfo member, MemberSerialization memberSerialization)
+        {
+            var baseProperty = base.CreateProperty(member, memberSerialization);
+            //baseProperty.Writable = false;
+            //baseProperty.DefaultValue = Guid.NewGuid();
+            return baseProperty;
         }
     }
 
