@@ -1,20 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>AB8D41F5-147C-42A0-83D1-CF0676864431</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>eb1d6947-29b2-4b74-ae9c-d36ac7778c7e</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>Eventful.Tests.Integration</RootNamespace>
     <AssemblyName>Eventful.Tests.Integration</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <Name>Eventful.Tests.Integration</Name>
     <TargetFSharpCoreVersion>4.3.1.0</TargetFSharpCoreVersion>
+    <Name>Eventful.Tests.Integration</Name>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
     <RestorePackages>true</RestorePackages>
-    <NuGetPackageImportStamp>f9af157e</NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -24,47 +23,39 @@
     <OutputPath>..\..\build\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>..\build\Debug\Eventful.Tests.Integration.XML</DocumentationFile>
-    <CustomCommands>
-      <CustomCommands>
-        <Command type="Execute" command="../packages/xunit.runners.1.9.2/tools/xunit.console.clr4.exe ${TargetFile} /trait &quot;requires=eventstore&quot;" />
-      </CustomCommands>
-    </CustomCommands>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsAsErrors />
+    <DocumentationFile>..\..\build\Debug\Eventful.Tests.Integration.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
-    <OutputPath>..\..\build\Release\</OutputPath>
+    <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>..\build\Release\Eventful.Tests.Integration.XML</DocumentationFile>
+    <DocumentationFile>bin\Release\Eventful.Tests.Integration.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
   </PropertyGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '11.0'">
-      <PropertyGroup>
-        <FSharpTargetsPath>$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.1\Framework\v4.0\Microsoft.FSharp.Targets</FSharpTargetsPath>
+      <PropertyGroup Condition="Exists('$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets')">
+        <FSharpTargetsPath>$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets</FSharpTargetsPath>
       </PropertyGroup>
     </When>
     <Otherwise>
-      <PropertyGroup>
+      <PropertyGroup Condition="Exists('$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\FSharp\Microsoft.FSharp.Targets')">
         <FSharpTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\FSharp\Microsoft.FSharp.Targets</FSharpTargetsPath>
       </PropertyGroup>
     </Otherwise>
   </Choose>
-  <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
+  <Import Project="$(FSharpTargetsPath)" />
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
     <Error Condition="!Exists('$(SolutionDir)\.nuget\NuGet.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)\.nuget\NuGet.targets'))" />
-    <Error Condition="!Exists('..\packages\EventStore.Client.Embedded.3.0.0\build\EventStore.Client.Embedded.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EventStore.Client.Embedded.3.0.0\build\EventStore.Client.Embedded.targets'))" />
   </Target>
   <ItemGroup>
     <Compile Include="IntegrationTests.fs" />
@@ -76,20 +67,22 @@
     <Compile Include="RavenOperationTests.fs" />
     <Compile Include="RavenProjectorTests.fs" />
     <Compile Include="RavenReplayProjectorTests.fs" />
-    <None Include="packages.config" />
     <None Include="app.config" />
+    <Content Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="Common.Logging">
-      <HintPath>..\packages\Common.Logging.2.2.0\lib\net40\Common.Logging.dll</HintPath>
+    <ProjectReference Include="..\Eventful.CsTests\Eventful.CsTests.csproj">
+      <Name>Eventful.CsTests</Name>
+      <Project>{8dcb39a0-a882-486a-b147-fc4b44a42f0a}</Project>
       <Private>True</Private>
-    </Reference>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.Tests\Eventful.Tests.fsproj">
+      <Name>Eventful.Tests</Name>
+      <Project>{dfbaa651-9312-47e2-aec7-04c8fe48e0b0}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <Reference Include="EventStore.ClientAPI">
       <HintPath>..\packages\EventStore.Client.3.0.0\lib\net40\EventStore.ClientAPI.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="EventStore.ClientAPI.Embedded">
-      <HintPath>..\packages\EventStore.Client.Embedded.3.0.0\lib\net40\EventStore.ClientAPI.Embedded.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="FsCheck">
@@ -106,6 +99,7 @@
     </Reference>
     <Reference Include="FSharpx.Core">
       <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="FsUnit.CustomMatchers">
       <HintPath>..\packages\FsUnit.xUnit.1.3.0.1\Lib\net40\FsUnit.CustomMatchers.dll</HintPath>
@@ -120,6 +114,9 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />
+    <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\packages\Newtonsoft.Json.6.0.5\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
@@ -143,36 +140,24 @@
     <Reference Include="System.Runtime.Caching" />
     <Reference Include="xunit">
       <HintPath>..\packages\xunit.1.9.2\lib\net20\xunit.dll</HintPath>
-    </Reference>
-    <Reference Include="FSharp.Core">
       <Private>True</Private>
     </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Eventful.CsTests\Eventful.CsTests.csproj">
-      <Name>Eventful.CsTests</Name>
-      <Project>{8dcb39a0-a882-486a-b147-fc4b44a42f0a}</Project>
-      <Private>True</Private>
-    </ProjectReference>
     <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
       <Name>Eventful.EventStore</Name>
-      <Project>AE510F33-D499-41AD-8EA6-6961AD7E2DFE</Project>
+      <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
+      <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\Eventful.RavenDb\Eventful.RavenDb.fsproj">
       <Name>Eventful.RavenDb</Name>
       <Project>{639b7247-67ae-4a1f-8b09-28bcf23bce20}</Project>
       <Private>True</Private>
     </ProjectReference>
-    <ProjectReference Include="..\Eventful.Tests\Eventful.Tests.fsproj">
-      <Name>Eventful.Tests</Name>
-      <Project>08132179-EEA4-43FA-82E6-5E58B9F17473</Project>
-    </ProjectReference>
     <ProjectReference Include="..\Eventful\Eventful.fsproj">
       <Name>Eventful</Name>
-      <Project>4C150478-A9FC-4010-9929-20312856CEAF</Project>
+      <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
+      <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="..\packages\EventStore.Client.Embedded.3.0.0\build\EventStore.Client.Embedded.targets" Condition="Exists('..\packages\EventStore.Client.Embedded.3.0.0\build\EventStore.Client.Embedded.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
