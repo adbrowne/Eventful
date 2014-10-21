@@ -1,10 +1,10 @@
 ﻿extern alias fsharpxcore;
 
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Web.Mvc;
 using Eventful;
-using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
 using Raven.Client;
 
@@ -43,10 +43,19 @@ namespace BookLibrary.Web.Controllers
         {
             cmd.BookId = new BookId(id);
 
+            return await RunCommand(cmd, s => RedirectToAction("Edit"));
+        }
+
+        private async Task<ActionResult> RunCommand(UpdateBookTitleCommand cmd, Func<CommandSuccess<BookLibraryEventMetadata>, ActionResult> onSuccess)
+        {
             var result = await _system.RunCommand(cmd);
             if (result.IsChoice1Of2)
             {
-                return RedirectToAction("Edit"); // View("View");
+                var successResult =
+                    ((
+                        FSharpChoice<CommandSuccess<BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>>.Choice1Of2)result).Item;
+                return onSuccess(successResult);
+                
             }
             else
             {
@@ -73,13 +82,11 @@ namespace BookLibrary.Web.Controllers
             }
         }
 
-        private void AddErrorsToModelState(FSharpChoice<FSharpList<Tuple<string, object, BookLibraryEventMetadata>>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>> result)
+        private void AddErrorsToModelState(FSharpChoice<CommandSuccess<BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>> result)
         {
             var errorResult =
                 ((
-                    FSharpChoice
-                        <FSharpList<Tuple<string, object, BookLibraryEventMetadata>>,
-                            fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>>.Choice2Of2) result).Item;
+                    FSharpChoice<CommandSuccess<BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>>.Choice2Of2)result).Item;
             foreach (var error in errorResult)
             {
                 var commandError = error as CommandFailure.CommandError;

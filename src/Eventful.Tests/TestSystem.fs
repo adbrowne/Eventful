@@ -69,7 +69,11 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
         |> stateBuilder.GetState
 
     static member Empty handlers =
-        new TestSystem<'TMetadata>(handlers, Choice1Of2 List.empty, TestEventStore.empty)
+        let emptySuccess = {
+            Events = List.empty
+            Position = None
+        }
+        new TestSystem<'TMetadata>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 

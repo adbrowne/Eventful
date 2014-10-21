@@ -6,7 +6,13 @@ open FSharpx.Collections
 
 open Eventful.EventStream
 
-type CommandResult<'TMetadata> = Choice<list<string * obj * 'TMetadata>,NonEmptyList<CommandFailure>> 
+type CommandSuccess<'TMetadata> = {
+    Events : (string * obj * 'TMetadata) list
+    Position : EventPosition option
+}
+
+type CommandResult<'TMetadata> = Choice<CommandSuccess<'TMetadata>,NonEmptyList<CommandFailure>> 
+
 type StreamNameBuilder<'TId> = ('TId -> string)
 
 type IRegistrationVisitor<'T,'U> =
@@ -192,6 +198,8 @@ module AggregateActionBuilder =
                 match result with
                 | Choice1Of2 events -> 
                     eventStream {
+                        // todo make this less ugly
+                        let lastPosition = ref None
                         for (stream, event, metadata) in events do
                             let! eventData = getEventStreamEvent event metadata
                             let expectedVersion = 
@@ -200,15 +208,22 @@ module AggregateActionBuilder =
                                 | x -> AggregateVersion (x - 1)
 
                             let! writeResult = writeToStream stream expectedVersion (Seq.singleton eventData)
-
                             log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
                             
+                            match writeResult with
+                            | WriteResult.WriteSuccess pos ->
+                                lastPosition := Some pos
+                            | x -> failwith <| sprintf "Unsuccessful write: %A" x
+
                             ()
 
                         let lastEvent  = (stream, eventsConsumed + (List.length events))
                         let lastEventNumber = (eventsConsumed + (List.length events) - 1)
 
-                        return Choice1Of2 events
+                        return Choice1Of2 {
+                            Events = events
+                            Position = !lastPosition
+                        }
                     }
                 | Choice2Of2 x ->
                     eventStream { return Choice2Of2 x }

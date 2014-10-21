@@ -155,7 +155,7 @@ module AggregateIntegrationTests =
             }
 
             match cmdResult with
-            | Choice1Of2 ([(streamName, event, metadata)]) ->
+            | Choice1Of2 ({Events = [(streamName, event, metadata)]}) ->
                 streamName |> should equal expectedStreamName
                 event |> should equal expectedEvent
                 do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 0)
