@@ -14,9 +14,6 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
         eventContext : 'TEventContext
     ) =
 
-    let toGesPosition position = new EventStore.ClientAPI.Position(position.Commit, position.Prepare)
-    let toEventfulPosition (position : Position) = { Commit = position.CommitPosition; Prepare = position.PreparePosition }
-
     let log = createLogger "Eventful.EventStoreSystem"
 
     let mutable lastEventProcessed : EventPosition = EventPosition.Start
@@ -62,7 +59,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
     member x.RunStreamProgram program = interpreter program
 
     member x.Start () =  async {
-        let! position = ProcessingTracker.readPosition client |> Async.map (Option.map toGesPosition)
+        let! position = ProcessingTracker.readPosition client |> Async.map (Option.map EventPosition.toEventStorePosition)
         let! nullablePosition = match position with
                                 | Some position -> async { return  Nullable(position) }
                                 | None -> 
@@ -98,7 +95,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
             }
         | None -> 
             async {
-                let position = event.OriginalPosition.Value |> toEventfulPosition
+                let position = event.OriginalPosition.Value |> EventPosition.ofEventStorePosition
                 completeTracker.Start position
                 completeTracker.Complete position
             }

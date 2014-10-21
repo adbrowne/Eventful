@@ -93,6 +93,38 @@ module EventStoreStreamInterpreterTests =
 
     [<Fact>]
     [<Trait("requires", "eventstore")>]
+    let ``Write Position is returned`` () : unit =
+        async {
+            let! connection = RunningTests.getConnection()
+            let client = new Client(connection)
+
+            do! client.Connect()
+
+            let run program =
+                EventStreamInterpreter.interpret client RunningTests.esSerializer eventNameMapping program
+
+            let stream = "MyStream-" + (newId())
+
+            let! writeResult = 
+                eventStream {
+                    let! eventToWrite = getEventStreamEvent event metadata
+                    let writes : seq<EventStreamEvent<TestMetadata>> = Seq.singleton eventToWrite
+                    let! result = writeToStream stream NewStream writes
+                    return result
+                } |> run
+
+            match writeResult with
+            | WriteResult.WriteSuccess position ->
+                let! readResult = client.readEventFromPosition position
+                match readResult with
+                | None -> failwith "Could not read event back using global position"
+                | Some evt ->
+                    evt.Event.EventType |> should equal "MyEvent"
+            | x -> failwith <| sprintf "Write did not succeed %A" x
+        } |> Async.RunSynchronously
+
+    [<Fact>]
+    [<Trait("requires", "eventstore")>]
     let ``Create a link`` () : unit =
         async {
             let! connection = RunningTests.getConnection()

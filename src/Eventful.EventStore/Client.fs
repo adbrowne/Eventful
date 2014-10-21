@@ -8,6 +8,7 @@ open Eventful
 
 /// simple F# wrapper around EventStore functions
 type Client (connection : IEventStoreConnection) =
+
     let readStream 
         streamId 
         startPosition 
@@ -36,6 +37,15 @@ type Client (connection : IEventStoreConnection) =
     member x.readStreamForward streamId from =
         readStream streamId from connection.ReadStreamEventsForwardAsync
 
+    member x.readEventFromPosition position = async {
+        let! slice = connection.ReadAllEventsForwardAsync(EventPosition.toEventStorePosition position, 1, true) |> Async.AwaitTask
+        return 
+            match slice.Events |> List.ofArray with
+            | [] -> None
+            | [evt] -> Some evt
+            | _ -> failwith "Expecting only one event to be returned"
+    }
+
     member x.readStreamHead streamId = async {
         let! (result : StreamEventsSlice) = connection.ReadStreamEventsBackwardAsync(streamId, EventStore.ClientAPI.StreamPosition.End, 1, false) |> Async.AwaitTask
         return result.Events |> Seq.tryHead
@@ -44,7 +54,8 @@ type Client (connection : IEventStoreConnection) =
     member x.append streamId expectedVersion eventData = async {
         try
             let! result = connection.AppendToStreamAsync(streamId, expectedVersion, eventData) |> Async.AwaitTask
-            return WriteResult.WriteSuccess
+            
+            return WriteResult.WriteSuccess (EventPosition.ofEventStorePosition result.LogPosition)
         with 
             | :? AggregateException as ex ->
                 if(ex.InnerException <> null && ex.InnerException.GetType() = typeof<EventStore.ClientAPI.Exceptions.WrongExpectedVersionException>) then

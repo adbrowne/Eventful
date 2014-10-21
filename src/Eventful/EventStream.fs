@@ -8,7 +8,7 @@ type ExpectedAggregateVersion =
 | AggregateVersion of int
 
 type WriteResult =
-| WriteSuccess
+| WriteSuccess of EventPosition
 | WrongExpectedVersion
 | WriteCancelled
 | WriteError of System.Exception

@@ -5,6 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>AB8D41F5-147C-42A0-83D1-CF0676864431</ProjectGuid>
+    <SchemaVersion>2.0</SchemaVersion>
     <OutputType>Library</OutputType>
     <RootNamespace>Eventful.Tests.Integration</RootNamespace>
     <AssemblyName>Eventful.Tests.Integration</AssemblyName>

@@ -62,6 +62,7 @@
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="app.config" />
+    <Compile Include="EventPosition.fs" />
     <Compile Include="Client.fs" />
     <Compile Include="ProcessingTracker.fs" />
     <Compile Include="ISerializer.fs" />

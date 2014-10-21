@@ -62,22 +62,10 @@ module TestInterpreter =
                 | _ -> false
                 
             if expectedValueCorrect then
-                let streamEvents' =  
-                    events 
-                    |> Vector.ofSeq
-                    |> Vector.append streamEvents
-
-                let addEventToQueue queue (eventNumber, evt) =
-                    queue |> Queue.conj (stream, eventNumber, evt)
-
-                let startingEventNumber = streamEvents.Length
-                let numberedEvents = 
-                    Seq.zip (Seq.initInfinite ((+) startingEventNumber)) streamEvents'
-
                 let eventStore' = 
                     events |> Vector.ofSeq |> Vector.fold (fun s e -> s |> TestEventStore.addEvent stream e) eventStore
 
-                interpret (next WriteSuccess) eventStore' eventTypeMap values writes
+                interpret (next (WriteSuccess eventStore'.Position)) eventStore' eventTypeMap values writes
             else
                 interpret (next WrongExpectedVersion) eventStore eventTypeMap values writes
         | FreeEventStream (NotYetDone g) ->
