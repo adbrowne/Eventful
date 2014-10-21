@@ -4,7 +4,9 @@ using System.Linq;
 using System.Reflection;
 using System.Web.Http;
 using System.Web.Http.Dispatcher;
+using System.Web.Http.Tracing;
 using Autofac.Integration.WebApi;
+using Newtonsoft.Json.Serialization;
 
 namespace BookLibrary.Web
 {
@@ -15,8 +17,9 @@ namespace BookLibrary.Web
             // Web API configuration and services
             config.DependencyResolver = resolver;
             config.Services.Replace(typeof(IAssembliesResolver), new MyAssemblyResolver());
-
-            config.EnableSystemDiagnosticsTracing();
+            config.Formatters.JsonFormatter.SerializerSettings.ContractResolver = new DefaultContractResolver();
+            var tracer = config.EnableSystemDiagnosticsTracing();
+            tracer.MinimumLevel = TraceLevel.Debug;
 
             // Web API routes
             config.MapHttpAttributeRoutes();

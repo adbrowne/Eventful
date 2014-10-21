@@ -58,6 +58,7 @@
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <ItemGroup>
     <Compile Include="Aggregates.fs" />
+    <Compile Include="Interfaces.fs" />
     <Compile Include="Book.fs" />
     <Compile Include="ApplicationEvent.fs" />
     <Compile Include="ApplicationConfig.fs" />

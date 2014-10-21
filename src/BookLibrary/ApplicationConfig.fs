@@ -8,9 +8,13 @@ open Eventful
 open Eventful.EventStore
 
 type BookLibrarySystem (system : EventStoreSystem<unit,unit,BookLibraryEventMetadata>) = 
-    member x.RunCommand cmd =
-        system.RunCommand () cmd
-        |> Async.StartAsTask
+    interface IBookLibrarySystem with
+        member x.RunCommand cmd =
+            system.RunCommand () cmd
+
+        member x.RunCommandTask cmd =
+            system.RunCommand () cmd
+            |> Async.StartAsTask
 
 module ApplicationConfig = 
     let serializer = JsonSerializer.Create()

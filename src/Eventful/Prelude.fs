@@ -136,6 +136,17 @@ module Prelude =
         agent.Error.Add(fun e -> log.ErrorWithException <| lazy(sprintf "Exception thrown by %A" name, e))
         agent
 
+    // from: http://msdn.microsoft.com/en-us/library/dd233248.aspx
+    let (|Integer|_|) (str: string) =
+       let mutable intvalue = 0
+       if System.Int32.TryParse(str, &intvalue) then Some(intvalue)
+       else None
+
+    let (|Integer64|_|) (str: string) =
+       let mutable intvalue = 0L
+       if System.Int64.TryParse(str, &intvalue) then Some(intvalue)
+       else None
+
 open System
 
 /// System.Type does not implement IComparable

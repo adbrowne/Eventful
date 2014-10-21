@@ -11,10 +11,10 @@ namespace BookLibrary.Web.Controllers
 {
     public class BooksController : Controller
     {
-        private readonly BookLibrarySystem _system;
+        private readonly IBookLibrarySystem _system;
         private readonly IAsyncDocumentSession _documentSession;
 
-        public BooksController(BookLibrarySystem system, IAsyncDocumentSession documentSession)
+        public BooksController(IBookLibrarySystem system, IAsyncDocumentSession documentSession)
         {
             _system = system;
             _documentSession = documentSession;
@@ -47,7 +47,7 @@ namespace BookLibrary.Web.Controllers
 
         private async Task<ActionResult> RunCommand(UpdateBookTitleCommand cmd, Func<CommandSuccess<BookLibraryEventMetadata>, ActionResult> onSuccess)
         {
-            var result = await _system.RunCommand(cmd);
+            var result = await _system.RunCommandTask(cmd);
             if (result.IsChoice1Of2)
             {
                 var successResult =
@@ -68,7 +68,7 @@ namespace BookLibrary.Web.Controllers
         {
             cmd.BookId = new BookId(Guid.NewGuid());
 
-            var result = await _system.RunCommand(cmd);
+            var result = await _system.RunCommandTask(cmd);
             if (result.IsChoice1Of2)
             {
                 var routeValues = new { cmd.BookId.Id };

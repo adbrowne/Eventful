@@ -7,6 +7,7 @@ open FSharpx.Validation
 open FSharpx.Choice
 open FSharpx.Collections
 
+[<CLIMutable>]
 type BookId = {
     Id : Guid
 }
@@ -108,8 +109,8 @@ module Book =
 open System.Web
 open System.Net.Http
 open System.Web.Http
- 
-type BooksController() =
+
+type BooksController(system : IBookLibrarySystem) =
     inherit ApiController()
  
     // GET /api/values
@@ -119,7 +120,24 @@ type BooksController() =
     member x.Get (id:int) = "value"
 
     // POST /api/values
-    member x.Post ([<FromBody>] value:string) = ()
+    member x.Post (cmd:AddBookCommand) = 
+        async {
+            let cmdWithId = { cmd with BookId = { BookId.Id = Guid.NewGuid() }}
+            let! cmdResult = system.RunCommand cmdWithId 
+            return
+                match cmdResult with
+                | Choice1Of2 result ->
+                     let response = new HttpResponseMessage(Net.HttpStatusCode.Accepted)
+                     match result.Position with
+                     | Some position ->
+                         response.Headers.Add("eventful-last-write", position.Token)
+                     | None ->
+                         ()
+                     response
+                | Choice2Of2 errorResult ->
+                     let response = x.Request.CreateResponse<NonEmptyList<CommandFailure>>(Net.HttpStatusCode.BadRequest, errorResult)
+                     response
+        } |> Async.StartAsTask
 
     // PUT /api/values/5
     member x.Put (id:int) ([<FromBody>] value:string) = ()

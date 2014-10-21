@@ -5,3 +5,39 @@
 }
 
 <h2>Books</h2>
+
+@section scripts {
+    <script type="text/javascript">
+        (function () {
+            var lastWritePosition;
+
+            var eventfulApiRequest = function(url, data) {
+                return $.ajax(url, {
+                        type: "POST",
+                        data: JSON.stringify(data),
+                        contentType: "application/json; charset=utf-8",
+                        dataType: "json",
+                        headers: {
+                            "eventful-last-write": lastWritePosition
+                        }
+                    })
+                    .done(function(response, p2) {
+                        console.log("Request success");
+                        console.log(response);
+                        console.log(p2);
+                    });
+            };
+
+            var addBook = function(title) {
+                eventfulApiRequest("/api/books", { title: title })
+                    .done(function() {
+                    });
+            };
+
+            $(function () {
+                console.log("test");
+                addBook("Test Book3000");
+            });
+        })();
+    </script>
+}

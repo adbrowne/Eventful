@@ -1,12 +1,10 @@
-﻿using System;
-using System.Web.Http;
+﻿using System.Web.Http;
 using System.Web.Mvc;
 using System.Web.Optimization;
 using System.Web.Routing;
 using Autofac;
 using Autofac.Integration.Mvc;
 using Autofac.Integration.WebApi;
-using BookLibrary.Web.Controllers;
 using Raven.Client;
 
 namespace BookLibrary.Web
@@ -60,9 +58,10 @@ namespace BookLibrary.Web
         private static void RegisterEventStore(ContainerBuilder builder)
         {
             var systemTask = ApplicationConfig.initializedSystem();
-            systemTask.Wait();
             var system = systemTask.Result;
-            builder.RegisterInstance(system).SingleInstance();
+            builder.RegisterInstance(system)
+                .AsImplementedInterfaces()
+                .SingleInstance();
         }
     }
 }

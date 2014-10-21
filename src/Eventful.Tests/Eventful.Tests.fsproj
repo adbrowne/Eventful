@@ -43,6 +43,10 @@
       <HintPath>..\packages\Common.Logging.Log4Net.2.0.1\lib\net20\Common.Logging.Log4Net.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="EventStore.ClientAPI">
+      <HintPath>..\packages\EventStore.Client.3.0.0\lib\net40\EventStore.ClientAPI.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="FsCheck">
       <HintPath>..\packages\FsCheck.1.0.1\lib\net45\FsCheck.dll</HintPath>
       <Private>True</Private>
@@ -100,6 +104,7 @@
     <Compile Include="TestSystem.fs" />
     <Compile Include="TestHelpers.fs" />
     <Compile Include="PreludeTests.fs" />
+    <Compile Include="EventPositionTests.fs" />
     <Compile Include="CounterAgent.fs" />
     <Compile Include="ParellelInOrderTransformerTests.fs" />
     <Compile Include="OperationSetCompleteTests.fs" />
@@ -114,6 +119,11 @@
     <Compile Include="DocumentBuilderTests.fs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
+      <Name>Eventful.EventStore</Name>
+      <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful\Eventful.fsproj">
       <Name>Eventful</Name>
       <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
