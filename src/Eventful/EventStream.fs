@@ -26,6 +26,9 @@ type EventStreamEvent<'TMetadata> =
 | EventLink of (string * int * 'TMetadata)
 
 module EventStream =
+    open FSharpx.Operators
+    open FSharpx.Collections
+
     type EventToken = {
         Stream : string
         Number : int
@@ -114,6 +117,17 @@ module EventStream =
 
     type EventStreamProgram<'A,'TMetadata> = FreeEventStream<obj,'A,'TMetadata>
 
+    let inline returnM x = returnM eventStream x
+
+    let inline (<*>) f m = applyM eventStream eventStream f m
+
+    let inline lift2 f x y = returnM f <*> x <*> y
+
+    let inline sequence s =
+        let inline cons a b = lift2 List.cons a b
+        List.foldBack cons s (returnM [])
+
+    let inline mapM f x = sequence (List.map f x)
 
     // Higher level eventstream operations
 

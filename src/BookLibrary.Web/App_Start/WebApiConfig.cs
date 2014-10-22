@@ -39,9 +39,18 @@ namespace BookLibrary.Web
         protected override JsonProperty CreateProperty(MemberInfo member, MemberSerialization memberSerialization)
         {
             var baseProperty = base.CreateProperty(member, memberSerialization);
-            //baseProperty.Writable = false;
-            //baseProperty.DefaultValue = Guid.NewGuid();
-            return baseProperty;
+            if (member.GetCustomAttribute<GeneratedIdAttribute>() != null)
+            {
+                return null;
+            }
+            else if (member.GetCustomAttribute<FromRouteAttribute>() != null)
+            {
+                return null;
+            }
+            else
+            {
+                return baseProperty;
+            }
         }
     }
 

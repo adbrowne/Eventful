@@ -67,7 +67,7 @@ module TestInterpreter =
 
                 interpret (next (WriteSuccess eventStore'.Position)) eventStore' eventTypeMap values writes
             else
-                interpret (next WrongExpectedVersion) eventStore eventTypeMap values writes
+                interpret (next WriteResult.WrongExpectedVersion) eventStore eventTypeMap values writes
         | FreeEventStream (NotYetDone g) ->
             let next = g ()
             interpret next eventStore eventTypeMap values writes

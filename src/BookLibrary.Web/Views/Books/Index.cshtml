@@ -11,32 +11,55 @@
         (function () {
             var lastWritePosition;
 
-            var eventfulApiRequest = function(url, data) {
+            var eventfulApiRequest = function (url, data, method) {
+                method = method || "POST";
                 return $.ajax(url, {
-                        type: "POST",
-                        data: JSON.stringify(data),
-                        contentType: "application/json; charset=utf-8",
-                        dataType: "json",
-                        headers: {
-                            "eventful-last-write": lastWritePosition
-                        }
-                    })
-                    .done(function(response, p2) {
+                    type: method,
+                    data: JSON.stringify(data),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    headers: {
+                        "eventful-last-write": lastWritePosition
+                    }
+                })
+                    .done(function (response, p2) {
                         console.log("Request success");
                         console.log(response);
                         console.log(p2);
                     });
             };
 
-            var addBook = function(title) {
-                eventfulApiRequest("/api/books", { title: title })
-                    .done(function() {
+            var addBook = function (title) {
+                return eventfulApiRequest("/api/books", { title: title })
+                    .done(function () {
                     });
             };
 
+            var updateTitle = function (bookId, title) {
+                return eventfulApiRequest("/api/books/" + bookId + "/title", { title: title }, "PUT")
+                    .done(function () {
+                    });
+            }
+
             $(function () {
+                var bookId = null;
+                var updateCount = 0;
+
+                var updateTitleLoop = function(continuation) {
+                    updateCount = updateCount + 1;
+                    if (updateCount < 10) {
+                        updateTitle(bookId, "new title" + updateCount).done(continuation(continuation));
+                    }
+                }
+
                 console.log("test");
-                addBook("Test Book3000");
+                addBook("Test Book3000")
+                .done(function (response) {
+                    bookId = response.bookId;
+                })
+                .done(function() {
+                    updateTitleLoop(updateTitleLoop);
+                });
             });
         })();
     </script>

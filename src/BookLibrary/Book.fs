@@ -14,7 +14,7 @@ type BookId = {
 
 [<CLIMutable>]
 type AddBookCommand = {
-    BookId : BookId
+    [<GeneratedIdAttribute>]BookId : BookId
     Title : string
 }
 
@@ -26,7 +26,7 @@ type BookAddedEvent = {
 
 [<CLIMutable>]
 type UpdateBookTitleCommand = {
-    BookId : BookId
+    [<FromRoute>] BookId : BookId
     Title : string
 }
 
@@ -46,11 +46,6 @@ module Book =
 
     let inline getBookId (a: ^a) _ = 
         (^a : (member BookId: BookId) (a))
-
-    let validateCommand (cmd : AddBookCommand) : seq<string option * string> =
-       match (Choice1Of2 "andrew") with
-       | Choice1Of2 _ -> Seq.empty
-       | Choice2Of2 errors -> errors |> FSharpx.Collections.NonEmptyList.toSeq
 
     let bookTitle = 
         StateBuilder.Empty "bookTitle" ""
@@ -101,7 +96,6 @@ module Book =
             Title = ""
         }
 
-
     let documentBuilder : DocumentBuilder<BookId, BookDocument, BookLibraryEventMetadata> = 
         DocumentBuilder.Empty<BookId, BookDocument> (fun x -> BookDocument.NewDoc x.Id) (fun x -> sprintf "Book/%s" (x.Id.ToString()))
         |> DocumentBuilder.mapStateToProperty bookTitle (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
@@ -109,7 +103,9 @@ module Book =
 open System.Web
 open System.Net.Http
 open System.Web.Http
+open System.Web.Http.Routing
 
+[<RoutePrefix("api/books")>]
 type BooksController(system : IBookLibrarySystem) =
     inherit ApiController()
  
@@ -120,6 +116,8 @@ type BooksController(system : IBookLibrarySystem) =
     member x.Get (id:int) = "value"
 
     // POST /api/values
+    [<Route("")>]
+    [<HttpPost>]
     member x.Post (cmd:AddBookCommand) = 
         async {
             let cmdWithId = { cmd with BookId = { BookId.Id = Guid.NewGuid() }}
@@ -127,7 +125,9 @@ type BooksController(system : IBookLibrarySystem) =
             return
                 match cmdResult with
                 | Choice1Of2 result ->
-                     let response = new HttpResponseMessage(Net.HttpStatusCode.Accepted)
+                     let responseBody = new Newtonsoft.Json.Linq.JObject();
+                     responseBody.Add("bookId", new Newtonsoft.Json.Linq.JValue(cmdWithId.BookId.Id))
+                     let response = x.Request.CreateResponse<Newtonsoft.Json.Linq.JObject>(Net.HttpStatusCode.Accepted, responseBody)
                      match result.Position with
                      | Some position ->
                          response.Headers.Add("eventful-last-write", position.Token)
@@ -140,7 +140,27 @@ type BooksController(system : IBookLibrarySystem) =
         } |> Async.StartAsTask
 
     // PUT /api/values/5
-    member x.Put (id:int) ([<FromBody>] value:string) = ()
+    [<Route("{bookId}/title")>]
+    [<HttpPut>]
+    member x.Put (bookId:Guid) ([<FromBody>] (cmd:UpdateBookTitleCommand)) = 
+        async {
+            let cmdWithId = { cmd with BookId = { BookId.Id = bookId }}
+            let! cmdResult = system.RunCommand cmdWithId 
+            return
+                match cmdResult with
+                | Choice1Of2 result ->
+                     let responseBody = new Newtonsoft.Json.Linq.JObject();
+                     let response = x.Request.CreateResponse<Newtonsoft.Json.Linq.JObject>(Net.HttpStatusCode.Accepted, responseBody)
+                     match result.Position with
+                     | Some position ->
+                         response.Headers.Add("eventful-last-write", position.Token)
+                     | None ->
+                         ()
+                     response
+                | Choice2Of2 errorResult ->
+                     let response = x.Request.CreateResponse<NonEmptyList<CommandFailure>>(Net.HttpStatusCode.BadRequest, errorResult)
+                     response
+        } |> Async.StartAsTask
 
     // DELETE /api/values/5
     member x.Delete (id:int) = ()

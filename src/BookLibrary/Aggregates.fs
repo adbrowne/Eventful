@@ -6,6 +6,18 @@ open FSharpx
 open Eventful
 open Eventful.AggregateActionBuilder
 
+[<AttributeUsage(AttributeTargets.Property)>]
+type GeneratedIdAttribute () =
+    class
+        inherit System.Attribute()
+    end
+
+[<AttributeUsage(AttributeTargets.Property)>]
+type FromRouteAttribute () =
+    class
+        inherit System.Attribute()
+    end
+
 type AggregateType =
 | Book
 | BookCopy

@@ -13,6 +13,13 @@ type CommandSuccess<'TMetadata> = {
 
 type CommandResult<'TMetadata> = Choice<CommandSuccess<'TMetadata>,NonEmptyList<CommandFailure>> 
 
+type CommandRunFailure<'a> =
+| HandlerError of 'a
+| WrongExpectedVersion
+| WriteCancelled
+| WriteError of System.Exception
+| Exception of exn
+
 type StreamNameBuilder<'TId> = ('TId -> string)
 
 type IRegistrationVisitor<'T,'U> =
@@ -105,6 +112,7 @@ open Eventful.EventStream
 open Eventful.Validation
 
 module AggregateActionBuilder =
+    open EventStream
 
     let log = createLogger "Eventful.AggregateActionBuilder"
 
@@ -198,35 +206,38 @@ module AggregateActionBuilder =
                 match result with
                 | Choice1Of2 events -> 
                     eventStream {
-                        // todo make this less ugly
-                        let lastPosition = ref None
-                        for (stream, event, metadata) in events do
-                            let! eventData = getEventStreamEvent event metadata
-                            let expectedVersion = 
-                                match eventsConsumed with
-                                | 0 -> NewStream
-                                | x -> AggregateVersion (x - 1)
+                        let rawEventToEventStreamEvent (_, event, metadata) = getEventStreamEvent event metadata
+                        let! eventStreamEvents = EventStream.mapM rawEventToEventStreamEvent events
 
-                            let! writeResult = writeToStream stream expectedVersion (Seq.singleton eventData)
-                            log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
-                            
+                        let expectedVersion = 
+                            match eventsConsumed with
+                            | 0 -> NewStream
+                            | x -> AggregateVersion (x - 1)
+
+                        let! writeResult = writeToStream stream expectedVersion eventStreamEvents
+                        log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
+                        
+                        return 
                             match writeResult with
                             | WriteResult.WriteSuccess pos ->
-                                lastPosition := Some pos
-                            | x -> failwith <| sprintf "Unsuccessful write: %A" x
+                                Choice1Of2 {
+                                    Events = events
+                                    Position = Some pos
+                                }
+                            | WriteResult.WrongExpectedVersion -> 
+                                Choice2Of2 CommandRunFailure<_>.WrongExpectedVersion
+                            | WriteResult.WriteError ex -> 
+                                Choice2Of2 <| CommandRunFailure<_>.WriteError ex
+                            | WriteResult.WriteCancelled -> 
+                                Choice2Of2 CommandRunFailure<_>.WriteCancelled
 
-                            ()
-
-                        let lastEvent  = (stream, eventsConsumed + (List.length events))
-                        let lastEventNumber = (eventsConsumed + (List.length events) - 1)
-
-                        return Choice1Of2 {
-                            Events = events
-                            Position = !lastPosition
-                        }
                     }
                 | Choice2Of2 x ->
-                    eventStream { return Choice2Of2 x }
+                    eventStream { 
+                        return
+                            HandlerError x
+                            |> Choice2Of2
+                    }
         }
 
     let getValidatorUnitBuilders (validator : Validator<'TCmd,'TCommandState,'TMetadata,'TId>)= 
@@ -264,6 +275,21 @@ module AggregateActionBuilder =
     let getValidatorsUnitBuilders (validators : Validator<'TCmd,'TCommandState,'TMetadata,'TId> list) = 
         List.fold (fun s b -> List.append s (getValidatorUnitBuilders b)) [] validators
 
+    let mapValidationFailureToCommandFailure (x : CommandRunFailure<_>) =
+        match x with
+        | HandlerError x -> 
+            (NonEmptyList.map CommandFailure.ofValidationFailure) x
+        | WrongExpectedVersion ->
+            CommandFailure.CommandError "WrongExpectedVersion"
+            |> NonEmptyList.singleton 
+        | WriteCancelled ->
+            CommandFailure.CommandError "WriteCancelled"
+            |> NonEmptyList.singleton 
+        | WriteError ex 
+        | Exception ex ->
+            CommandFailure.CommandException (None, ex)
+            |> NonEmptyList.singleton 
+
     let handleCommand 
         (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) 
         (aggregateConfiguration : AggregateConfiguration<_,_,_,_>) 
@@ -293,7 +319,7 @@ module AggregateActionBuilder =
                         runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder aggregateGuid (processCommand cmd combinedState)
                     return
                         result
-                        |> Choice.mapSecond (NonEmptyList.map CommandFailure.ofValidationFailure)
+                        |> Choice.mapSecond mapValidationFailureToCommandFailure
                 }
             | Choice2Of2 exn ->
                 eventStream {
