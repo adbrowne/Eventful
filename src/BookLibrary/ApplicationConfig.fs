@@ -57,6 +57,7 @@ module ApplicationConfig =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate (Book.handlers ())
         |> EventfulHandlers.addAggregate (BookCopy.handlers ())
+        |> EventfulHandlers.addAggregate (Award.handlers ())
 
     let buildEventStoreSystem client =
         new EventStoreSystem<unit,unit,BookLibraryEventMetadata>(handlers, client, esSerializer, ())

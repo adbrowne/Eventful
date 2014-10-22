@@ -51,6 +51,9 @@ module Aggregates =
     let inline linkEvent fId f =
         Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f emptyMetadata
 
+    let inline onEvent fId sb f =
+        Eventful.AggregateActionBuilder.onEvent systemConfiguration fId sb f
+
     let inline fullHandler s f =
         let withMetadata a b c =
             f a b c

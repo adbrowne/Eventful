@@ -394,6 +394,7 @@ module AggregateActionBuilder =
              member this.EventType = typeof<'TLinkEvent>
              member this.AddStateBuilder builders = builders
              member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData<'TMetadata>) = eventStream {
+                Console.WriteLine "Running onLink Hander"
                 let aggregateId = fId (evt.Body :?> 'TLinkEvent)
                 let aggregateGuid = aggregateConfig.GetAggregateId aggregateId
                 let metadata =  
@@ -402,16 +403,22 @@ module AggregateActionBuilder =
                 let resultingStream = aggregateConfig.GetEventStreamName eventContext aggregateId
 
                 // todo: should not be new stream
-                let! _ = EventStream.writeLink resultingStream Any sourceStream sourceEventNumber metadata
-                return ()
+                let! result = EventStream.writeLink resultingStream Any sourceStream sourceEventNumber metadata
+                return 
+                    match result with
+                    | WriteResult.WriteSuccess _ -> ()
+                    | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
+                    | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
+                    | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"
              }
         }
 
-    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata when 'TId : equality> (fId : 'TOnEvent -> 'TId) systemConfiguration (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TId>) (runEvent : 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = {
+    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata when 'TId : equality> (fId : 'TOnEvent -> 'TId) systemConfiguration (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TId>) (runEvent : 'TState -> 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = {
         new IEventHandler<'TEvent,'TId,'TMetadata> with 
             member this.EventType = typeof<'TOnEvent>
-            member this.AddStateBuilder builders = builders
+            member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
             member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber evt = eventStream {
+                Console.WriteLine "Running onEvent Hander"
                 let unwrapper = MagicMapper.getUnwrapper<'TEvent>()
                 let typedEvent = evt.Body :?> 'TOnEvent
                 let eventKey = (fId typedEvent)
@@ -426,7 +433,7 @@ module AggregateActionBuilder =
                 let! eventTypeMap = getEventTypeMap()
 
                 let resultingEvents = 
-                    runEvent typedEvent
+                    runEvent state typedEvent
                     |> Seq.map (fun (x,metadata) -> 
                         let aggregateId = aggregateConfig.GetAggregateId eventKey
                         let metadata =  
@@ -436,15 +443,26 @@ module AggregateActionBuilder =
                         let eventType = eventTypeMap.FindValue (new ComparableType(event.GetType()))
                         Event { Body = event; EventType = eventType; Metadata = metadata })
 
-                let! _ = EventStream.writeToStream resultingStream NewStream resultingEvents
-                return ()
+                let expectedVersion = 
+                    match eventsConsumed with
+                    | 0 -> NewStream
+                    | x -> AggregateVersion (x - 1)
+
+                let! result = EventStream.writeToStream resultingStream expectedVersion resultingEvents
+
+                return 
+                    match result with
+                    | WriteResult.WriteSuccess _ -> ()
+                    | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
+                    | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
+                    | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"
             }
     }
 
     let linkEvent<'TLinkEvent,'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> systemConfiguration fId (linkEvent : 'TLinkEvent -> 'TEvent) (metadata : metadataBuilder<'TMetadata>) = 
         getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TMetadata> systemConfiguration fId metadata
 
-    let onEvent<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata when 'TId : equality> systemConfiguration fId (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TId>) (runEvent : 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = 
+    let onEvent<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata when 'TId : equality> systemConfiguration fId (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TId>) (runEvent : 'TEventState -> 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = 
         getEventInterfaceForOnEvent<'TOnEvent,'TEvent,'TId,'TEventState, 'TMetadata> fId systemConfiguration stateBuilder runEvent
 
 type AggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata> = {

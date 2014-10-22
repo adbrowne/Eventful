@@ -61,6 +61,7 @@
     <Compile Include="Interfaces.fs" />
     <Compile Include="Book.fs" />
     <Compile Include="BookCopy.fs" />
+    <Compile Include="Award.fs" />
     <Compile Include="ApplicationEvent.fs" />
     <Compile Include="ApplicationConfig.fs" />
     <Compile Include="Application.fs" />

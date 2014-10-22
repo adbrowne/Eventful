@@ -35,6 +35,7 @@ type BookEvents =
     | Added of BookAddedEvent
     | TitleUpdated of BookTitleUpdatedEvent
     | CopyAdded of BookCopyAddedEvent
+    | Promoted of BookPromotedEvent
 
 module Book =
     let getStreamName () (bookId : BookId) =
@@ -47,6 +48,10 @@ module Book =
         StateBuilder.Empty "bookTitle" ""
         |> StateBuilder.handler getBookId (fun (_, (e : BookAddedEvent), _) -> e.Title)
         |> StateBuilder.handler getBookId (fun (_, (e : BookTitleUpdatedEvent), _) -> e.Title)
+
+    let copyCount =
+        StateBuilder.Empty "bookCopyCount" 0
+        |> StateBuilder.handler getBookId (fun (s, (e : BookCopyAddedEvent), _) -> s + 1)
 
     let doesNotEqual err other value =
         if other = value then
@@ -81,7 +86,14 @@ module Book =
 
     let eventHandlers =
         seq {
-            yield linkEvent (fun (x : BookCopyAddedEvent) -> x.BookId) BookEvents.CopyAdded 
+            yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId) BookEvents.CopyAdded
+
+            let onBookAwarded bookCopyCount (evt : BookPrizeAwardedEvent) = seq {
+                if(bookCopyCount > 10) then
+                    yield (Promoted { BookPromotedEvent.BookId = evt.BookId }, emptyMetadata)
+            }
+
+            yield onEvent (fun (evt : BookPrizeAwardedEvent) -> evt.BookId) copyCount onBookAwarded
         }
 
     let bookIdGuid (bookId : BookId) = bookId.Id
@@ -92,6 +104,7 @@ module Book =
         BookId : Guid
         Title : string
     }
+
     with static member NewDoc (bookId : BookId) = {
             BookId = bookId.Id
             Title = ""

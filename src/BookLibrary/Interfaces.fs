@@ -12,6 +12,7 @@ type IBookLibrarySystem =
 type BookId = {
     Id : Guid
 }
+with static member New () = { Id = Guid.NewGuid() }
 
 [<CLIMutable>]
 type BookCopyId = {
@@ -20,7 +21,24 @@ type BookCopyId = {
 with static member New () = { Id = Guid.NewGuid() }
 
 [<CLIMutable>]
+type AwardId = {
+    Id : Guid
+}
+with static member New () = { Id = Guid.NewGuid() }
+
+[<CLIMutable>]
 type BookCopyAddedEvent = {
     BookCopyId : BookCopyId
+    BookId : BookId
+}
+
+[<CLIMutable>]
+type BookPromotedEvent = {
+    BookId : BookId
+}
+
+[<CLIMutable>]
+type BookPrizeAwardedEvent = {
+    AwardId : AwardId
     BookId : BookId
 }

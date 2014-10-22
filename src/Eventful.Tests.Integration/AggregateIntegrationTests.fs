@@ -36,7 +36,7 @@ module IntegrationHelpers =
     let inline buildSimpleCmdHandler s f = 
         Eventful.AggregateActionBuilder.buildSimpleCmdHandler systemConfiguration s (withMetadata f)
     let inline onEvent fId s f = 
-        let withMetadata f = f >> Seq.map (fun x -> (x, buildMetadata))
+        let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata))
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
     let inline linkEvent fId f = 
         let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }))
