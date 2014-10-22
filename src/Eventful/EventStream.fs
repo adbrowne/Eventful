@@ -111,6 +111,7 @@ module EventStream =
         member x.Bind (inp : FreeEventStream<'F,'R,'TMetadata>, body : ('R -> FreeEventStream<'F,'U,'TMetadata>)) : FreeEventStream<'F,'U,'TMetadata>  = bind body inp
         member x.Combine(expr1, expr2) = combine expr1 expr2
         member x.For(a, f) = forLoop a f 
+        member x.While(func, body) = whileLoop func body
         member x.Delay(func) = delay func
 
     let eventStream = new EventStreamBuilder()

@@ -47,7 +47,7 @@
 
                 var updateTitleLoop = function(continuation) {
                     updateCount = updateCount + 1;
-                    if (updateCount < 10) {
+                    if (updateCount < 1000) {
                         updateTitle(bookId, "new title" + updateCount).done(continuation(continuation));
                     }
                 }

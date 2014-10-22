@@ -290,6 +290,29 @@ module AggregateActionBuilder =
             CommandFailure.CommandException (None, ex)
             |> NonEmptyList.singleton 
 
+    let retryOnWrongVersion f = eventStream {
+        let maxTries = 100
+        let retry = ref true
+        let count = ref 0
+        // WriteCancelled whould never be used
+        let finalResult = ref (Choice2Of2 CommandRunFailure.WriteCancelled)
+        while !retry do
+            let! result = f
+            match result with
+            | Choice2Of2 WrongExpectedVersion ->
+                count := !count + 1
+                if !count < maxTries then
+                    retry := true
+                else
+                    retry := false
+                    finalResult := (Choice2Of2 WrongExpectedVersion)
+            | x -> 
+                retry := false
+                finalResult := x
+
+        return !finalResult
+    }
+
     let handleCommand 
         (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TEvent,'TMetadata, 'TValidatedState>) 
         (aggregateConfiguration : AggregateConfiguration<_,_,_,_>) 
@@ -308,7 +331,8 @@ module AggregateActionBuilder =
             match getId with
             | Choice1Of2 id ->
                 let stream = aggregateConfiguration.GetCommandStreamName commandContext id
-                eventStream {
+
+                let getResult = eventStream {
                     let! (eventsConsumed, combinedState) = 
                         aggregateConfiguration.StateBuilder
                         |> AggregateStateBuilder.combineHandlers (getValidatorsUnitBuilders commandHandler.Validators)
@@ -317,9 +341,13 @@ module AggregateActionBuilder =
                     let! result = 
                         let aggregateGuid = aggregateConfiguration.GetAggregateId id
                         runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder aggregateGuid (processCommand cmd combinedState)
+                    return result
+                }
+
+                eventStream {
+                    let! result = retryOnWrongVersion getResult
                     return
-                        result
-                        |> Choice.mapSecond mapValidationFailureToCommandFailure
+                        result |> Choice.mapSecond mapValidationFailureToCommandFailure
                 }
             | Choice2Of2 exn ->
                 eventStream {
