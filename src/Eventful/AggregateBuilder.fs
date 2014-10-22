@@ -389,20 +389,20 @@ module AggregateActionBuilder =
     let buildSimpleCmdHandler<'TId,'TCmd,'TCmdState,'TEvent, 'TCommandContext,'TMetadata when 'TId : equality> emptyMetadata stateBuilder = 
         (simpleHandler<'TId,'TCmdState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> emptyMetadata stateBuilder) >> buildCmd
         
-    let getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TMetadata> systemConfiguration (fId : 'TLinkEvent -> 'TId) metadata = {
+    let getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TMetadata> systemConfiguration (fId : 'TLinkEvent -> 'TId) (metadataBuilder : metadataBuilder<'TMetadata>) = {
         new IEventHandler<'TEvent,'TId,'TMetadata> with 
              member this.EventType = typeof<'TLinkEvent>
              member this.AddStateBuilder builders = builders
              member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData<'TMetadata>) = eventStream {
+                let aggregateId = fId (evt.Body :?> 'TLinkEvent)
+                let aggregateGuid = aggregateConfig.GetAggregateId aggregateId
                 let metadata =  
-                    metadata
-                    |> systemConfiguration.SetSourceMessageId (Guid.NewGuid().ToString())
-                    |> systemConfiguration.SetMessageId (Guid.NewGuid())
+                    metadataBuilder aggregateGuid (Guid.NewGuid()) (Guid.NewGuid().ToString()) 
 
-                let resultingStream = aggregateConfig.GetEventStreamName eventContext (fId (evt.Body :?> 'TLinkEvent))
+                let resultingStream = aggregateConfig.GetEventStreamName eventContext aggregateId
 
                 // todo: should not be new stream
-                let! _ = EventStream.writeLink resultingStream NewStream sourceStream sourceEventNumber metadata
+                let! _ = EventStream.writeLink resultingStream Any sourceStream sourceEventNumber metadata
                 return ()
              }
         }
@@ -441,7 +441,7 @@ module AggregateActionBuilder =
             }
     }
 
-    let linkEvent<'TLinkEvent,'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> systemConfiguration fId (linkEvent : 'TLinkEvent -> 'TEvent) (metadata:'TMetadata) = 
+    let linkEvent<'TLinkEvent,'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> systemConfiguration fId (linkEvent : 'TLinkEvent -> 'TEvent) (metadata : metadataBuilder<'TMetadata>) = 
         getEventInterfaceForLink<'TLinkEvent,'TEvent,'TId,'TMetadata> systemConfiguration fId metadata
 
     let onEvent<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata when 'TId : equality> systemConfiguration fId (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TId>) (runEvent : 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = 

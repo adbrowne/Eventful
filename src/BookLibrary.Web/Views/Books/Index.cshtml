@@ -41,6 +41,12 @@
                     });
             }
 
+            var addCopy = function (bookId) {
+                return eventfulApiRequest("/api/bookcopies", { bookId: { "Id" : bookId } })
+                    .done(function () {
+                    });
+            }
+
             $(function () {
                 var bookId = null;
                 var updateCount = 0;
@@ -52,13 +58,20 @@
                     }
                 }
 
+                var addCopyLoop = function(continuation) {
+                    updateCount = updateCount + 1;
+                    if (updateCount < 1000) {
+                        addCopy(bookId).done(continuation(continuation));
+                    }
+                }
+
                 console.log("test");
                 addBook("Test Book3000")
                 .done(function (response) {
                     bookId = response.bookId;
                 })
                 .done(function() {
-                    updateTitleLoop(updateTitleLoop);
+                    addCopyLoop(addCopyLoop);
                 });
             });
         })();

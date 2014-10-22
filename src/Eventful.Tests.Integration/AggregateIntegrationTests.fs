@@ -40,7 +40,7 @@ module IntegrationHelpers =
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
     let inline linkEvent fId f = 
         let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }))
-        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f emptyMetadata
+        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f buildMetadata
 
 open IntegrationHelpers
 

@@ -41,7 +41,7 @@ type TopShelfService () =
             match doc with
             | Some x -> x
             | None -> 
-                let doc = Book.BookDocument.NewDoc bookId.Id
+                let doc = Book.BookDocument.NewDoc bookId
                 let metadata = RavenOperations.emptyMetadata<Book.BookDocument> documentStore
                 let etag = Raven.Abstractions.Data.Etag.Empty
                 (doc, metadata, etag)

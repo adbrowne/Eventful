@@ -8,11 +8,6 @@ open FSharpx.Choice
 open FSharpx.Collections
 
 [<CLIMutable>]
-type BookId = {
-    Id : Guid
-}
-
-[<CLIMutable>]
 type AddBookCommand = {
     [<GeneratedIdAttribute>]BookId : BookId
     Title : string
@@ -39,6 +34,7 @@ type BookTitleUpdatedEvent = {
 type BookEvents = 
     | Added of BookAddedEvent
     | TitleUpdated of BookTitleUpdatedEvent
+    | CopyAdded of BookCopyAddedEvent
 
 module Book =
     let getStreamName () (bookId : BookId) =
@@ -83,21 +79,26 @@ module Book =
            )
         }
 
+    let eventHandlers =
+        seq {
+            yield linkEvent (fun (x : BookCopyAddedEvent) -> x.BookId) BookEvents.CopyAdded 
+        }
+
     let bookIdGuid (bookId : BookId) = bookId.Id
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName bookIdGuid cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName bookIdGuid cmdHandlers eventHandlers
 
     type BookDocument = {
         BookId : Guid
         Title : string
     }
-    with static member NewDoc bookId = {
-            BookId = bookId
+    with static member NewDoc (bookId : BookId) = {
+            BookId = bookId.Id
             Title = ""
         }
 
     let documentBuilder : DocumentBuilder<BookId, BookDocument, BookLibraryEventMetadata> = 
-        DocumentBuilder.Empty<BookId, BookDocument> (fun x -> BookDocument.NewDoc x.Id) (fun x -> sprintf "Book/%s" (x.Id.ToString()))
+        DocumentBuilder.Empty<BookId, BookDocument> BookDocument.NewDoc (fun x -> sprintf "Book/%s" (x.Id.ToString()))
         |> DocumentBuilder.mapStateToProperty bookTitle (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
 
 open System.Web
@@ -109,12 +110,6 @@ open System.Web.Http.Routing
 type BooksController(system : IBookLibrarySystem) =
     inherit ApiController()
  
-    // GET /api/values
-    member x.Get() = [| "value1"; "value2" |] |> Array.toSeq
-
-    // GET /api/values/5
-    member x.Get (id:int) = "value"
-
     // POST /api/values
     [<Route("")>]
     [<HttpPost>]
@@ -161,6 +156,3 @@ type BooksController(system : IBookLibrarySystem) =
                      let response = x.Request.CreateResponse<NonEmptyList<CommandFailure>>(Net.HttpStatusCode.BadRequest, errorResult)
                      response
         } |> Async.StartAsTask
-
-    // DELETE /api/values/5
-    member x.Delete (id:int) = ()
