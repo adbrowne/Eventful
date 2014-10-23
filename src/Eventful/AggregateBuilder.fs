@@ -394,7 +394,7 @@ module AggregateActionBuilder =
              member this.EventType = typeof<'TLinkEvent>
              member this.AddStateBuilder builders = builders
              member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData<'TMetadata>) = eventStream {
-                Console.WriteLine "Running onLink Hander"
+                Console.WriteLine "Running onLink Handler"
                 let aggregateId = fId (evt.Body :?> 'TLinkEvent)
                 let aggregateGuid = aggregateConfig.GetAggregateId aggregateId
                 let metadata =  

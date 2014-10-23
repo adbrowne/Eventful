@@ -30,7 +30,9 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
             ProcessingTracker.setPosition client position |> Async.RunSynchronously
         | None -> () }
 
-    let interpreter program = EventStreamInterpreter.interpret client serializer handlers.EventTypeMap program
+    let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
+
+    let interpreter program = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventTypeMap program
 
     let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
         async {
@@ -103,7 +105,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
     member x.RunCommand (context:'TCommandContext) (cmd : obj) = 
         async {
             let program = EventfulHandlers.getCommandProgram context cmd handlers
-            let! result = EventStreamInterpreter.interpret client serializer handlers.EventTypeMap program
+            let! result = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventTypeMap program
             return result
         }
 

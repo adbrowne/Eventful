@@ -105,6 +105,7 @@
     <Compile Include="TestHelpers.fs" />
     <Compile Include="PreludeTests.fs" />
     <Compile Include="EventPositionTests.fs" />
+    <Compile Include="CacheKeyTests.fs" />
     <Compile Include="CounterAgent.fs" />
     <Compile Include="ParellelInOrderTransformerTests.fs" />
     <Compile Include="OperationSetCompleteTests.fs" />

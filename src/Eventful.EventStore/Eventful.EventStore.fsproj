@@ -104,6 +104,7 @@
       <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
       <Private>False</Private>
     </ProjectReference>
+    <Reference Include="System.Runtime.Caching" />
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

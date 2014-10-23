@@ -141,3 +141,17 @@ module EventStream =
         let eventType = eventTypeMap.FindValue (new ComparableType(evt.GetType()))
         return EventStreamEvent.Event { Body = evt :> obj; EventType = eventType; Metadata = metadata }
     }
+
+    let rec foldStream stream (start : int) acc init = eventStream {
+        let! item = readFromStream stream start
+
+        return!
+            match item with
+            | Some x -> 
+                eventStream { 
+                    let! evt = readValue x
+                    let newValue = acc init evt
+                    return! foldStream stream (start + 1) acc newValue
+                }
+            | None -> eventStream { return init } 
+    }

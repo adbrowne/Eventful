@@ -5,11 +5,18 @@ open Eventful.EventStream
 open FSharpx.Collections
 open FSharpx.Option
 open EventStore.ClientAPI
+open System.Runtime.Caching
 
 module EventStreamInterpreter = 
+    let cachePolicy = new CacheItemPolicy()
+
+    let getCacheKey stream eventNumber =
+        stream + ":" + eventNumber.ToString()
+
     let interpret<'A,'TMetadata when 'TMetadata : equality> 
         (eventStore : Client) 
-        (serializer : ISerializer) 
+        (cache : System.Runtime.Caching.ObjectCache)
+        (serializer : ISerializer)
         (eventTypeMap : Bimap<string, ComparableType>) 
         (prog : FreeEventStream<obj,'A,'TMetadata>) : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * 'TMetadata>) : Async<'A> =
@@ -19,18 +26,35 @@ module EventStreamInterpreter =
                 loop next values writes
             | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
                 async {
-                    let! event = eventStore.readEvent stream eventNumber
+                    let cacheKey = getCacheKey stream eventNumber
+                    let cachedEvent = cache.Get(cacheKey)
+
+                    let! event = 
+                        match cachedEvent with
+                        | :? ResolvedEvent as evt ->
+                            async { return Some evt }
+                        | _ -> 
+                            async {
+                                let! events = eventStore.readStreamSliceForward stream eventNumber 100
+
+                                for event in events do
+                                    let key = getCacheKey stream event.OriginalEventNumber
+                                    let cacheItem = new CacheItem(key, event)
+                                    cache.Set(cacheItem, cachePolicy)
+                                return events |> Seq.tryHead
+                            }
+                        
                     let readEvent = 
-                        if(event.Status = EventReadStatus.Success) then
-                            let event = event.Event.Value.Event
+                        match event with
+                        | Some event ->
+                            let event = event.Event
                             let eventToken = {
                                 Stream = stream
                                 Number = eventNumber
                                 EventType = event.EventType
                             }
                             Some (eventToken, (event.Data, event.Metadata))
-                        else
-                            None
+                        | None -> None
 
                     match readEvent with
                     | Some (eventToken, evt) -> 

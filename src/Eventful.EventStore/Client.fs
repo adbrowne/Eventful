@@ -9,7 +9,17 @@ open Eventful
 /// simple F# wrapper around EventStore functions
 type Client (connection : IEventStoreConnection) =
 
-    let readStream 
+    let readSlice
+        streamId 
+        startPosition 
+        maxItems
+        (readAsync : (string * int * int * bool) -> System.Threading.Tasks.Task<StreamEventsSlice>) =
+        async {
+            let! slice = readAsync(streamId, startPosition, maxItems, true) |> Async.AwaitTask
+            return slice.Events
+        }
+
+    let readStream
         streamId 
         startPosition 
         (readAsync : (string * int * int * bool) -> System.Threading.Tasks.Task<StreamEventsSlice>) =
@@ -36,6 +46,9 @@ type Client (connection : IEventStoreConnection) =
 
     member x.readStreamForward streamId from =
         readStream streamId from connection.ReadStreamEventsForwardAsync
+
+    member x.readStreamSliceForward streamId from maxItems =
+        readSlice streamId from maxItems connection.ReadStreamEventsForwardAsync
 
     member x.readEventFromPosition position = async {
         let! slice = connection.ReadAllEventsForwardAsync(EventPosition.toEventStorePosition position, 1, true) |> Async.AwaitTask
