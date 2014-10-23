@@ -123,22 +123,27 @@ module AggregateIntegrationTests =
     let ``Can run command`` () : unit =
         streamPositionMap := Map.empty
         let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
-            streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
             IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
+            streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
 
         async {
-            let! connection = RunningTests.getConnection()
+            use! connection = RunningTests.getEmbeddedConnection()
             let client = new Client(connection)
 
             do! client.Connect()
+
+            do! client.append "$GettingStartedEvent" -1 [|new EventData(Guid.NewGuid(), "$GettingStartedEvent", false, [||], [||])|]  |> Async.Ignore
 
             let system = newSystem client
 
             system.AddOnCompleteEvent newEvent
 
-            do! system.Start()
-
             let widgetId = { WidgetId.Id = Guid.NewGuid() }
+
+            do! Async.Sleep(2000)
+            do! system.Start()
+            do! Async.Sleep(2000)
+
             let! cmdResult = 
                 system.RunCommand
                     ()
@@ -158,6 +163,7 @@ module AggregateIntegrationTests =
             | Choice1Of2 ({Events = [(streamName, event, metadata)]}) ->
                 streamName |> should equal expectedStreamName
                 event |> should equal expectedEvent
+
                 do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 0)
                 let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
 
@@ -180,7 +186,7 @@ module AggregateIntegrationTests =
             IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
 
         async {
-            let! connection = RunningTests.getConnection()
+            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
             do! client.Connect()

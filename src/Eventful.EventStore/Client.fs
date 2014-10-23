@@ -8,6 +8,7 @@ open Eventful
 
 /// simple F# wrapper around EventStore functions
 type Client (connection : IEventStoreConnection) =
+    let log = createLogger "Eventful.EventStore.Client"
 
     let readSlice
         streamId 
@@ -67,7 +68,8 @@ type Client (connection : IEventStoreConnection) =
     member x.append streamId expectedVersion eventData = async {
         try
             let! result = connection.AppendToStreamAsync(streamId, expectedVersion, eventData) |> Async.AwaitTask
-            
+            log.Debug <| lazy(sprintf "Wrote %A %A %A" streamId expectedVersion (eventData |> Seq.head |> (fun x -> x.Type)))
+
             return WriteResult.WriteSuccess (EventPosition.ofEventStorePosition result.LogPosition)
         with 
             | :? AggregateException as ex ->
@@ -98,10 +100,10 @@ type Client (connection : IEventStoreConnection) =
     member x.subscribe (start : Position option) (handler : Guid -> ResolvedEvent -> Async<unit>) (onLive : (unit -> unit)) =
         let nullablePosition = match start with
                                | Some position -> Nullable.op_Implicit(position)
-                               | None -> Nullable()
+                               | None -> Nullable.op_Implicit(Position.Start)
 
         let onEventHandler (event : ResolvedEvent) =
             handler event.Event.EventId event
             |> Async.RunSynchronously
 
-        connection.SubscribeToAllFrom(nullablePosition, false, (fun _ event -> onEventHandler event), (fun _ -> onLive ()))
+        connection.SubscribeToAllFrom(nullablePosition, false, (fun _ event -> onEventHandler event), (fun _ -> onLive ()), (fun _ reason exn -> log.Debug <| lazy(sprintf "Dropped %A %A" reason exn)))

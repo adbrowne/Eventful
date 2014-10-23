@@ -35,7 +35,7 @@ module EventStoreStreamInterpreterTests =
     [<Trait("requires", "eventstore")>]
     let ``Write and read Event`` () : unit =
         async {
-            let! connection = RunningTests.getConnection()
+            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
             do! client.Connect()
@@ -77,7 +77,7 @@ module EventStoreStreamInterpreterTests =
     [<Trait("requires", "eventstore")>]
     let ``Write and read sequence`` () : unit =
         async {
-            let! connection = RunningTests.getConnection()
+            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
             do! client.Connect()
@@ -125,7 +125,7 @@ module EventStoreStreamInterpreterTests =
     [<Trait("requires", "eventstore")>]
     let ``Wrong Expected Version is Returned`` () : unit =
         async {
-            let! connection = RunningTests.getConnection()
+            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
             do! client.Connect()
@@ -150,7 +150,7 @@ module EventStoreStreamInterpreterTests =
     [<Trait("requires", "eventstore")>]
     let ``Write Position is returned`` () : unit =
         async {
-            let! connection = RunningTests.getConnection()
+            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
             do! client.Connect()
@@ -182,7 +182,7 @@ module EventStoreStreamInterpreterTests =
     [<Trait("requires", "eventstore")>]
     let ``Create a link`` () : unit =
         async {
-            let! connection = RunningTests.getConnection()
+            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
             do! client.Connect()

@@ -72,7 +72,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
 
         let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
         timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
-        subscription <- client.subscribe position x.EventAppeared (fun () -> ()) }
+        subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live")) }
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
         log.Debug <| lazy(sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition)
