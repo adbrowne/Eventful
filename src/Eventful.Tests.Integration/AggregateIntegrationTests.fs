@@ -217,6 +217,6 @@ module AggregateIntegrationTests =
 
             let countsEventProgram = eventCounterStateBuilder |> AggregateStateBuilder.toStreamProgram counterStream widgetId
             let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
-            eventCounterStateBuilder.GetState count |> should equal 1
+            eventCounterStateBuilder.GetState count |> should equal 10
 
         } |> Async.RunSynchronously
