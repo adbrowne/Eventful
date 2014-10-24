@@ -97,7 +97,7 @@
   #          artifacts              #
   #---------------------------------#
   artifacts:
-    - path: '**\*.nupkg' # find all NuGet packages recursively
+    - path: 'build\*.nupkg' # find all NuGet packages recursively
       name: nuget packages
 
   #---------------------------------#
@@ -120,4 +120,14 @@
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: Raven.nupkg
+      artifact: RavenDb.nupkg
+
+    - provider: NuGet
+      api_key:
+        secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
+      artifact: EventStore.nupkg
+
+    - provider: NuGet
+      api_key:
+        secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
+      artifact: Neo4j.nupkg
