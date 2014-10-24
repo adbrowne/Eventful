@@ -1,6 +1,7 @@
 ﻿extern alias fsharpxcore;
 
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Web.Mvc;
 using Eventful;
@@ -9,11 +10,44 @@ using Raven.Client;
 
 namespace BookLibrary.Web.Controllers
 {
+    public class CommentModel
+    {
+        public string Author { get; set; }
+        public string Text { get; set; }
+    }
+
     public class BooksController : Controller
     {
         private readonly IBookLibrarySystem _system;
         private readonly IAsyncDocumentSession _documentSession;
+        private static readonly IList<CommentModel> _comments;
 
+        static BooksController()
+        {
+            _comments = new List<CommentModel>
+            {
+                new CommentModel
+                {
+                    Author = "Daniel Lo Nigro",
+                    Text = "Hello ReactJS.NET World!"
+                },
+                new CommentModel
+                {
+                    Author = "Pete Hunt",
+                    Text = "This is one comment"
+                },
+                new CommentModel
+                {
+                    Author = "Jordan Walke",
+                    Text = "This is *another* comment"
+                },
+            };
+        }
+
+        public ActionResult Comments()
+        {
+            return Json(_comments, JsonRequestBehavior.AllowGet);
+        }
         public BooksController(IBookLibrarySystem system, IAsyncDocumentSession documentSession)
         {
             _system = system;
