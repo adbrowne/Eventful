@@ -74,6 +74,10 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
         timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
         subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live")) }
 
+    member x.Stop () = 
+        if timer <> null then
+            timer.Dispose()
+
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
         match handlers.EventTypeMap|> Bimap.tryFind event.Event.EventType with
         | Some (eventType) ->
@@ -111,3 +115,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
     member x.EventTypeMap = handlers.EventTypeMap
 
     member x.LastEventProcessed = lastEventProcessed
+
+
+    interface IDisposable with
+        member x.Dispose () = x.Stop()

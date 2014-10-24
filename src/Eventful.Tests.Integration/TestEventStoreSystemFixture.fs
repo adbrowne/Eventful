@@ -121,5 +121,5 @@ type TestEventStoreSystemFixture () =
 
     interface IDisposable with
         member this.Dispose () =
+            (system :> IDisposable).Dispose()
             (eventStoreProcess :> IDisposable).Dispose()
-
