@@ -42,8 +42,8 @@ task CreateNugetPackages {
 
   New-Item -force .\packages\Raven\lib\net45 -itemtype directory
   Copy-Item .\Release\Eventful.RavenDb.dll .\packages\Raven\lib\net45
-  exec { & {.\tools\nuget\nuget.exe pack .\packages\Raven\Eventful.Raven.nuspec -version $version -Verbosity detailed}}
-  Move-Item Eventful.Raven.$version.nupkg Raven.nupkg
+  exec { & {.\tools\nuget\nuget.exe pack .\packages\Raven\Eventful.Raven.nuspec -version $version -Verbosity detailed -Properties EventfulVersion=$version}}
+  Move-Item -force Eventful.Raven.$version.nupkg Raven.nupkg
   # Copy-Item .\Release\Eventful.EventStore.dll .\package\lib\net45
   # Copy-Item .\Release\Eventful.RavenDB.dll .\package\lib\net45
 }

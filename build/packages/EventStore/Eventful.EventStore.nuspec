@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package >
+  <metadata minClientVersion="2.5">
+    <id>Eventful.EventStore</id>
+    <version>1.0.0.0</version>
+    <authors>Andrew Browne, Picnic Software</authors>
+    <owners>Andrew Browne</owners>
+    <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
+    <projectUrl>https://github.com/adbrowne/eventful</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>An EventSourcing library</description>
+    <copyright>Copyright 2014</copyright>
+    <dependencies>
+      <dependency id="FSharpx.Collections" version="1.9.2" />
+      <dependency id="Common.Logging" version="2.0" />
+      <dependency id="Eventful" version="$EventfulVersion$" />
+      <dependency id="EventStore.Client" version="3.0" />
+    </dependencies>
+  </metadata>
+</package>
