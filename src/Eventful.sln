@@ -31,6 +31,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Tests", "Eventful.
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Tests.Integration", "Eventful.Tests.Integration\Eventful.Tests.Integration.fsproj", "{EB1D6947-29B2-4B74-AE9C-D36AC7778C7E}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Neo4j", "Eventful.Neo4j\Eventful.Neo4j.fsproj", "{01019B14-EDAD-4754-BA5B-7C49D1D63326}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,10 @@ Global
 		{EB1D6947-29B2-4B74-AE9C-D36AC7778C7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EB1D6947-29B2-4B74-AE9C-D36AC7778C7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EB1D6947-29B2-4B74-AE9C-D36AC7778C7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{01019B14-EDAD-4754-BA5B-7C49D1D63326}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{01019B14-EDAD-4754-BA5B-7C49D1D63326}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{01019B14-EDAD-4754-BA5B-7C49D1D63326}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{01019B14-EDAD-4754-BA5B-7C49D1D63326}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

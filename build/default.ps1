@@ -31,21 +31,21 @@ task Test -depends MsBuildRelease {
 task Package -depends Clean, RestorePackages, MsBuildRelease, CreateNugetPackage {
 }
 
-task CreateNugetPackage {
+task CreateNugetPackages {
   $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
   $version = "$version-beta"
-  Write-Host "Creating directory"
-  New-Item -force .\package\lib\net45 -itemtype directory
-  Write-Host "Copying .\Release\Eventful.dll"
-  Copy-Item .\Release\Eventful.dll .\package\lib\net45
-  Write-Host "Copying .\Release\Eventful.EventStore.dll"
-  Copy-Item .\Release\Eventful.EventStore.dll .\package\lib\net45
-  Write-Host "Copying .\Release\Eventful.RavenDB.dll"
-  Copy-Item .\Release\Eventful.RavenDB.dll .\package\lib\net45
-  Write-Host "Running nuget"
-  exec { & {.\tools\nuget\nuget.exe pack .\package\Eventful.nuspec -version $version -Verbosity detailed}}
-  Write-Host "Copying output"
-  Copy-Item Eventful.$version.nupkg output.nupkg
+
+  New-Item -force .\packages\Eventful\lib\net45 -itemtype directory
+  Copy-Item .\Release\Eventful.dll .\packages\Eventful\lib\net45
+  exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful\Eventful.nuspec -version $version -Verbosity detailed}}
+  Move-Item -force Eventful.$version.nupkg Eventful.nupkg
+
+  New-Item -force .\packages\Raven\lib\net45 -itemtype directory
+  Copy-Item .\Release\Eventful.RavenDb.dll .\packages\Raven\lib\net45
+  exec { & {.\tools\nuget\nuget.exe pack .\packages\Raven\Eventful.Raven.nuspec -version $version -Verbosity detailed}}
+  Move-Item Eventful.Raven.$version.nupkg Raven.nupkg
+  # Copy-Item .\Release\Eventful.EventStore.dll .\package\lib\net45
+  # Copy-Item .\Release\Eventful.RavenDB.dll .\package\lib\net45
 }
 
 task PackagePush -depends Package {
