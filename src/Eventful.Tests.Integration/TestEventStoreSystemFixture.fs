@@ -108,7 +108,13 @@ type TestEventStoreSystemFixture () =
     let newSystem client = new EventStoreSystem<unit,unit,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, ())
 
     let system = newSystem client
-    do system.Start() |> Async.RunSynchronously
+
+    let mutable started = false
+    do while not started do
+        try
+            do system.Start() |> Async.RunSynchronously
+            started <- true
+        with | _ -> started <- false
 
     member x.Connection = eventStoreProcess.Connection
     member x.System = system

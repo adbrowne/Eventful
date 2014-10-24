@@ -21,12 +21,15 @@ module InMemoryEventStoreRunner =
                  Console.WriteLine(sprintf "Exception disposing connection %A" ex)
                 
              this.Process.Kill()
+             this.Process.WaitForExit()
              this.Process.Dispose()
 
 
     let eventStoreDirectory = ".\EventStore3"
     let installCompleteMarkerFile = Path.Combine(eventStoreDirectory, "test_setup.mrk")
     let clusterNodeExecutable = Path.Combine(eventStoreDirectory, "EventStore.ClusterNode.exe")
+    let testClusterNodeProcessName = "EventStore.ClusterNode.Test"
+    let testClusterNodeExecutable = Path.Combine(eventStoreDirectory, testClusterNodeProcessName + ".exe")
     let windowsEventStoreUri = "http://download.geteventstore.com/binaries/EventStore-OSS-Win-v3.0.0.zip"
     let testTcpPort = 11130
     let testHttpPort = 21130
@@ -58,6 +61,12 @@ module InMemoryEventStoreRunner =
 
             zipEntry := (zipInputStream.GetNextEntry())
 
+    // this ensures that when we shutdown processes with this
+    // name we don't shutdown any normal cluster nodes
+    // on the machine
+    let makeTestExecutableCopy () =
+        File.Copy(clusterNodeExecutable, testClusterNodeExecutable)
+
     // funny pun below
     let getEventStore () =
         if Directory.Exists(eventStoreDirectory) then
@@ -66,6 +75,7 @@ module InMemoryEventStoreRunner =
         let webClient = new System.Net.WebClient()
         use readStream = webClient.OpenRead(windowsEventStoreUri)
         unzipFromStream readStream eventStoreDirectory
+        makeTestExecutableCopy()
 
     let ensureEventStoreExists () =
         let exists = File.Exists(installCompleteMarkerFile)
@@ -74,8 +84,11 @@ module InMemoryEventStoreRunner =
 
         File.WriteAllText(installCompleteMarkerFile, "Complete")
 
-    let startInMemoryEventStore () =
-        ensureEventStoreExists () 
+    let ensureNoZombieEventStores () =
+        for proc in Process.GetProcessesByName(testClusterNodeProcessName) do
+            IntegrationTests.runUntilSuccess 100 (fun () -> proc.Kill(); proc.WaitForExit())
+
+    let startNewProcess () =
         let processArguments = 
             let timeoutOptions = "--Int-Tcp-Heartbeat-Timeout=50000 --Ext-Tcp-Heartbeat-Timeout=50000"
             let portOptions = 
@@ -91,36 +104,53 @@ module InMemoryEventStoreRunner =
                 portOptions
                 timeoutOptions
 
-        let startInfo = new System.Diagnostics.ProcessStartInfo(clusterNodeExecutable, processArguments)
-        startInfo.CreateNoWindow <- true
-        startInfo.UseShellExecute <- false
-        startInfo.RedirectStandardOutput <- true
-        
-        let processInfo = System.Diagnostics.Process.Start(startInfo)
+        let startInfo = 
+            System.Diagnostics.ProcessStartInfo(
+                testClusterNodeExecutable, 
+                processArguments,
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true)
+
+        let eventStoreProcess = Process.Start(startInfo)
 
         try
             let mutable started = false
 
             while not started do
-                let line = processInfo.StandardOutput.ReadLine()
+                let line = eventStoreProcess.StandardOutput.ReadLine()
+                if line <> null then
+                    IntegrationTests.log.Debug (lazy line)
                 if line <> null && line.Contains("SystemInit") then started <- true
-
-            let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, testTcpPort)
-            let connectionSettingsBuilder = 
-                ConnectionSettings
-                    .Create()
-                    .SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit"))
-
-            let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
-
-            let connection = EventStoreConnection.Create(connectionSettings, ipEndPoint)
-
-            connection.ConnectAsync().Wait()
-
-            {
-                Process = processInfo
-                Connection = connection
-            }
-        with | ex ->
-            processInfo.Kill()
+            eventStoreProcess
+        with | _ ->
+            eventStoreProcess.Kill()
             reraise()
+
+    let connectToEventStore () =
+        let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, testTcpPort)
+        let connectionSettingsBuilder = 
+            ConnectionSettings
+                .Create()
+                .SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit"))
+
+        let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
+
+        let connection = EventStoreConnection.Create(connectionSettings, ipEndPoint)
+
+        connection.ConnectAsync().Wait()
+
+        IntegrationTests.runUntilSuccess 100 (fun () -> connection.ReadAllEventsForwardAsync(EventStore.ClientAPI.Position.Start, 1, false) |> Async.AwaitTask |> Async.RunSynchronously) |> ignore
+
+        connection
+
+    let startInMemoryEventStore () =
+        ensureNoZombieEventStores ()
+        ensureEventStoreExists () 
+        let eventStoreProcess = startNewProcess ()
+        let connection = connectToEventStore ()
+
+        {
+            Process = eventStoreProcess
+            Connection = connection
+        }
