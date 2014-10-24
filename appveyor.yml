@@ -87,8 +87,7 @@
   test:
     assemblies:
       - Eventful.Tests.dll
-      - SchoolReports.dll
-      - EmergencyRoom.dll
+      - Eventful.Tests.Integration.dll
     categories:
       - unit
       - eventstore
