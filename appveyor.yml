@@ -79,7 +79,7 @@
   #---------------------------------#
   before_build: nuget restore src\Eventful.sln
   after_build: 
-    ps: .\build\build.ps1 CreateNugetPackages
+    ps: .\build\build.ps1 AppveyorPostBuild
 
   #---------------------------------#
   #             tests               #
@@ -105,8 +105,7 @@
   #---------------------------------#
   cache:
       - src\packages
-      - build\Release\eventstore3
-      - build\Debug\eventstore3
+      - build\EventStore3
   #---------------------------------#
   #     deployment configuration    #
   #---------------------------------#

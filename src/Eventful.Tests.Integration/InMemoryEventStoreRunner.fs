@@ -25,64 +25,13 @@ module InMemoryEventStoreRunner =
              this.Process.Dispose()
 
 
-    let eventStoreDirectory = ".\EventStore3"
+    let eventStoreDirectory = "..\EventStore3"
     let installCompleteMarkerFile = Path.Combine(eventStoreDirectory, "test_setup.mrk")
     let clusterNodeExecutable = Path.Combine(eventStoreDirectory, "EventStore.ClusterNode.exe")
     let testClusterNodeProcessName = "EventStore.ClusterNode.Test"
     let testClusterNodeExecutable = Path.Combine(eventStoreDirectory, testClusterNodeProcessName + ".exe")
-    let windowsEventStoreUri = "http://download.geteventstore.com/binaries/EventStore-OSS-Win-v3.0.0.zip"
     let testTcpPort = 11130
     let testHttpPort = 21130
-
-    // adapted from https://github.com/icsharpcode/SharpZipLib/wiki/Zip-Samples#-unpack-a-zip-using-zipinputstream-eg-for-unseekable-input-streams
-    let unzipFromStream (zipStream:Stream) (outFolder : string) =
-        let zipInputStream = new ZipInputStream(zipStream)
-        let zipEntry = ref (zipInputStream.GetNextEntry())
-        while (!zipEntry <> null) do
-            let entryFileName = (!zipEntry).Name
-            // to remove the folder from the entry:- entryFileName = Path.GetFileName(entryFileName);
-            // Optionally match entrynames against a selection list here to skip as desired.
-            // The unpacked length is available in the zipEntry.Size property.
-
-            let buffer = Array.zeroCreate<byte> 4096;     // 4K is optimum
-
-            // Manipulate the output filename here as desired.
-            let fullZipToPath = Path.Combine(outFolder, entryFileName)
-            let directoryName = Path.GetDirectoryName(fullZipToPath)
-            if (directoryName.Length > 0) then
-                Directory.CreateDirectory(directoryName) |> ignore
-
-            // Unzip file in buffered chunks. This is just as fast as unpacking to a buffer the full size
-            // of the file, but does not waste memory.
-            // The "using" will close the stream even if an exception occurs.
-            if (!zipEntry).IsFile then
-                use streamWriter = File.Create(fullZipToPath)
-                StreamUtils.Copy(zipInputStream, streamWriter, buffer)
-
-            zipEntry := (zipInputStream.GetNextEntry())
-
-    // this ensures that when we shutdown processes with this
-    // name we don't shutdown any normal cluster nodes
-    // on the machine
-    let makeTestExecutableCopy () =
-        File.Copy(clusterNodeExecutable, testClusterNodeExecutable)
-
-    // funny pun below
-    let getEventStore () =
-        if Directory.Exists(eventStoreDirectory) then
-            Directory.Delete(eventStoreDirectory, true)
-
-        let webClient = new System.Net.WebClient()
-        use readStream = webClient.OpenRead(windowsEventStoreUri)
-        unzipFromStream readStream eventStoreDirectory
-        makeTestExecutableCopy()
-
-    let ensureEventStoreExists () =
-        let exists = File.Exists(installCompleteMarkerFile)
-
-        if not exists then getEventStore()
-
-        File.WriteAllText(installCompleteMarkerFile, "Complete")
 
     let ensureNoZombieEventStores () =
         for proc in Process.GetProcessesByName(testClusterNodeProcessName) do
@@ -146,7 +95,6 @@ module InMemoryEventStoreRunner =
 
     let startInMemoryEventStore () =
         ensureNoZombieEventStores ()
-        ensureEventStoreExists () 
         let eventStoreProcess = startNewProcess ()
         let connection = connectToEventStore ()
 
