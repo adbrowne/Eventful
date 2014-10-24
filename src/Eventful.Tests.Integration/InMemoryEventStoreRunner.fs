@@ -2,8 +2,6 @@
 
 open System
 open System.IO
-open ICSharpCode.SharpZipLib.Zip
-open ICSharpCode.SharpZipLib.Core
 open System.Diagnostics
 open EventStore.ClientAPI
 

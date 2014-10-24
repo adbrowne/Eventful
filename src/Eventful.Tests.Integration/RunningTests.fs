@@ -10,9 +10,7 @@ open Newtonsoft.Json
 //open FsUnit.Xunit
 open Eventful
 open Eventful.EventStore
-open EventStore.ClientAPI.Embedded
-open EventStore.Core.Data;
-//
+
 module RunningTests = 
     let log = createLogger "Eventful.Tests.Integration.RunningTests"
 
