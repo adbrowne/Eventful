@@ -9,13 +9,16 @@ open FsUnit.Xunit
 open Eventful
 open Eventful.EventStore
 
-module PositionTests = 
+type PositionTests () = 
+
+    let mutable connection : EventStore.ClientAPI.IEventStoreConnection = null
+
     [<Fact>]
+    [<Trait("category", "eventstore")>]
     let ``Set and get position`` () : unit = 
         async {
             let commitPosition = 1234L
             let preparePosition = 5678L
-            let! connection = RunningTests.getConnection()
             let client = new Client(connection)
 
             do! ProcessingTracker.setPosition client { Commit = commitPosition; Prepare = preparePosition}
@@ -26,3 +29,7 @@ module PositionTests =
             | Some { Commit = commit; Prepare = prepare } when commit = commitPosition && prepare = preparePosition -> Assert.True(true)
             | p -> Assert.True(false, (sprintf "Unexpected position %A" p))
         } |> Async.RunSynchronously
+
+    interface Xunit.IUseFixture<EventStoreFixture> with
+        member x.SetFixture(fixture) =
+            connection <- fixture.Connection

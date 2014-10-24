@@ -8,15 +8,17 @@ open Eventful.EventStream
 open Eventful.EventStore
 open Eventful.Testing
 
-module EventStoreStreamInterpreterTests = 
+type MyEvent = {
+    Name : string
+}
 
-    type MyEvent = {
-        Name : string
-    }
+type NumberValue = {
+    Value : int
+}
 
-    type NumberValue = {
-        Value : int
-    }
+type EventStoreStreamInterpreterTests () = 
+
+    let mutable connection : EventStore.ClientAPI.IEventStoreConnection = null
 
     let newId () : string =
         Guid.NewGuid().ToString()
@@ -32,13 +34,10 @@ module EventStoreStreamInterpreterTests =
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
 
     [<Fact>]
-    [<Trait("requires", "eventstore")>]
+    [<Trait("category", "eventstore")>]
     let ``Write and read Event`` () : unit =
         async {
-            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
-
-            do! client.Connect()
 
             let run program =
                 EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
@@ -74,13 +73,10 @@ module EventStoreStreamInterpreterTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
-    [<Trait("requires", "eventstore")>]
+    [<Trait("category", "eventstore")>]
     let ``Write and read sequence`` () : unit =
         async {
-            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
-
-            do! client.Connect()
 
             let run program =
                 EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
@@ -122,13 +118,10 @@ module EventStoreStreamInterpreterTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
-    [<Trait("requires", "eventstore")>]
+    [<Trait("category", "eventstore")>]
     let ``Wrong Expected Version is Returned`` () : unit =
         async {
-            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
-
-            do! client.Connect()
 
             let run program =
                 EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
@@ -147,13 +140,10 @@ module EventStoreStreamInterpreterTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
-    [<Trait("requires", "eventstore")>]
+    [<Trait("category", "eventstore")>]
     let ``Write Position is returned`` () : unit =
         async {
-            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
-
-            do! client.Connect()
 
             let run program =
                 EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
@@ -179,13 +169,10 @@ module EventStoreStreamInterpreterTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
-    [<Trait("requires", "eventstore")>]
+    [<Trait("category", "eventstore")>]
     let ``Create a link`` () : unit =
         async {
-            use! connection = RunningTests.getConnection()
             let client = new Client(connection)
-
-            do! client.Connect()
 
             let run program =
                 EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
@@ -218,3 +205,7 @@ module EventStoreStreamInterpreterTests =
 
             readResult |> should equal (Some event.Name)
         } |> Async.RunSynchronously
+
+    interface Xunit.IUseFixture<EventStoreFixture> with
+        member x.SetFixture(fixture) =
+            connection <- fixture.Connection

@@ -394,7 +394,6 @@ module AggregateActionBuilder =
              member this.EventType = typeof<'TLinkEvent>
              member this.AddStateBuilder builders = builders
              member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData<'TMetadata>) = eventStream {
-                Console.WriteLine "Running onLink Handler"
                 let aggregateId = fId (evt.Body :?> 'TLinkEvent)
                 let aggregateGuid = aggregateConfig.GetAggregateId aggregateId
                 let metadata =  
@@ -406,7 +405,9 @@ module AggregateActionBuilder =
                 let! result = EventStream.writeLink resultingStream Any sourceStream sourceEventNumber metadata
                 return 
                     match result with
-                    | WriteResult.WriteSuccess _ -> ()
+                    | WriteResult.WriteSuccess _ -> 
+                        log.Debug <| lazy (sprintf "Wrote Link To %A %A %A" DateTime.Now.Ticks sourceStream sourceEventNumber)
+                        ()
                     | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
                     | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
                     | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"

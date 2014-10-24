@@ -91,6 +91,7 @@
       - EmergencyRoom.dll
     categories:
       - unit
+      - eventstore
       
   #---------------------------------#
   #          artifacts              #

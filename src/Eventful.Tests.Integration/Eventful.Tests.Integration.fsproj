@@ -61,9 +61,12 @@
   </Target>
   <ItemGroup>
     <Compile Include="IntegrationTests.fs" />
+    <Compile Include="InMemoryEventStoreRunner.fs" />
+    <Compile Include="EventStoreFixture.fs" />
     <Compile Include="RavenDbPlay.fs" />
     <Compile Include="RunningTests.fs" />
     <Compile Include="EventStoreStreamInterpreterTests.fs" />
+    <Compile Include="TestEventStoreSystemFixture.fs" />
     <Compile Include="AggregateIntegrationTests.fs" />
     <Compile Include="PositionTests.fs" />
     <Compile Include="RavenOperationTests.fs" />
@@ -113,6 +116,10 @@
     </Reference>
     <Reference Include="FsUnit.Xunit">
       <HintPath>..\packages\FsUnit.xUnit.1.3.0.1\Lib\net40\FsUnit.Xunit.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>..\packages\SharpZipLib.0.86.0\lib\20\ICSharpCode.SharpZipLib.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Metrics">

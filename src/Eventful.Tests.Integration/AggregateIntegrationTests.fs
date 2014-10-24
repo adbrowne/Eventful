@@ -2,7 +2,6 @@
 
 open Xunit
 open System
-open EventStore.ClientAPI
 open FsUnit.Xunit
 open FSharpx
 open Eventful
@@ -14,94 +13,11 @@ open Eventful.Testing
 
 open FSharpx.Option
 
-module IntegrationHelpers =
-    let systemConfiguration = { 
-        SetSourceMessageId = (fun id metadata -> { metadata with SourceMessageId = id })
-        SetMessageId = (fun id metadata -> { metadata with MessageId = id })
-    }
+open TestEventStoreSystemHelpers
 
-    let emptyMetadata : Eventful.Testing.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
+type AggregateIntegrationTests () = 
 
-    let inline buildMetadata aggregateId messageId sourceMessageId = { 
-            SourceMessageId = sourceMessageId 
-            MessageId = messageId 
-            AggregateId = aggregateId }
-
-    let inline withMetadata f cmd = 
-        let cmdResult = f cmd
-        (cmdResult, buildMetadata)
-
-    let inline simpleHandler s f = 
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s (withMetadata f)
-    let inline buildSimpleCmdHandler s f = 
-        Eventful.AggregateActionBuilder.buildSimpleCmdHandler systemConfiguration s (withMetadata f)
-    let inline onEvent fId s f = 
-        let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata))
-        Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
-    let inline linkEvent fId f = 
-        let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }))
-        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f buildMetadata
-
-open IntegrationHelpers
-
-module AggregateIntegrationTests = 
-    type AggregateType =
-    | Widget
-    | WidgetCounter
-
-    type WidgetId = 
-        {
-            Id : Guid
-        } 
-
-    type CreateWidgetCommand = {
-        WidgetId : WidgetId
-        Name : string
-    }
-
-    type WidgetCreatedEvent = {
-        WidgetId : WidgetId
-        Name : string
-    }
-
-    type WidgetEvents =
-    | Created of WidgetCreatedEvent
-
-    type WidgetCounterEvents =
-    | Counted of WidgetCreatedEvent
-
-    let getStreamName typeName () (id:WidgetId) =
-        sprintf "%s-%s" typeName (id.Id.ToString("N"))
-        
-    let widgetCmdHandlers = 
-        seq {
-               let addWidget (cmd : CreateWidgetCommand) =
-                   Created { 
-                       WidgetId = cmd.WidgetId
-                       Name = cmd.Name
-               } 
-
-               yield addWidget
-                     |> simpleHandler StateBuilder.nullStateBuilder
-                     |> buildCmd
-            }
-
-    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getStreamName "Widget") (fun (x : WidgetId) -> x.Id) widgetCmdHandlers Seq.empty
-
-    let widgetCounterEventHandlers =
-        seq {
-                let getId (evt : WidgetCreatedEvent) = evt.WidgetId
-                yield linkEvent getId WidgetCounterEvents.Counted
-            }
-
-    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter") (fun (x : WidgetId) -> x.Id) Seq.empty widgetCounterEventHandlers
-
-    let handlers =
-        EventfulHandlers.empty
-        |> EventfulHandlers.addAggregate widgetHandlers
-        |> EventfulHandlers.addAggregate widgetCounterAggregate
-
-    let newSystem client = new EventStoreSystem<unit,unit,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, ())
+    let mutable system : EventStoreSystem<unit, unit, TestMetadata> option = None
 
     let streamPositionMap : Map<string, int> ref = ref Map.empty
 
@@ -119,7 +35,7 @@ module AggregateIntegrationTests =
         |> (fun x -> x :> IStateBuilder<_, _, _>)
 
     [<Fact>]
-    [<Trait("requires", "eventstore")>]
+    [<Trait("category", "eventstore")>]
     let ``Can run command`` () : unit =
         streamPositionMap := Map.empty
         let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
@@ -127,22 +43,10 @@ module AggregateIntegrationTests =
             streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
 
         async {
-            use! connection = RunningTests.getEmbeddedConnection()
-            let client = new Client(connection)
-
-            do! client.Connect()
-
-            do! client.append "$GettingStartedEvent" -1 [|new EventData(Guid.NewGuid(), "$GettingStartedEvent", false, [||], [||])|]  |> Async.Ignore
-
-            let system = newSystem client
-
+            let system = system.Value
             system.AddOnCompleteEvent newEvent
 
             let widgetId = { WidgetId.Id = Guid.NewGuid() }
-
-            do! Async.Sleep(2000)
-            do! system.Start()
-            do! Async.Sleep(2000)
 
             let! cmdResult = 
                 system.RunCommand
@@ -178,24 +82,17 @@ module AggregateIntegrationTests =
         } |> Async.RunSynchronously
 
     [<Fact>]
-    [<Trait("requires", "eventstore")>]
-    let ``Can run many command`` () : unit =
+    [<Trait("category", "eventstore")>]
+    let ``Can run many commands`` () : unit =
         streamPositionMap := Map.empty
         let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
             streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
             IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
 
         async {
-            use! connection = RunningTests.getConnection()
-            let client = new Client(connection)
-
-            do! client.Connect()
-
-            let system = newSystem client
+            let system = system.Value
 
             system.AddOnCompleteEvent newEvent
-
-            do! system.Start()
 
             let widgetId = { WidgetId.Id = Guid.NewGuid() }
 
@@ -226,3 +123,7 @@ module AggregateIntegrationTests =
             eventCounterStateBuilder.GetState count |> should equal 10
 
         } |> Async.RunSynchronously
+
+    interface Xunit.IUseFixture<TestEventStoreSystemFixture> with
+        member x.SetFixture(fixture) =
+            system <- Some fixture.System

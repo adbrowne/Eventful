@@ -75,10 +75,9 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
         subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live")) }
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
-        log.Debug <| lazy(sprintf "Received: %A: %A %A" eventId event.Event.EventType event.OriginalPosition)
-
         match handlers.EventTypeMap|> Bimap.tryFind event.Event.EventType with
         | Some (eventType) ->
+            log.Debug <| lazy(sprintf "Running Handler for: %A: %A %A" event.Event.EventType event.OriginalEvent.EventStreamId event.OriginalEvent.EventNumber)
             async {
                 let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
                 completeTracker.Start position
