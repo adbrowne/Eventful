@@ -146,16 +146,3 @@ module Prelude =
        let mutable intvalue = 0L
        if System.Int64.TryParse(str, &intvalue) then Some(intvalue)
        else None
-
-open System
-
-/// System.Type does not implement IComparable
-/// This is a convenient wrapper class that fixes 
-/// that by just comparing on the AssemblyQualifiedName
-type ComparableType (t : Type) =
-    member this.RealType with get() : Type = t
-    static member GetRealType (x : ComparableType) = x.RealType.AssemblyQualifiedName
-    override x.Equals y = equalsOn ComparableType.GetRealType x y
-    override x.GetHashCode() = hashOn ComparableType.GetRealType x
-    interface System.IComparable with
-        member x.CompareTo y = compareOn ComparableType.GetRealType x y

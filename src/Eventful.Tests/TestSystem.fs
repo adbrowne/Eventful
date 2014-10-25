@@ -15,7 +15,13 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
     ) =
 
     let interpret prog (testEventStore : TestEventStore<'TMetadata>) =
-        TestInterpreter.interpret prog testEventStore handlers.EventTypeMap Map.empty Vector.empty
+        TestInterpreter.interpret 
+            prog 
+            testEventStore 
+            handlers.EventStoreTypeToClassMap 
+            handlers.ClassToEventStoreTypeMap
+            Map.empty 
+            Vector.empty
 
     member x.RunCommand (cmd : obj) =    
         let cmdType = cmd.GetType()

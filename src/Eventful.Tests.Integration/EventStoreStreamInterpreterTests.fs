@@ -7,6 +7,7 @@ open Eventful
 open Eventful.EventStream
 open Eventful.EventStore
 open Eventful.Testing
+open FSharpx.Collections
 
 type MyEvent = {
     Name : string
@@ -26,12 +27,20 @@ type EventStoreStreamInterpreterTests () =
     let event = { Name = "Andrew Browne" }
     let metadata = { SourceMessageId = Guid.NewGuid().ToString(); MessageId = Guid.NewGuid(); AggregateId = Guid.NewGuid() }
 
-    let eventNameMapping = 
-        Bimap.Empty
-        |> Bimap.addNew typeof<MyEvent>.Name (new ComparableType(typeof<MyEvent>))
-        |> Bimap.addNew typeof<NumberValue>.Name (new ComparableType(typeof<NumberValue>))
+    let classToEventTypeName =
+        PersistentHashMap.empty
+        |> PersistentHashMap.add typeof<MyEvent> typeof<MyEvent>.Name
+        |> PersistentHashMap.add typeof<NumberValue> typeof<NumberValue>.Name
+
+    let eventTypeToClassMap = 
+        PersistentHashMap.empty 
+        |> PersistentHashMap.add typeof<MyEvent>.Name typeof<MyEvent> 
+        |> PersistentHashMap.add typeof<NumberValue>.Name typeof<NumberValue> 
 
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
+
+    let run client program =
+        EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventTypeToClassMap classToEventTypeName program
 
     [<Fact>]
     [<Trait("category", "eventstore")>]
@@ -39,8 +48,7 @@ type EventStoreStreamInterpreterTests () =
         async {
             let client = new Client(connection)
 
-            let run program =
-                EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
+            let run program = run client program
 
             let stream = "MyStream-" + (newId())
 
@@ -78,8 +86,7 @@ type EventStoreStreamInterpreterTests () =
         async {
             let client = new Client(connection)
 
-            let run program =
-                EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
+            let run program = run client program
 
             let stream = "MyStream-" + (newId())
 
@@ -123,8 +130,7 @@ type EventStoreStreamInterpreterTests () =
         async {
             let client = new Client(connection)
 
-            let run program =
-                EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
+            let run program = run client program
 
             let stream = "MyStream-" + (newId())
 
@@ -145,8 +151,7 @@ type EventStoreStreamInterpreterTests () =
         async {
             let client = new Client(connection)
 
-            let run program =
-                EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
+            let run program = run client program
 
             let stream = "MyStream-" + (newId())
 
@@ -174,8 +179,7 @@ type EventStoreStreamInterpreterTests () =
         async {
             let client = new Client(connection)
 
-            let run program =
-                EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventNameMapping program
+            let run program = run client program
 
             let sourceStream = "SourceStream-" + (newId())
             let stream = "MyStream-" + (newId())

@@ -110,9 +110,10 @@ type TopShelfService () =
                 |> Option.map (fun eventPosition -> new EventStore.ClientAPI.Position(eventPosition.Commit, eventPosition.Prepare))
 
             let handle id (re : EventStore.ClientAPI.ResolvedEvent) =
-                match system.EventTypeMap.TryFind re.Event.EventType with
-                | Some comparableType ->
-                    let evtObj = ApplicationConfig.esSerializer.DeserializeObj re.Event.Data comparableType.RealType.FullName
+                match system.EventStoreTypeToClassMap.ContainsKey re.Event.EventType with
+                | true ->
+                    let eventClass = system.EventStoreTypeToClassMap.Item re.Event.EventType
+                    let evtObj = ApplicationConfig.esSerializer.DeserializeObj re.Event.Data eventClass.FullName
                     let metadata = ApplicationConfig.esSerializer.DeserializeObj re.Event.Metadata typeof<BookLibraryEventMetadata>.FullName :?> BookLibraryEventMetadata
 
                     let eventStoreMessage : EventStoreMessage = {
@@ -125,7 +126,7 @@ type TopShelfService () =
                     }
 
                     bulkRavenProjector.Enqueue (eventStoreMessage)
-                | None -> async { () }
+                | false -> async { () }
 
             let onLive _ = ()
 

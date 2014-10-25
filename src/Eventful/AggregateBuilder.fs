@@ -431,18 +431,17 @@ module AggregateActionBuilder =
                     |> AggregateStateBuilder.toStreamProgram resultingStream eventKey
                 let state = stateBuilder.GetState combinedState
 
-                let! eventTypeMap = getEventTypeMap()
-
-                let resultingEvents = 
+                let! resultingEvents = 
                     runEvent state typedEvent
-                    |> Seq.map (fun (x,metadata) -> 
+                    |> Seq.toList
+                    |> EventStream.mapM (fun (x,metadata) -> 
                         let aggregateId = aggregateConfig.GetAggregateId eventKey
                         let metadata =  
                             metadata aggregateId (Guid.NewGuid()) (Guid.NewGuid().ToString())
 
                         let event = unwrapper x
-                        let eventType = eventTypeMap.FindValue (new ComparableType(event.GetType()))
-                        Event { Body = event; EventType = eventType; Metadata = metadata })
+
+                        getEventStreamEvent event metadata)
 
                 let expectedVersion = 
                     match eventsConsumed with

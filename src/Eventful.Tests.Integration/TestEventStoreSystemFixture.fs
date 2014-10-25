@@ -39,7 +39,6 @@ module TestEventStoreSystemHelpers =
         let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata))
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
     let inline linkEvent fId f = 
-        let withMetadata f = f >> (fun x -> (x, { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty }))
         Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f buildMetadata
 
 type AggregateType =
@@ -99,10 +98,16 @@ type TestEventStoreSystemFixture () =
 
     let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter") (fun (x : WidgetId) -> x.Id) Seq.empty widgetCounterEventHandlers
 
+    let addEventType evtType handlers =
+        handlers
+        |> EventfulHandlers.addClassToEventStoreType evtType evtType.Name
+        |> EventfulHandlers.addEventStoreType evtType.Name evtType 
+
     let handlers =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate widgetHandlers
         |> EventfulHandlers.addAggregate widgetCounterAggregate
+        |> addEventType typeof<WidgetCreatedEvent>
 
     let client = new Client(eventStoreProcess.Connection)
     let newSystem client = new EventStoreSystem<unit,unit,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, ())

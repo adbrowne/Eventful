@@ -17,12 +17,16 @@ module EventStreamInterpreter =
         (eventStore : Client) 
         (cache : System.Runtime.Caching.ObjectCache)
         (serializer : ISerializer)
-        (eventTypeMap : Bimap<string, ComparableType>) 
+        (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
+        (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
         (prog : FreeEventStream<obj,'A,'TMetadata>) : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * 'TMetadata>) : Async<'A> =
             match prog with
-            | FreeEventStream (GetEventTypeMap ((), f)) ->
-                let next = f eventTypeMap
+            | FreeEventStream (GetEventStoreTypeToClassMap ((), f)) ->
+                let next = f eventStoreTypeToClassMap
+                loop next values writes
+            | FreeEventStream (GetClassToEventStoreTypeMap ((), f)) ->
+                let next = f classToEventStoreTypeMap
                 loop next values writes
             | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
                 async {
@@ -67,7 +71,7 @@ module EventStreamInterpreter =
                 }
             | FreeEventStream (ReadValue (token, g)) ->
                 let (data, metadata) = values.[token]
-                let typeName = (eventTypeMap.Find token.EventType).RealType.FullName
+                let typeName = eventStoreTypeToClassMap.Item(token.EventType).FullName
                 let dataObj = serializer.DeserializeObj(data) typeName
                 let metadataObj = serializer.DeserializeObj(metadata) typeof<'TMetadata>.AssemblyQualifiedName :?> 'TMetatdata
                 let next = g (dataObj,metadataObj)

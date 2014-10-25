@@ -53,11 +53,24 @@ module ApplicationConfig =
             return! connection.ConnectAsync().ContinueWith(fun t -> connection) |> Async.AwaitTask
         }
 
+    let addEventType evtType handlers =
+        handlers
+        |> EventfulHandlers.addClassToEventStoreType evtType evtType.Name
+        |> EventfulHandlers.addEventStoreType evtType.Name evtType 
+
+    let addEventTypes evtTypes handlers =
+        Array.fold (fun h x -> addEventType x h) handlers evtTypes
+
+    let eventTypes =
+        System.Reflection.Assembly.GetExecutingAssembly()
+        |> Eventful.Utils.getLoadableTypes
+
     let handlers =
         EventfulHandlers.empty
         |> EventfulHandlers.addAggregate (Book.handlers ())
         |> EventfulHandlers.addAggregate (BookCopy.handlers ())
         |> EventfulHandlers.addAggregate (Award.handlers ())
+        |> addEventTypes eventTypes
 
     let buildEventStoreSystem client =
         new EventStoreSystem<unit,unit,BookLibraryEventMetadata>(handlers, client, esSerializer, ())

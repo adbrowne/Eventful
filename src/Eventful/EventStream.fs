@@ -19,7 +19,8 @@ type EventStreamEventData<'TMetadata> = {
     Metadata : 'TMetadata
 }
 
-type EventTypeMap = Bimap<string, ComparableType>
+type EventStoreTypeToClassMap = FSharpx.Collections.PersistentHashMap<string, Type>
+type ClassToEventStoreTypeMap = FSharpx.Collections.PersistentHashMap<Type, string>
 
 type EventStreamEvent<'TMetadata> = 
 | Event of (EventStreamEventData<'TMetadata>)
@@ -37,7 +38,8 @@ module EventStream =
 
     type EventStreamLanguage<'N,'TMetadata> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
-    | GetEventTypeMap of unit * (EventTypeMap -> 'N)
+    | GetEventStoreTypeToClassMap of unit * (EventStoreTypeToClassMap -> 'N)
+    | GetClassToEventStoreTypeMap of unit * (ClassToEventStoreTypeMap -> 'N)
     | ReadValue of EventToken * ((obj * 'TMetadata) -> 'N)
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
@@ -46,8 +48,10 @@ module EventStream =
         match streamWorker with
         | ReadFromStream (stream, number, streamRead) -> 
             ReadFromStream (stream, number, (streamRead >> f))
-        | GetEventTypeMap (eventTypeMap,next) -> 
-            GetEventTypeMap (eventTypeMap, next >> f)
+        | GetEventStoreTypeToClassMap (eventStoreTypeToClassMap,next) -> 
+            GetEventStoreTypeToClassMap (eventStoreTypeToClassMap, next >> f)
+        | GetClassToEventStoreTypeMap (classToEventStoreTypeMap,next) -> 
+            GetClassToEventStoreTypeMap (classToEventStoreTypeMap, next >> f)
         | ReadValue (eventToken, readValue) -> 
             ReadValue (eventToken, readValue >> f)
         | WriteToStream (stream, expectedVersion, events, next) -> 
@@ -66,8 +70,10 @@ module EventStream =
 
     let readFromStream stream number = 
         ReadFromStream (stream, number, id) |> liftF
-    let getEventTypeMap unit =
-        GetEventTypeMap ((), id) |> liftF
+    let getEventStoreTypeToClassMap unit =
+        GetEventStoreTypeToClassMap ((), id) |> liftF
+    let getClassToEventStoreTypeMap unit =
+        GetClassToEventStoreTypeMap ((), id) |> liftF
     let readValue eventToken = 
         ReadValue(eventToken, id) |> liftF
     let writeToStream stream number events = 
@@ -137,8 +143,8 @@ module EventStream =
         writeToStream stream expectedVersion writes
 
     let getEventStreamEvent evt metadata = eventStream {
-        let! eventTypeMap = getEventTypeMap ()
-        let eventType = eventTypeMap.FindValue (new ComparableType(evt.GetType()))
+        let! eventTypeMap = getClassToEventStoreTypeMap ()
+        let eventType = eventTypeMap.Item (evt.GetType())
         return EventStreamEvent.Event { Body = evt :> obj; EventType = eventType; Metadata = metadata }
     }
 

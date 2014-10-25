@@ -5,6 +5,7 @@ open EventStore.ClientAPI
 
 open System
 open FSharpx
+open FSharpx.Collections
 
 type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadata : equality> 
     ( 
@@ -32,7 +33,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
 
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
 
-    let interpreter program = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventTypeMap program
+    let interpreter program = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventStoreTypeToClassMap handlers.ClassToEventStoreTypeMap program
 
     let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
         async {
@@ -79,13 +80,14 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
             timer.Dispose()
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
-        match handlers.EventTypeMap|> Bimap.tryFind event.Event.EventType with
-        | Some (eventType) ->
+        match handlers.EventStoreTypeToClassMap.ContainsKey event.Event.EventType with
+        | true ->
+            let eventType = handlers.EventStoreTypeToClassMap.Item event.Event.EventType
             log.Debug <| lazy(sprintf "Running Handler for: %A: %A %A" event.Event.EventType event.OriginalEvent.EventStreamId event.OriginalEvent.EventNumber)
             async {
                 let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
                 completeTracker.Start position
-                let evt = serializer.DeserializeObj (event.Event.Data) eventType.RealType.AssemblyQualifiedName
+                let evt = serializer.DeserializeObj (event.Event.Data) eventType.AssemblyQualifiedName
 
                 let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>.AssemblyQualifiedName) :?> 'TMetadata
                 let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
@@ -98,7 +100,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
                 for callback in onCompleteCallbacks do
                     callback (position, event.Event.EventStreamId, event.Event.EventNumber, eventData)
             }
-        | None -> 
+        | false -> 
             async {
                 let position = event.OriginalPosition.Value |> EventPosition.ofEventStorePosition
                 completeTracker.Start position
@@ -108,13 +110,21 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
     member x.RunCommand (context:'TCommandContext) (cmd : obj) = 
         async {
             let program = EventfulHandlers.getCommandProgram context cmd handlers
-            let! result = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventTypeMap program
+            let! result = 
+                EventStreamInterpreter.interpret 
+                    client 
+                    inMemoryCache 
+                    serializer 
+                    handlers.EventStoreTypeToClassMap 
+                    handlers.ClassToEventStoreTypeMap 
+                    program
             return result
         }
 
-    member x.EventTypeMap = handlers.EventTypeMap
-
     member x.LastEventProcessed = lastEventProcessed
+
+    member x.EventStoreTypeToClassMap = handlers.EventStoreTypeToClassMap
+    member x.ClassToEventStoreTypeMap = handlers.ClassToEventStoreTypeMap
 
 
     interface IDisposable with
