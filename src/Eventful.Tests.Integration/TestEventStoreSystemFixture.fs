@@ -38,8 +38,8 @@ module TestEventStoreSystemHelpers =
     let inline onEvent fId s f = 
         let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata))
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
-    let inline linkEvent fId f = 
-        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f buildMetadata
+    let inline linkEvent fId = 
+        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId buildMetadata
 
 type AggregateType =
 | Widget
@@ -60,12 +60,6 @@ type WidgetCreatedEvent = {
     Name : string
 }
 
-type WidgetEvents =
-| Created of WidgetCreatedEvent
-
-type WidgetCounterEvents =
-| Counted of WidgetCreatedEvent
-
 open TestEventStoreSystemHelpers
 
 // event store system running test system
@@ -78,10 +72,9 @@ type TestEventStoreSystemFixture () =
     let widgetCmdHandlers = 
         seq {
                let addWidget (cmd : CreateWidgetCommand) =
-                   Created { 
+                   { 
                        WidgetId = cmd.WidgetId
-                       Name = cmd.Name
-               } 
+                       Name = cmd.Name } 
 
                yield addWidget
                      |> simpleHandler StateBuilder.nullStateBuilder
@@ -93,7 +86,7 @@ type TestEventStoreSystemFixture () =
     let widgetCounterEventHandlers =
         seq {
                 let getId (evt : WidgetCreatedEvent) = evt.WidgetId
-                yield linkEvent getId WidgetCounterEvents.Counted
+                yield linkEvent getId
             }
 
     let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter") (fun (x : WidgetId) -> x.Id) Seq.empty widgetCounterEventHandlers

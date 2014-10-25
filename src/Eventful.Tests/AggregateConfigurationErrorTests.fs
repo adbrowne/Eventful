@@ -81,9 +81,9 @@ module TestAggregate =
     let cmdHandlers = 
         seq {
            let testCommand (cmd : TestCommand) =
-               Test { 
+               { 
                    TestId = cmd.TestId
-               }
+               } :> obj
 
            yield buildCmdHandler testCommand
         }

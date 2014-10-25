@@ -31,12 +31,6 @@ type BookTitleUpdatedEvent = {
     Title : string
 }
 
-type BookEvents = 
-    | Added of BookAddedEvent
-    | TitleUpdated of BookTitleUpdatedEvent
-    | CopyAdded of BookCopyAddedEvent
-    | Promoted of BookPromotedEvent
-
 module Book =
     let getStreamName () (bookId : BookId) =
         sprintf "Book-%s" <| bookId.Id.ToString("N")
@@ -64,7 +58,7 @@ module Book =
     let cmdHandlers = 
         seq {
            let addBook (cmd : AddBookCommand) =
-               Added { 
+               { 
                    BookAddedEvent.BookId = cmd.BookId
                    Title = cmd.Title
                }
@@ -73,10 +67,10 @@ module Book =
 
            yield fullHandler bookTitle (fun currentTitle m (cmd : UpdateBookTitleCommand) ->
                let updateTitle newTitle =
-                   [TitleUpdated {
+                   [{
                        BookId = cmd.BookId
                        Title = newTitle
-                   }]
+                   } :> obj]
 
                let newTitle = doesNotEqual (Some "title", "Cannot update title to the same value") currentTitle cmd.Title
 
@@ -86,11 +80,11 @@ module Book =
 
     let eventHandlers =
         seq {
-            yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId) BookEvents.CopyAdded
+            yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId)
 
             let onBookAwarded bookCopyCount (evt : BookPrizeAwardedEvent) = seq {
                 if(bookCopyCount > 10) then
-                    yield (Promoted { BookPromotedEvent.BookId = evt.BookId }, emptyMetadata)
+                    yield ({ BookPromotedEvent.BookId = evt.BookId }, emptyMetadata)
             }
 
             yield onEvent (fun (evt : BookPrizeAwardedEvent) -> evt.BookId) copyCount onBookAwarded

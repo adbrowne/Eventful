@@ -48,8 +48,8 @@ module Aggregates =
         |> simpleHandler
         |> buildCmd
 
-    let inline linkEvent fId f =
-        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId f emptyMetadata
+    let inline linkEvent fId =
+        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId emptyMetadata
 
     let inline onEvent fId sb f =
         Eventful.AggregateActionBuilder.onEvent systemConfiguration fId sb f
