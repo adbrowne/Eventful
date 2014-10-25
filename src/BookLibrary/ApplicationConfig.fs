@@ -43,6 +43,8 @@ module ApplicationConfig =
                 ConnectionSettings
                     .Create()
                     .SetDefaultUserCredentials(new SystemData.UserCredentials("admin", "changeit"))
+                    .KeepReconnecting()
+                    .SetHeartbeatTimeout(TimeSpan.FromMinutes 5.0)
             let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
 
             let connection = EventStoreConnection.Create(connectionSettings, ipEndPoint)
