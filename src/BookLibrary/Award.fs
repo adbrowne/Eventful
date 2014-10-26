@@ -9,9 +9,6 @@ type AddBookPrizeAwardCommand = {
     BookId : BookId
 }
 
-type BookAwardEvents = 
-    | Awarded of BookPrizeAwardedEvent
-
 module Award =
     let getStreamName () (awardId : AwardId) =
         sprintf "Award-%s" <| awardId.Id.ToString("N")
@@ -19,15 +16,18 @@ module Award =
     let inline getAwardId (a: ^a) _ = 
         (^a : (member AwardId: AwardId) (a))
 
+    let inline awardCmdHandler f = 
+        cmdHandler (fun x -> { AwardId.Id = x.AggregateId }) f
+
     let cmdHandlers = 
         seq {
            let addAward (cmd : AddBookPrizeAwardCommand) =
-               Awarded { 
+               { 
                    BookPrizeAwardedEvent.AwardId = cmd.AwardId
                    BookId = cmd.BookId
                }
 
-           yield buildCmdHandler addAward
+           yield awardCmdHandler addAward
         }
 
     let awardIdGuid (awardId : AwardId) = awardId.Id

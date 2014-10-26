@@ -70,7 +70,6 @@ module EventfulHandlers =
     let getCommandProgram (context:'TCommandContext) (cmd:obj) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>) =
         let cmdType = cmd.GetType()
         let cmdTypeFullName = cmd.GetType().FullName
-        let sourceMessageId = Guid.NewGuid()
         let handler = 
             eventfulHandlers.CommandHandlers
             |> Map.tryFind cmdTypeFullName

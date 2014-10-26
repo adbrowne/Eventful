@@ -9,9 +9,6 @@ type AddBookCopyCommand = {
     BookId : BookId
 }
 
-type BookCopyEvents = 
-    | Added of BookCopyAddedEvent
-
 module BookCopy =
     let getStreamName () (bookCopyId : BookCopyId) =
         sprintf "BookCopy-%s" <| bookCopyId.Id.ToString("N")
@@ -19,15 +16,18 @@ module BookCopy =
     let inline getBookCopyId (a: ^a) _ = 
         (^a : (member BookCopyId: BookCopyId) (a))
 
+    let inline bookCopyCmdHandler f = 
+        cmdHandler (fun x -> { BookCopyId.Id = x.AggregateId }) f
+
     let cmdHandlers = 
         seq {
            let addBookCopy (cmd : AddBookCopyCommand) =
-               Added { 
+               { 
                    BookCopyAddedEvent.BookCopyId = cmd.BookCopyId
                    BookId = cmd.BookId
                }
 
-           yield buildCmdHandler addBookCopy
+           yield bookCopyCmdHandler addBookCopy
         }
 
     let bookCopyIdGuid (bookCopyId : BookCopyId) = bookCopyId.Id

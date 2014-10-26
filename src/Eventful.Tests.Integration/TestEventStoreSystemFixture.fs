@@ -14,8 +14,17 @@ open Eventful.Testing
 
 open FSharpx.Option
 
+type WidgetId = {
+    Id : Guid
+} 
+
 module TestEventStoreSystemHelpers =
     let emptyMetadata : Eventful.Testing.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
+
+    let systemConfiguration = {
+        SystemConfiguration.GetUniqueId = (fun (x : TestMetadata) -> Some x.SourceMessageId)
+        GetAggregateId = (fun (x : TestMetadata) -> { WidgetId.Id = x.AggregateId })
+    }
 
     let inline buildMetadata aggregateId messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
@@ -26,10 +35,28 @@ module TestEventStoreSystemHelpers =
         let cmdResult = f cmd
         (cmdResult, buildMetadata)
 
-    let inline simpleHandler s f = 
-        Eventful.AggregateActionBuilder.simpleHandler s (withMetadata f)
-    let inline buildSimpleCmdHandler s f = 
-        Eventful.AggregateActionBuilder.buildSimpleCmdHandler s (withMetadata f)
+    let cmdBuilderS stateBuilder f =
+        AggregateActionBuilder.fullHandler
+            systemConfiguration 
+            stateBuilder
+            (fun state () cmd -> 
+                let events = 
+                    f state cmd 
+                    |> (fun evt -> (evt :> obj, buildMetadata))
+                    |> Seq.singleton
+
+                let uniqueId = Guid.NewGuid().ToString()
+
+                {
+                    UniqueId = uniqueId
+                    Events = events
+                }
+                |> Choice1Of2
+            )
+
+    let cmdHandler f =
+        cmdBuilderS StateBuilder.nullStateBuilder (fun _ -> f)
+
     let inline onEvent fId s f = 
         let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata))
         Eventful.AggregateActionBuilder.onEvent fId s (withMetadata f)
@@ -39,11 +66,6 @@ module TestEventStoreSystemHelpers =
 type AggregateType =
 | Widget
 | WidgetCounter
-
-type WidgetId = 
-    {
-        Id : Guid
-    } 
 
 type CreateWidgetCommand = {
     WidgetId : WidgetId
@@ -72,7 +94,7 @@ type TestEventStoreSystemFixture () =
                        Name = cmd.Name } 
 
                yield addWidget
-                     |> simpleHandler StateBuilder.nullStateBuilder
+                     |> cmdHandler
                      |> buildCmd
             }
 

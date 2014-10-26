@@ -55,6 +55,15 @@ module Book =
         else
             Choice1Of2 value
 
+    let getBookIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { BookId.Id = x.AggregateId })
+
+    let inline bookCmdHandlerS stateBuilder f = 
+        cmdHandlerS getBookIdFromMetadata stateBuilder f
+
+    let inline bookCmdHandler f = 
+        cmdHandler getBookIdFromMetadata f
+
+
     let cmdHandlers = 
         seq {
            let addBook (cmd : AddBookCommand) =
@@ -63,9 +72,9 @@ module Book =
                    Title = cmd.Title
                }
 
-           yield buildCmdHandler addBook
+           yield bookCmdHandler addBook
 
-           yield fullHandler bookTitle (fun currentTitle m (cmd : UpdateBookTitleCommand) ->
+           yield bookCmdHandlerS bookTitle (fun currentTitle m (cmd : UpdateBookTitleCommand) ->
                let updateTitle newTitle =
                    [{
                        BookId = cmd.BookId

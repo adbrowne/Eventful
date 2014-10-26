@@ -84,7 +84,7 @@ type TestSystem<'TMetadata, 'TCommandContext when 'TMetadata : equality>
 
     static member Empty handlers =
         let emptySuccess = {
-            Events = List.empty
+            CommandSuccess.Events = List.empty
             Position = None
         }
         new TestSystem<'TMetadata, 'TCommandContext>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty)

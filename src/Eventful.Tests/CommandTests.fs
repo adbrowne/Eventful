@@ -8,6 +8,8 @@ open Xunit
 open FsUnit.Xunit
 
 module CommandTests =
+    open EventSystemTestCommon
+
     let metadataBuilder aggregateId messageId sourceMessageId = { 
         TestMetadata.AggregateId = aggregateId
         MessageId = messageId 
@@ -21,8 +23,6 @@ module CommandTests =
     let addEventTypes evtTypes handlers =
         Seq.fold (fun h x -> addEventType x h) handlers evtTypes
 
-    let getStreamName () (id : Guid) =
-        sprintf "Foo-%s" <| id.ToString("N")
     type FooCmd = {
         Id : Guid
     }
@@ -35,24 +35,27 @@ module CommandTests =
         yield typeof<FooEvent>
     }
 
-    let fooHandlers () =    
+    let fooHandlers =    
         let cmdHandlers = seq {
             yield 
-                AggregateActionBuilder.simpleHandler
-                    StateBuilder.nullStateBuilder
+                cmdHandler
                     (fun (cmd : FooCmd) -> 
-                        ({ FooEvent.Id = cmd.Id }, metadataBuilder)
-                    )    
+                        { FooEvent.Id = cmd.Id } )    
                 |> AggregateActionBuilder.buildCmd
         }
 
         let evtHandlers = Seq.empty
 
-        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName id cmdHandlers evtHandlers
+        Eventful.Aggregate.toAggregateDefinition 
+            getCommandStreamName 
+            getStreamName 
+            id 
+            cmdHandlers 
+            evtHandlers
 
     let handlers =
         EventfulHandlers.empty
-        |> EventfulHandlers.addAggregate (fooHandlers ())
+        |> EventfulHandlers.addAggregate fooHandlers
         |> addEventTypes eventTypes
 
     let emptyTestSystem = TestSystem.Empty handlers
@@ -67,12 +70,18 @@ module CommandTests =
         let thisId = Guid.NewGuid()
         let streamName = getStreamName () thisId
 
+        // some unique id that can make the command processing idempotent
+        let commandId = Guid.NewGuid() 
+
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.runCommand { FooCmd.Id = thisId } () // first run
-            |> TestSystem.runCommand { FooCmd.Id = thisId } () // second run
+            |> TestSystem.runCommand { FooCmd.Id = thisId } commandId // first run
+            |> TestSystem.runCommandNoThrow { FooCmd.Id = thisId } commandId // second run
 
         let fooCount = afterRun.EvaluateState streamName thisId fooEventCounter
 
         fooCount |> should equal 1
-  
+
+        match afterRun.LastResult with
+        | Choice2Of2 msgs when msgs = FSharpx.Collections.NonEmptyList.singleton (CommandError "AlreadyProcessed") -> Assert.True(true)
+        | _ -> Assert.True(false, "Command succeeded")

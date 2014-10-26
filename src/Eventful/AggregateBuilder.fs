@@ -17,6 +17,7 @@ type CommandRunFailure<'a> =
 | HandlerError of 'a
 | WrongExpectedVersion
 | WriteCancelled
+| AlreadyProcessed // idempotency check failed
 | WriteError of System.Exception
 | Exception of exn
 
@@ -38,6 +39,12 @@ type AggregateConfiguration<'TCommandContext, 'TEventContext, 'TAggregateId, 'TM
     GetCommandStreamName : 'TCommandContext -> 'TAggregateId -> string
     GetEventStreamName : 'TEventContext -> 'TAggregateId -> string
     GetAggregateId : 'TAggregateId -> Guid
+}
+
+type SystemConfiguration<'TId, 'TMetadata> = {
+    //used to make processing idempotent
+    GetUniqueId : 'TMetadata -> string option 
+    GetAggregateId : 'TMetadata -> 'TId
 }
 
 type ICommandHandler<'TId,'TCommandContext, 'TMetadata> =
@@ -94,12 +101,18 @@ type Validator<'TCmd,'TState, 'TMetadata, 'TKey> =
 
 type metadataBuilder<'TMetadata> = Guid -> Guid -> string -> 'TMetadata
 
+type CommandHandlerOutput<'TMetadata> = {
+    UniqueId : string // used to make commands idempotent
+    Events : seq<obj * metadataBuilder<'TMetadata>>
+}
+
 type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TId, 'TMetadata, 'TValidatedState> = {
     GetId : 'TCommandContext -> 'TCmd -> 'TId
     StateBuilder : IStateBuilder<'TCommandState, 'TMetadata, 'TId>
     StateValidation : 'TCommandState -> Choice<'TValidatedState, NonEmptyList<ValidationFailure>> 
     Validators : Validator<'TCmd,'TCommandState,'TMetadata,'TId> list
-    Handler : 'TValidatedState -> 'TCommandContext -> 'TCmd -> Choice<seq<obj * metadataBuilder<'TMetadata>>, NonEmptyList<ValidationFailure>>
+    Handler : 'TValidatedState -> 'TCommandContext -> 'TCmd -> Choice<CommandHandlerOutput<'TMetadata>, NonEmptyList<ValidationFailure>>
+    SystemConfiguration : SystemConfiguration<'TId, 'TMetadata>
 }
 
 open Eventful.EventStream
@@ -110,22 +123,29 @@ module AggregateActionBuilder =
 
     let log = createLogger "Eventful.AggregateActionBuilder"
 
-    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> stateBuilder f =
+    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata> systemConfiguration stateBuilder f =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
             StateBuilder = stateBuilder
             Validators = List.empty
             StateValidation = Success
             Handler = f
+            SystemConfiguration = systemConfiguration
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata,'TState> 
 
-    let simpleHandler<'TId, 'TState, 'TCmd, 'TCommandContext, 'TEvent, 'TMetadata> stateBuilder (f : 'TCmd -> ('TEvent * metadataBuilder<'TMetadata>)) =
+    let simpleHandler<'TId, 'TState, 'TCmd, 'TCommandContext, 'TEvent, 'TMetadata> systemConfiguration stateBuilder (f : 'TCmd -> (string * 'TEvent * metadataBuilder<'TMetadata>)) =
+        let makeResult (uniqueId, evt, metadata) = { 
+            UniqueId = uniqueId 
+            Events =  (evt :> obj, metadata) |> Seq.singleton 
+        }
+
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
             StateBuilder = stateBuilder
             Validators = List.empty
             StateValidation = Success
-            Handler = (fun _ _ -> f >> (fun (evt,metadata) -> (evt :> obj, metadata)) >> Seq.singleton >> Success)
+            Handler = (fun _ _ -> f >> makeResult >> Success)
+            SystemConfiguration = systemConfiguration
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata,'TState> 
 
     let toChoiceValidator cmd r =
@@ -177,49 +197,69 @@ module AggregateActionBuilder =
             sb.GetId context cmd
         | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
 
-    let inline runCommand stream (eventsConsumed, combinedState) (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, 'TId>) (id : Guid) f = 
+    let uniqueIdBuilder (systemConfiguration: SystemConfiguration<'TId,'TMetadata>) =
+        StateBuilder.Empty "$Eventful::UniqueIdBuilder" Set.empty
+        |> StateBuilder.allEventsHandler 
+            (fun m -> systemConfiguration.GetAggregateId m) 
+            (fun (s,e,m) -> 
+                match systemConfiguration.GetUniqueId m with
+                | Some uniqueId ->
+                    s |> Set.add uniqueId
+                | None -> s)
+        |> StateBuilder.toInterface
+
+    let inline runCommand 
+        (systemConfiguration: SystemConfiguration<'TId,'TMetadata>) 
+        stream 
+        (eventsConsumed, combinedState) 
+        (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, 'TId>) 
+        (id : Guid) 
+        f = 
         eventStream {
             let commandState = commandStateBuilder.GetState combinedState
 
-            let result = 
-                f commandState
-                |> Choice.map (fun r ->
-                    r
-                    |> Seq.map (fun (evt, metadata) -> 
-                                    let metadata = 
-                                        metadata id (Guid.NewGuid()) (Guid.NewGuid().ToString())
-                                    (stream, evt, metadata))
-                    |> List.ofSeq)
+            let result = f commandState
 
             return! 
                 match result with
-                | Choice1Of2 events -> 
+                | Choice1Of2 (r : CommandHandlerOutput<'TMetadata>) -> 
                     eventStream {
-                        let rawEventToEventStreamEvent (_, event, metadata) = getEventStreamEvent event metadata
-                        let! eventStreamEvents = EventStream.mapM rawEventToEventStreamEvent events
+                        let uniqueIds = (uniqueIdBuilder systemConfiguration).GetState combinedState
+                        if uniqueIds |> Set.contains r.UniqueId then
+                            return Choice2Of2 CommandRunFailure<_>.AlreadyProcessed
+                        else
+                            let events = 
+                                r.Events
+                                |> Seq.map (fun (evt, metadata) -> 
+                                                let metadata = 
+                                                    metadata id (Guid.NewGuid()) r.UniqueId
+                                                (stream, evt, metadata))
+                                |> List.ofSeq
 
-                        let expectedVersion = 
-                            match eventsConsumed with
-                            | 0 -> NewStream
-                            | x -> AggregateVersion (x - 1)
+                            let rawEventToEventStreamEvent (_, event, metadata) = getEventStreamEvent event metadata
+                            let! eventStreamEvents = EventStream.mapM rawEventToEventStreamEvent events
 
-                        let! writeResult = writeToStream stream expectedVersion eventStreamEvents
-                        log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
-                        
-                        return 
-                            match writeResult with
-                            | WriteResult.WriteSuccess pos ->
-                                Choice1Of2 {
-                                    Events = events
-                                    Position = Some pos
-                                }
-                            | WriteResult.WrongExpectedVersion -> 
-                                Choice2Of2 CommandRunFailure<_>.WrongExpectedVersion
-                            | WriteResult.WriteError ex -> 
-                                Choice2Of2 <| CommandRunFailure<_>.WriteError ex
-                            | WriteResult.WriteCancelled -> 
-                                Choice2Of2 CommandRunFailure<_>.WriteCancelled
+                            let expectedVersion = 
+                                match eventsConsumed with
+                                | 0 -> NewStream
+                                | x -> AggregateVersion (x - 1)
 
+                            let! writeResult = writeToStream stream expectedVersion eventStreamEvents
+                            log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
+                            
+                            return 
+                                match writeResult with
+                                | WriteResult.WriteSuccess pos ->
+                                    Choice1Of2 {
+                                        Events = events
+                                        Position = Some pos
+                                    }
+                                | WriteResult.WrongExpectedVersion -> 
+                                    Choice2Of2 CommandRunFailure<_>.WrongExpectedVersion
+                                | WriteResult.WriteError ex -> 
+                                    Choice2Of2 <| CommandRunFailure<_>.WriteError ex
+                                | WriteResult.WriteCancelled -> 
+                                    Choice2Of2 CommandRunFailure<_>.WriteCancelled
                     }
                 | Choice2Of2 x ->
                     eventStream { 
@@ -271,6 +311,9 @@ module AggregateActionBuilder =
         | WrongExpectedVersion ->
             CommandFailure.CommandError "WrongExpectedVersion"
             |> NonEmptyList.singleton 
+        | AlreadyProcessed ->
+            CommandFailure.CommandError "AlreadyProcessed"
+            |> NonEmptyList.singleton 
         | WriteCancelled ->
             CommandFailure.CommandError "WriteCancelled"
             |> NonEmptyList.singleton 
@@ -314,6 +357,8 @@ module AggregateActionBuilder =
                 return! commandHandler.Handler validatedState commandContext validated
             }
 
+        let systemConfiguration = commandHandler.SystemConfiguration
+
         match cmd with
         | :? 'TCmd as cmd -> 
             let getId = FSharpx.Choice.protect (commandHandler.GetId commandContext) cmd
@@ -325,11 +370,12 @@ module AggregateActionBuilder =
                     let! (eventsConsumed, combinedState) = 
                         aggregateConfiguration.StateBuilder
                         |> AggregateStateBuilder.combineHandlers (getValidatorsUnitBuilders commandHandler.Validators)
+                        |> AggregateStateBuilder.combineHandlers ((uniqueIdBuilder systemConfiguration).GetBlockBuilders)
                         |> AggregateStateBuilder.ofStateBuilderList
                         |> AggregateStateBuilder.toStreamProgram stream id
                     let! result = 
                         let aggregateGuid = aggregateConfiguration.GetAggregateId id
-                        runCommand stream (eventsConsumed, combinedState) commandHandler.StateBuilder aggregateGuid (processCommand cmd combinedState)
+                        runCommand systemConfiguration stream (eventsConsumed, combinedState) commandHandler.StateBuilder aggregateGuid (processCommand cmd combinedState)
                     return result
                 }
 
@@ -378,8 +424,8 @@ module AggregateActionBuilder =
         (handler: CommandHandler<'TCmd,'TCommandContext, 'TState, 'TId, 'TMetadata, 'TValidatedState>) = 
         { handler with Validators = validator::handler.Validators }
 
-    let buildSimpleCmdHandler<'TId,'TCmd,'TCmdState,'TCommandContext,'TEvent, 'TMetadata when 'TId : equality> stateBuilder = 
-        (simpleHandler<'TId,'TCmdState,'TCmd,'TCommandContext,'TEvent, 'TMetadata> stateBuilder) >> buildCmd
+    let buildSimpleCmdHandler<'TId,'TCmd,'TCmdState,'TCommandContext,'TEvent, 'TMetadata when 'TId : equality> systemConfiguration stateBuilder = 
+        (simpleHandler<'TId,'TCmdState,'TCmd,'TCommandContext,'TEvent, 'TMetadata> systemConfiguration stateBuilder) >> buildCmd
         
     let getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata> (fId : 'TLinkEvent -> 'TId) (metadataBuilder : metadataBuilder<'TMetadata>) = {
         new IEventHandler<'TId,'TMetadata> with 

@@ -115,6 +115,7 @@
     <Compile Include="LastCompleteItemAgentTests.fs" />
     <Compile Include="MagicMapper.fs" />
     <Compile Include="EventStreamStateBuilder.fs" />
+    <Compile Include="EventSystemTestCommon.fs" />
     <Compile Include="OnEventTests.fs" />
     <Compile Include="CommandTests.fs" />
     <Compile Include="AggregateConfigurationErrorTests.fs" />

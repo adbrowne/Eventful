@@ -7,33 +7,8 @@ open Eventful.Testing
 open Xunit
 open FsUnit.Xunit
 
-module OnEventTestCommon = 
-    type BarEvent = {
-        Id : Guid
-    }
-
-    let metadataBuilder aggregateId messageId sourceMessageId = { 
-        TestMetadata.AggregateId = aggregateId
-        MessageId = messageId 
-        SourceMessageId = sourceMessageId }
-
-    let addEventType evtType handlers =
-        handlers
-        |> EventfulHandlers.addClassToEventStoreType evtType evtType.Name
-        |> EventfulHandlers.addEventStoreType evtType.Name evtType 
-
-    let addEventTypes evtTypes handlers =
-        Seq.fold (fun h x -> addEventType x h) handlers evtTypes
-
-    let getStreamName () (id : Guid) =
-        sprintf "Foo-%s" <| id.ToString("N")
-  
-    let barEventCounter : IStateBuilder<int, TestMetadata, Guid> =
-        StateBuilder.eventTypeCountBuilder (fun (e:BarEvent) _ -> e.Id)
-        |> StateBuilder.toInterface
-
 module OnEventTests =
-    open OnEventTestCommon
+    open EventSystemTestCommon
 
     type FooCmd = {
         Id : Guid
@@ -51,11 +26,8 @@ module OnEventTests =
     let fooHandlers () =    
         let cmdHandlers = seq {
             yield 
-                AggregateActionBuilder.simpleHandler
-                    StateBuilder.nullStateBuilder
-                    (fun (cmd : FooCmd) -> 
-                        ({ FooEvent.Id = cmd.Id }, metadataBuilder)
-                    )    
+                cmdHandler
+                    (fun (cmd : FooCmd) -> { FooEvent.Id = cmd.Id })
                 |> AggregateActionBuilder.buildCmd
         }
 
@@ -70,7 +42,7 @@ module OnEventTests =
                     )
         }
 
-        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName id cmdHandlers evtHandlers
+        Eventful.Aggregate.toAggregateDefinition getCommandStreamName getStreamName id cmdHandlers evtHandlers
 
     let handlers =
         EventfulHandlers.empty
@@ -84,10 +56,11 @@ module OnEventTests =
     let ``FooEvent produces BarEvent`` () : unit =
         let thisId = Guid.NewGuid()
         let streamName = getStreamName () thisId
+        let commandUniqueId = Guid.NewGuid()
 
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.runCommand { FooCmd.Id = thisId } ()
+            |> TestSystem.runCommand { FooCmd.Id = thisId } commandUniqueId
 
         let barCount = afterRun.EvaluateState streamName thisId barEventCounter
 
@@ -96,7 +69,7 @@ module OnEventTests =
 /// Test delivering an OnEvent to multiple
 /// aggregate instances
 module OnEventMuliAggregateTests =
-    open OnEventTestCommon
+    open EventSystemTestCommon
 
     type FooCmd = {
         Id : Guid
@@ -116,14 +89,12 @@ module OnEventMuliAggregateTests =
     let fooHandlers () =    
         let cmdHandlers = seq {
             yield 
-                AggregateActionBuilder.simpleHandler
-                    StateBuilder.nullStateBuilder
+                cmdHandler
                     (fun (cmd : FooCmd) -> 
-                        let evt = {
+                        {
                             FooEvent.Id = cmd.Id 
                             SecondId = cmd.SecondId
                         }
-                        (evt, metadataBuilder)
                     )    
                 |> AggregateActionBuilder.withCmdId (fun cmd -> cmd.Id)
                 |> AggregateActionBuilder.buildCmd
@@ -140,7 +111,7 @@ module OnEventMuliAggregateTests =
                     )
         }
 
-        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName id cmdHandlers evtHandlers
+        Eventful.Aggregate.toAggregateDefinition getCommandStreamName getStreamName id cmdHandlers evtHandlers
 
     let handlers =
         EventfulHandlers.empty
@@ -154,10 +125,11 @@ module OnEventMuliAggregateTests =
     let ``FooEvent produces BarEvent`` () : unit =
         let thisId = Guid.NewGuid()
         let secondId = Guid.NewGuid()
+        let commandUniqueId = Guid.NewGuid()
 
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.runCommand { FooCmd.Id = thisId; SecondId = secondId } ()
+            |> TestSystem.runCommand { FooCmd.Id = thisId; SecondId = secondId } commandUniqueId
 
         let barStateIs1 guid =
             afterRun.EvaluateState (getStreamName () guid) guid barEventCounter |> should equal 1
