@@ -67,6 +67,7 @@ task Package -depends Clean, RestorePackages, MsBuildRelease, CreateNugetPackage
 
 task CreateNugetPackages {
   $version = Get-Item .\Release\Eventful.dll | % {$_.versioninfo.ProductVersion}
+  $version = $version.Substring(0, $version.LastIndexOf("."))
   $version = "$version-beta"
 
   New-Item -force .\packages\Eventful\lib\net45 -itemtype directory
