@@ -26,7 +26,7 @@ type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
     // returns sequences and highest matching value
     let removeMatchingHeads (xs : SortedSet<'TItem>) (ys : SortedSet<'TItem>) =
         let rec loop h = 
-            match (xs |> Seq.tryHead, ys |> Seq.tryHead) with
+            match (xs |> tryHead, ys |> tryHead) with
             | Some x, Some y
                 when x = y ->
                     xs.Remove(x) |> ignore
@@ -77,14 +77,14 @@ type MutableLastCompleteTrackingState<'TItem when 'TItem : comparison> () =
                     | Some x, Some y -> currentLastComplete
                     | None, _ -> currentLastComplete
 
-                nextToComplete <- (started |> Seq.tryHead)
+                nextToComplete <- (started |> tryHead)
             Some this
         else
             None
 
     member this.GetNotifications () = 
         let rec loop lastComplete callbacks = 
-            match (notifications |> Seq.tryHead) with
+            match (notifications |> tryHead) with
             | Some kvp -> //({ Item = item; Callback = callback; Tag = tag; Unique = unique } as value) ->
                 if(kvp.Key <= lastComplete) then
                     let newCallbacks = kvp.Value |> List.map (fun { Callback = callback } -> callback)

@@ -102,7 +102,7 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
                 |> Seq.collect (function
                     | Queued (index, input, continuation) -> Seq.singleton (index, input, continuation)
                     | _ -> Seq.empty)
-                |> FSharpx.Collections.Seq.tryHead
+                |> tryHead
                 |> function
                     | Some (index, input, continuation) ->
                        runItem index input

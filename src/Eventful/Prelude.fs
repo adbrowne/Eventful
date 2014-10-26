@@ -132,9 +132,16 @@ module Prelude =
         startCatchCancellation(computation, Some cancellationToken)
 
     let newAgent (name : string) (log : Logger) f  =
-        let agent= Agent.Start(f)
+        let agent = Agent.Start(f)
         agent.Error.Add(fun e -> log.ErrorWithException <| lazy(sprintf "Exception thrown by %A" name, e))
         agent
+
+    // brought here to avoid the conflict between FSharpx and FSharpx.Collections
+    let tryHead (source : seq<_>) = 
+        use e = source.GetEnumerator()
+        if e.MoveNext()
+        then Some(e.Current)
+        else None //empty list
 
     // from: http://msdn.microsoft.com/en-us/library/dd233248.aspx
     let (|Integer|_|) (str: string) =

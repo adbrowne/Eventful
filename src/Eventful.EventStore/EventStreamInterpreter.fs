@@ -45,7 +45,7 @@ module EventStreamInterpreter =
                                     let key = getCacheKey stream event.OriginalEventNumber
                                     let cacheItem = new CacheItem(key, event)
                                     cache.Set(cacheItem, cachePolicy)
-                                return events |> Seq.tryHead
+                                return events |> tryHead
                             }
                         
                     let readEvent = 

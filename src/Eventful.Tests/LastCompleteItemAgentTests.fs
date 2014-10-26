@@ -124,7 +124,7 @@ module LastCompleteItemAgentTests =
                 // grab the last matching pair
                 |> List.ofSeq 
                 |> List.rev
-                |> Seq.tryHead
+                |> tryHead
                 |> Option.map fst
 
             let result = simulateTracking operations

@@ -62,7 +62,7 @@ type Client (connection : IEventStoreConnection) =
 
     member x.readStreamHead streamId = async {
         let! (result : StreamEventsSlice) = connection.ReadStreamEventsBackwardAsync(streamId, EventStore.ClientAPI.StreamPosition.End, 1, false) |> Async.AwaitTask
-        return result.Events |> Seq.tryHead
+        return result.Events |> tryHead
     }
 
     member x.append streamId expectedVersion eventData = async {
