@@ -85,6 +85,14 @@
       <Project>{dfbaa651-9312-47e2-aec7-04c8fe48e0b0}</Project>
       <Private>True</Private>
     </ProjectReference>
+    <Reference Include="Common.Logging">
+      <HintPath>..\packages\Common.Logging.2.0.0\lib\2.0\Common.Logging.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Common.Logging.Log4Net">
+      <HintPath>..\packages\Common.Logging.Log4Net.2.0.1\lib\net20\Common.Logging.Log4Net.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="EventStore.ClientAPI">
       <HintPath>..\packages\EventStore.Client.3.0.1\lib\net40\EventStore.ClientAPI.dll</HintPath>
       <Private>True</Private>
@@ -111,6 +119,10 @@
     </Reference>
     <Reference Include="FsUnit.Xunit">
       <HintPath>..\packages\FsUnit.xUnit.1.3.0.1\Lib\net40\FsUnit.Xunit.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="log4net">
+      <HintPath>..\packages\log4net.1.2.10\lib\2.0\log4net.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Metrics">

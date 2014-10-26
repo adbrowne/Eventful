@@ -75,7 +75,7 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Common.Logging">
-      <HintPath>..\packages\Common.Logging.2.2.0\lib\net40\Common.Logging.dll</HintPath>
+      <HintPath>..\packages\Common.Logging.2.0.0\lib\2.0\Common.Logging.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Common.Logging.Core">
@@ -92,10 +92,6 @@
     </Reference>
     <Reference Include="FSharpx.Core">
       <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="log4net">
-      <HintPath>..\packages\log4net.2.0.3\lib\net40-full\log4net.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Metrics">

@@ -35,6 +35,10 @@
     <DocumentationFile>..\..\build\Release\Eventful.Neo4j.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Common.Logging">
+      <HintPath>..\packages\Common.Logging.2.0.0\lib\2.0\Common.Logging.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="FSharpx.Collections">
       <HintPath>..\packages\FSharpx.Collections.1.9.4\lib\net35\FSharpx.Collections.dll</HintPath>
       <Private>True</Private>
