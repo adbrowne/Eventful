@@ -100,7 +100,7 @@ module AggregateConfigurationErrorTests =
 
         let result =
             emptyTestSystem 
-            |> TestSystem.runCommandNoThrow cmdWithNullId
+            |> TestSystem.runCommandNoThrow cmdWithNullId ()
 
         let matcher (exn : System.Exception) =
             exn.Message = "Object reference not set to an instance of an object."

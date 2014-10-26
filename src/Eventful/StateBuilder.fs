@@ -125,6 +125,10 @@ module StateBuilder =
     let toInterface (builder: StateBuilder<'TState, 'TMetadata, 'TKey>) =
         builder :> IStateBuilder<'TState, 'TMetadata, 'TKey>
 
+    let eventTypeCountBuilder (getId : 'TEvent -> 'TMetadata -> 'TId) =
+        StateBuilder.Empty (sprintf "%sCount" typeof<'TEvent>.Name) 0
+        |> handler getId (fun (s,_,_) -> s + 1)
+
 type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
     (
         unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list,

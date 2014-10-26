@@ -7,9 +7,9 @@ open FSharpx.Choice
 open FSharpx.Option
 open Eventful.EventStream
 
-type TestSystem<'TMetadata when 'TMetadata : equality>
+type TestSystem<'TMetadata, 'TCommandContext when 'TMetadata : equality>
     (
-        handlers : EventfulHandlers<unit,unit,'TMetadata>, 
+        handlers : EventfulHandlers<'TCommandContext,unit,'TMetadata>, 
         lastResult : CommandResult<'TMetadata>, 
         allEvents : TestEventStore<'TMetadata>
     ) =
@@ -23,26 +23,25 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
             Map.empty 
             Vector.empty
 
-    member x.RunCommandNoThrow (cmd : obj) =    
+    member x.RunCommandNoThrow (cmd : obj) (context : 'TCommandContext) =    
         let cmdType = cmd.GetType()
         let cmdTypeFullName = cmd.GetType().FullName
-        let sourceMessageId = Guid.NewGuid()
         let handler = 
             handlers.CommandHandlers
             |> Map.tryFind cmdTypeFullName
             |> function
-            | Some (EventfulCommandHandler(_, handler,_)) -> handler ()
+            | Some (EventfulCommandHandler(_, handler,_)) -> handler context
             | None -> failwith <| sprintf "Could not find handler for %A" cmdType
 
         let (allEvents, result) = TestEventStore.runCommand interpret cmd handler allEvents
 
         let allEvents = TestEventStore.processPendingEvents () interpret handlers allEvents
 
-        new TestSystem<'TMetadata>(handlers, result, allEvents)
+        new TestSystem<'TMetadata, 'TCommandContext>(handlers, result, allEvents)
 
     // runs the command. throws on failure
-    member x.RunCommand (cmd : obj) =    
-        let system = x.RunCommandNoThrow cmd
+    member x.RunCommand (cmd : obj) (context : 'TCommandContext) =    
+        let system = x.RunCommandNoThrow cmd context
         match system.LastResult with
         | Choice1Of2 _ ->
             system
@@ -53,9 +52,9 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
 
     member x.LastResult = lastResult
 
-    member x.Run (cmds : obj list) =
+    member x.Run (cmds : (obj * 'TCommandContext) list) =
         cmds
-        |> List.fold (fun (s:TestSystem<'TMetadata>) cmd -> s.RunCommand cmd) x
+        |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext>) (cmd, context) -> s.RunCommand cmd context) x
 
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 
@@ -88,9 +87,9 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
             Events = List.empty
             Position = None
         }
-        new TestSystem<'TMetadata>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty)
+        new TestSystem<'TMetadata, 'TCommandContext>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
-    let runCommand x (y:TestSystem<'TMetadata>) = y.RunCommand x
-    let runCommandNoThrow x (y:TestSystem<'TMetadata>) = y.RunCommandNoThrow x
+    let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext>) = y.RunCommand x c
+    let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext>) = y.RunCommandNoThrow x c

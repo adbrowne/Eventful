@@ -29,9 +29,8 @@ module OnEventTestCommon =
         sprintf "Foo-%s" <| id.ToString("N")
   
     let barEventCounter : IStateBuilder<int, TestMetadata, Guid> =
-        StateBuilder.Empty "BarEventCount" 0
-        |> StateBuilder.handler (fun (e:BarEvent) _ -> e.Id) (fun (s,e,m) -> s + 1)
-        |> (fun s -> s :> IStateBuilder<int, TestMetadata, Guid>)
+        StateBuilder.eventTypeCountBuilder (fun (e:BarEvent) _ -> e.Id)
+        |> StateBuilder.toInterface
 
 module OnEventTests =
     open OnEventTestCommon
@@ -88,7 +87,7 @@ module OnEventTests =
 
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.runCommand { FooCmd.Id = thisId }
+            |> TestSystem.runCommand { FooCmd.Id = thisId } ()
 
         let barCount = afterRun.EvaluateState streamName thisId barEventCounter
 
@@ -158,7 +157,7 @@ module OnEventMuliAggregateTests =
 
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.runCommand { FooCmd.Id = thisId; SecondId = secondId }
+            |> TestSystem.runCommand { FooCmd.Id = thisId; SecondId = secondId } ()
 
         let barStateIs1 guid =
             afterRun.EvaluateState (getStreamName () guid) guid barEventCounter |> should equal 1
