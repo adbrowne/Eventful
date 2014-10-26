@@ -87,6 +87,8 @@
   test:
     assemblies:
       - Eventful.Tests.dll
+      - Eventful.CsTests.dll
+      - BookLibrary.dll
       - Eventful.Tests.Integration.dll
     categories:
       - unit
