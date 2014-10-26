@@ -48,8 +48,8 @@ function Expand-ZIPFile($filename, $destinationDirectory)
 }
 
 task DownloadEventStore {
-  $testExecutablePath = "$PSScriptRoot\EventStore3\EventStore.ClusterNode.Test.exe"
-  if (Test-Path $testExecutablePath){
+  $executablePath = "$PSScriptRoot\EventStore3\EventStore.ClusterNode.exe"
+  if (Test-Path $executablePath){
     # already setup
   }
   else{
@@ -59,8 +59,6 @@ task DownloadEventStore {
     $wc.downloadfile("http://download.geteventstore.com/binaries/EventStore-OSS-Win-v3.0.0.zip", $downloadPath)
 
     exec { & {.\tools\7za\7za.exe x .\EventStore3.zip -oEventStore3 -y }}
-
-    copy-item "$PSScriptRoot\EventStore3\EventStore.ClusterNode.exe" $testExecutablePath
   }
 }
 

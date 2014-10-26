@@ -24,15 +24,19 @@ module InMemoryEventStoreRunner =
 
 
     let eventStoreDirectory = "..\EventStore3"
-    let clusterNodeExecutable = Path.Combine(eventStoreDirectory, "EventStore.ClusterNode.exe")
-    let testClusterNodeProcessName = "EventStore.ClusterNode.Test"
-    let testClusterNodeExecutable = Path.Combine(eventStoreDirectory, testClusterNodeProcessName + ".exe")
+    let clusterNodeAbsolutePath = Path.Combine(DirectoryInfo(Directory.GetCurrentDirectory()).Parent.FullName, "EventStore3\EventStore.ClusterNode.exe")
+    let testNodeEnvironmentVariable = "EventfulTestNode"
+    let clusterNodeProcessName = "EventStore.ClusterNode"
     let testTcpPort = 11130
     let testHttpPort = 21130
 
     let ensureNoZombieEventStores () =
-        for proc in Process.GetProcessesByName(testClusterNodeProcessName) do
-            IntegrationTests.runUntilSuccess 100 (fun () -> proc.Kill(); proc.WaitForExit())
+        for proc in Process.GetProcessesByName(clusterNodeProcessName) do
+            try
+                let isTestProcess = proc.MainModule.FileName = clusterNodeAbsolutePath
+                if isTestProcess then
+                    IntegrationTests.runUntilSuccess 100 (fun () -> proc.Kill(); proc.WaitForExit())
+            with | ex -> Console.WriteLine(sprintf "Error stopping process: %A" ex)
 
     let startNewProcess () =
         let processArguments = 
@@ -52,11 +56,12 @@ module InMemoryEventStoreRunner =
 
         let startInfo = 
             System.Diagnostics.ProcessStartInfo(
-                testClusterNodeExecutable, 
+                clusterNodeAbsolutePath, 
                 processArguments,
                 CreateNoWindow = true,
                 UseShellExecute = false,
                 RedirectStandardOutput = true)
+        startInfo.EnvironmentVariables.Add(testNodeEnvironmentVariable, "true")
 
         let eventStoreProcess = Process.Start(startInfo)
 
