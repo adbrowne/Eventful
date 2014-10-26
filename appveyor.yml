@@ -80,6 +80,10 @@
   before_build: nuget restore src\Eventful.sln
   after_build: 
     ps: .\build\build.ps1 AppveyorPostBuild
+  
+  build:
+    project: src\Eventful.sln
+    verbosity: quiet
 
   #---------------------------------#
   #             tests               #
