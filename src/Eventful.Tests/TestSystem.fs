@@ -23,7 +23,7 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
             Map.empty 
             Vector.empty
 
-    member x.RunCommand (cmd : obj) =    
+    member x.RunCommandNoThrow (cmd : obj) =    
         let cmdType = cmd.GetType()
         let cmdTypeFullName = cmd.GetType().FullName
         let sourceMessageId = Guid.NewGuid()
@@ -39,6 +39,15 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
         let allEvents = TestEventStore.processPendingEvents () interpret handlers allEvents
 
         new TestSystem<'TMetadata>(handlers, result, allEvents)
+
+    // runs the command. throws on failure
+    member x.RunCommand (cmd : obj) =    
+        let system = x.RunCommandNoThrow cmd
+        match system.LastResult with
+        | Choice1Of2 _ ->
+            system
+        | Choice2Of2 e ->
+            failwith <| sprintf "Command failed %A" e
 
     member x.Handlers = handlers
 
@@ -84,3 +93,4 @@ type TestSystem<'TMetadata when 'TMetadata : equality>
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
     let runCommand x (y:TestSystem<'TMetadata>) = y.RunCommand x
+    let runCommandNoThrow x (y:TestSystem<'TMetadata>) = y.RunCommandNoThrow x
