@@ -30,18 +30,13 @@ type BookLibraryEventMetadata = {
 }
 
 module Aggregates = 
-    let systemConfiguration = { 
-        SetSourceMessageId = (fun id metadata -> { metadata with SourceMessageId = id })
-        SetMessageId = (fun id metadata -> { metadata with MessageId = id })
-    }
-
     let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<BookLibraryEventMetadata, 'TId>
 
     let emptyMetadata aggregateId messageId sourceMessageId = { SourceMessageId = sourceMessageId; MessageId = messageId; EventTime = DateTime.UtcNow; AggregateId = aggregateId }
 
     let inline simpleHandler f = 
         let withMetadata = f >> (fun x -> (x, emptyMetadata))
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration stateBuilder withMetadata
+        Eventful.AggregateActionBuilder.simpleHandler stateBuilder withMetadata
     
     let inline buildCmdHandler f =
         f
@@ -49,10 +44,10 @@ module Aggregates =
         |> buildCmd
 
     let inline linkEvent fId =
-        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId emptyMetadata
+        Eventful.AggregateActionBuilder.linkEvent fId emptyMetadata
 
     let inline onEvent fId sb f =
-        Eventful.AggregateActionBuilder.onEvent systemConfiguration fId sb f
+        Eventful.AggregateActionBuilder.onEvent fId sb f
 
     let inline fullHandler s f =
         let withMetadata a b c =
@@ -62,7 +57,7 @@ module Aggregates =
                 |> List.map (fun x -> (x, emptyMetadata))
                 |> List.toSeq
             )
-        Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
+        Eventful.AggregateActionBuilder.fullHandler s withMetadata
         |> buildCmd
 
     let toAggregateDefinition = Eventful.Aggregate.toAggregateDefinition

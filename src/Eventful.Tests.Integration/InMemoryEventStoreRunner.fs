@@ -23,7 +23,6 @@ module InMemoryEventStoreRunner =
              this.Process.Dispose()
 
 
-    let eventStoreDirectory = "..\EventStore3"
     let clusterNodeAbsolutePath = Path.Combine(DirectoryInfo(Directory.GetCurrentDirectory()).Parent.FullName, "EventStore3\EventStore.ClusterNode.exe")
     let testNodeEnvironmentVariable = "EventfulTestNode"
     let clusterNodeProcessName = "EventStore.ClusterNode"

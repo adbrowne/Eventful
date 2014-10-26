@@ -122,6 +122,9 @@ module StateBuilder =
         |> Seq.map (fun (getKey, _) -> (getKey evt metadata))
         |> Seq.distinct
 
+    let toInterface (builder: StateBuilder<'TState, 'TMetadata, 'TKey>) =
+        builder :> IStateBuilder<'TState, 'TMetadata, 'TKey>
+
 type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
     (
         unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list,

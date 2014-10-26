@@ -44,11 +44,6 @@ module TestAggregate =
     type TestEvents =
     | Test of TestEvent
 
-    let systemConfiguration = { 
-        SetSourceMessageId = (fun id metadata -> { metadata with TestEventMetadata.SourceMessageId = id })
-        SetMessageId = (fun id metadata -> { metadata with MessageId = id })
-    }
-
     let stateBuilder = StateBuilder.nullStateBuilder<TestEventMetadata, TestId>
 
     let inline buildMetadata aggregateId messageId sourceMessageId = { 
@@ -61,7 +56,7 @@ module TestAggregate =
         (cmdResult, buildMetadata)
 
     let inline simpleHandler f = 
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration stateBuilder (withMetadata f)
+        Eventful.AggregateActionBuilder.simpleHandler stateBuilder (withMetadata f)
     
     let inline buildCmdHandler f =
         f
@@ -76,7 +71,7 @@ module TestAggregate =
                 |> List.map (fun x -> (x, buildMetadata))
                 |> List.toSeq
             )
-        Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
+        Eventful.AggregateActionBuilder.fullHandler s withMetadata
 
     let cmdHandlers = 
         seq {

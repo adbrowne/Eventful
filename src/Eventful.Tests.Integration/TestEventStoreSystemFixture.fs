@@ -15,11 +15,6 @@ open Eventful.Testing
 open FSharpx.Option
 
 module TestEventStoreSystemHelpers =
-    let systemConfiguration = { 
-        SetSourceMessageId = (fun id metadata -> { metadata with SourceMessageId = id })
-        SetMessageId = (fun id metadata -> { metadata with MessageId = id })
-    }
-
     let emptyMetadata : Eventful.Testing.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
 
     let inline buildMetadata aggregateId messageId sourceMessageId = { 
@@ -32,14 +27,14 @@ module TestEventStoreSystemHelpers =
         (cmdResult, buildMetadata)
 
     let inline simpleHandler s f = 
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration s (withMetadata f)
+        Eventful.AggregateActionBuilder.simpleHandler s (withMetadata f)
     let inline buildSimpleCmdHandler s f = 
-        Eventful.AggregateActionBuilder.buildSimpleCmdHandler systemConfiguration s (withMetadata f)
+        Eventful.AggregateActionBuilder.buildSimpleCmdHandler s (withMetadata f)
     let inline onEvent fId s f = 
         let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata))
-        Eventful.AggregateActionBuilder.onEvent systemConfiguration fId s (withMetadata f)
+        Eventful.AggregateActionBuilder.onEvent fId s (withMetadata f)
     let inline linkEvent fId = 
-        Eventful.AggregateActionBuilder.linkEvent systemConfiguration fId buildMetadata
+        Eventful.AggregateActionBuilder.linkEvent fId buildMetadata
 
 type AggregateType =
 | Widget
