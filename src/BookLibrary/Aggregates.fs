@@ -68,15 +68,4 @@ module Aggregates =
     let inline onEvent fId sb f =
         Eventful.AggregateActionBuilder.onEvent fId sb f
 
-//    let inline fullHandler getId s f =
-//        let withMetadata a b c =
-//            f a b c
-//            |> Choice.map (fun evts ->
-//                evts 
-//                |> List.map (fun x -> (x, emptyMetadata))
-//                |> List.toSeq
-//            )
-//        Eventful.AggregateActionBuilder.fullHandler (systemConfiguration getId) s emptyMetadata
-//        |> buildCmd
-
     let toAggregateDefinition = Eventful.Aggregate.toAggregateDefinition
