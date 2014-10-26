@@ -24,7 +24,6 @@ module InMemoryEventStoreRunner =
 
 
     let eventStoreDirectory = "..\EventStore3"
-    let installCompleteMarkerFile = Path.Combine(eventStoreDirectory, "test_setup.mrk")
     let clusterNodeExecutable = Path.Combine(eventStoreDirectory, "EventStore.ClusterNode.exe")
     let testClusterNodeProcessName = "EventStore.ClusterNode.Test"
     let testClusterNodeExecutable = Path.Combine(eventStoreDirectory, testClusterNodeProcessName + ".exe")
