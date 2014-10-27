@@ -25,11 +25,14 @@ type UpdateBookTitleCommand = {
     Title : string
 }
 
+type IEvent = interface end
+
 [<CLIMutable>]
 type BookTitleUpdatedEvent = {
     BookId : BookId
-    Title : string
+    Title : string 
 }
+with interface IEvent
 
 module Book =
     let getStreamName () (bookId : BookId) =
@@ -63,28 +66,37 @@ module Book =
     let inline bookCmdHandler f = 
         cmdHandler getBookIdFromMetadata f
 
-
     let cmdHandlers = 
         seq {
-           let addBook (cmd : AddBookCommand) =
+           yield 
+               (fun (cmd : AddBookCommand) ->
                { 
                    BookAddedEvent.BookId = cmd.BookId
                    Title = cmd.Title
-               }
+               })
+               |> bookCmdHandler 
 
-           yield bookCmdHandler addBook
+           yield 
+               (fun (cmd : AddBookCommand) ->
+               { 
+                   BookAddedEvent.BookId = cmd.BookId
+                   Title = cmd.Title
+               })
+               |> bookCmdHandler 
 
-           yield bookCmdHandlerS bookTitle (fun currentTitle m (cmd : UpdateBookTitleCommand) ->
-               let updateTitle newTitle =
-                   [{
-                       BookId = cmd.BookId
-                       Title = newTitle
-                   } :> obj]
+           yield 
+               (fun currentTitle m (cmd : UpdateBookTitleCommand) ->
+                   let updateTitle newTitle =
+                       [{
+                           BookId = cmd.BookId
+                           Title = newTitle
+                       } :> obj]
 
-               let newTitle = doesNotEqual (Some "title", "Cannot update title to the same value") currentTitle cmd.Title
+                   let newTitle = doesNotEqual (Some "title", "Cannot update title to the same value") currentTitle cmd.Title
 
-               updateTitle <!> newTitle
-           )
+                   updateTitle <!> newTitle
+               )
+               |> bookCmdHandlerS bookTitle 
         }
 
     let eventHandlers =

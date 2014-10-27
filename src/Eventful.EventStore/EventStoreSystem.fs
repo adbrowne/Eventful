@@ -12,6 +12,8 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
         handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>,
         client : Client,
         serializer: ISerializer,
+        // todo: this shouldn't be required
+        // there needs to be be a mapping from TMetadata to TEventContext
         eventContext : 'TEventContext
     ) =
 
