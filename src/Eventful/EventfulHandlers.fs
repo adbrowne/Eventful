@@ -60,7 +60,7 @@ module EventfulHandlers =
     let addClassToEventStoreType (classType : Type) (eventStoreType : string) (eventfulHandlers : EventfulHandlers<_,_,_>) =
         eventfulHandlers.AddClassToEventStoreTypeMap classType eventStoreType 
 
-    let addAggregate (aggregateDefinition : AggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, _>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>) =
+    let addAggregate (aggregateDefinition : AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, _>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>) =
         let config = aggregateDefinition.Configuration
 
         eventfulHandlers

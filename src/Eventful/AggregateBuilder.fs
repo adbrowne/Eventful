@@ -64,7 +64,7 @@ type IEventHandler<'TId,'TMetadata> =
 type AggregateCommandHandlers<'TId,'TCommandContext,'TMetadata> = seq<ICommandHandler<'TId,'TCommandContext,'TMetadata>>
 type AggregateEventHandlers<'TId,'TMetadata> = seq<IEventHandler<'TId,'TMetadata>>
 
-type AggregateHandlers<'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> private 
+type AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata> private 
     (
         commandHandlers : list<ICommandHandler<'TId,'TCommandContext,'TMetadata>>, 
         eventHandlers : list<IEventHandler<'TId,'TMetadata>>
@@ -72,18 +72,18 @@ type AggregateHandlers<'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> 
     member x.CommandHandlers = commandHandlers
     member x.EventHandlers = eventHandlers
     member x.AddCommandHandler handler = 
-        new AggregateHandlers<'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata>(handler::commandHandlers, eventHandlers)
+        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata>(handler::commandHandlers, eventHandlers)
     member x.AddEventHandler handler = 
-        new AggregateHandlers<'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata>(commandHandlers, handler::eventHandlers)
-    member x.Combine (y:AggregateHandlers<_,_,_,_,_>) =
-        new AggregateHandlers<_,_,_,_,_>(
+        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata>(commandHandlers, handler::eventHandlers)
+    member x.Combine (y:AggregateHandlers<_,_,_,_>) =
+        new AggregateHandlers<_,_,_,_>(
             List.append commandHandlers y.CommandHandlers, 
             List.append eventHandlers y.EventHandlers)
 
-    static member Empty = new AggregateHandlers<'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata>(List.empty, List.empty)
+    static member Empty = new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata>(List.empty, List.empty)
     
 type IHandler<'TEvent,'TId,'TCommandContext,'TEventContext> = 
-    abstract member add : AggregateHandlers<'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> -> AggregateHandlers<'TEvent,'TId,'TCommandContext,'TEventContext,'TMetadata>
+    abstract member add : AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata> -> AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata>
 
 open FSharpx
 open Eventful.Validation
@@ -504,9 +504,9 @@ module AggregateActionBuilder =
         onEventMulti (fId >> Seq.singleton) stateBuilder (fun _ state evt -> runEvent state evt)
 
 
-type AggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata> = {
+type AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, 'TMetadata> = {
     Configuration : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId, 'TMetadata>
-    Handlers : AggregateHandlers<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata>
+    Handlers : AggregateHandlers<'TId, 'TCommandContext, 'TEventContext, 'TMetadata>
 }
 
 module Aggregate = 
@@ -535,10 +535,10 @@ module Aggregate =
             }
 
             let handlers =
-                commandHandlers |> Seq.fold (fun (x:AggregateHandlers<_,_,_,_,_>) h -> x.AddCommandHandler h) AggregateHandlers.Empty
+                commandHandlers |> Seq.fold (fun (x:AggregateHandlers<_,_,_,_>) h -> x.AddCommandHandler h) AggregateHandlers.Empty
 
             let handlers =
-                eventHandlers |> Seq.fold (fun (x:AggregateHandlers<_,_,_,_,_>) h -> x.AddEventHandler h) handlers
+                eventHandlers |> Seq.fold (fun (x:AggregateHandlers<_,_,_,_>) h -> x.AddEventHandler h) handlers
 
             {
                 Configuration = config
