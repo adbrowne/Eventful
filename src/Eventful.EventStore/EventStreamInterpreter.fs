@@ -71,9 +71,9 @@ module EventStreamInterpreter =
                 }
             | FreeEventStream (ReadValue (token, g)) ->
                 let (data, metadata) = values.[token]
-                let typeName = eventStoreTypeToClassMap.Item(token.EventType).FullName
-                let dataObj = serializer.DeserializeObj(data) typeName
-                let metadataObj = serializer.DeserializeObj(metadata) typeof<'TMetadata>.AssemblyQualifiedName :?> 'TMetatdata
+                let dataClass = eventStoreTypeToClassMap.Item(token.EventType)
+                let dataObj = serializer.DeserializeObj(data) dataClass
+                let metadataObj = serializer.DeserializeObj(metadata) typeof<'TMetadata> :?> 'TMetatdata
                 let next = g (dataObj,metadataObj)
                 loop next  values writes
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->

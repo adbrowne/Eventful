@@ -113,8 +113,8 @@ type TopShelfService () =
                 match system.EventStoreTypeToClassMap.ContainsKey re.Event.EventType with
                 | true ->
                     let eventClass = system.EventStoreTypeToClassMap.Item re.Event.EventType
-                    let evtObj = ApplicationConfig.esSerializer.DeserializeObj re.Event.Data eventClass.FullName
-                    let metadata = ApplicationConfig.esSerializer.DeserializeObj re.Event.Metadata typeof<BookLibraryEventMetadata>.FullName :?> BookLibraryEventMetadata
+                    let evtObj = ApplicationConfig.esSerializer.DeserializeObj re.Event.Data eventClass
+                    let metadata = ApplicationConfig.esSerializer.DeserializeObj re.Event.Metadata typeof<BookLibraryEventMetadata> :?> BookLibraryEventMetadata
 
                     let eventStoreMessage : EventStoreMessage = {
                         EventContext = metadata

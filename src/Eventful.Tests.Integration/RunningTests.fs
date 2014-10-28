@@ -21,8 +21,7 @@ module RunningTests =
         serializer.Serialize(sw, t :> obj)
         System.Text.Encoding.UTF8.GetBytes(sw.ToString())
 
-    let deserializeObj (v : byte[]) (typeName : string) : obj =
-        let objType = Type.GetType typeName
+    let deserializeObj (v : byte[]) (objType : Type) : obj =
         let str = System.Text.Encoding.UTF8.GetString(v)
         let reader = new StringReader(str) :> TextReader
         let result = serializer.Deserialize(reader, objType) 

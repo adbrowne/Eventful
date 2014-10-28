@@ -89,9 +89,9 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
             async {
                 let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
                 completeTracker.Start position
-                let evt = serializer.DeserializeObj (event.Event.Data) eventType.AssemblyQualifiedName
+                let evt = serializer.DeserializeObj (event.Event.Data) eventType
 
-                let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>.AssemblyQualifiedName) :?> 'TMetadata
+                let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>) :?> 'TMetadata
                 let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
                 let eventStreamEvent = EventStreamEvent.Event eventData
 
