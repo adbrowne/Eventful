@@ -30,7 +30,7 @@ module EventPositionTests =
             Prepare = prepare
         }
 
-        let token = inputPosition.Token
+        let token = inputPosition.BuildToken()
 
         let outputPosition = EventPosition.ParseToken token
 
@@ -43,7 +43,7 @@ module EventPositionTests =
         let position2 = new EventStore.ClientAPI.Position(commit2, prepare2)
 
         let eventStoreComparisonResult = (EventStore.ClientAPI.Position.op_LessThan(position1, position2))
-        let position1Token = (EventPosition.ofEventStorePosition position1).Token
-        let position2Token = (EventPosition.ofEventStorePosition position2).Token
+        let position1Token = (EventPosition.ofEventStorePosition position1).BuildToken()
+        let position2Token = (EventPosition.ofEventStorePosition position2).BuildToken()
         let eventfulTokenComparisonResult  = position1Token < position2Token
         eventStoreComparisonResult = eventfulTokenComparisonResult 

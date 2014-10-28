@@ -63,7 +63,7 @@ type AwardsController(system : IBookLibrarySystem) =
                      let response = x.Request.CreateResponse<Newtonsoft.Json.Linq.JObject>(Net.HttpStatusCode.Accepted, responseBody)
                      match result.Position with
                      | Some position ->
-                         response.Headers.Add("eventful-last-write", position.Token)
+                         response.Headers.Add("eventful-last-write", position.BuildToken())
                      | None ->
                          ()
                      response

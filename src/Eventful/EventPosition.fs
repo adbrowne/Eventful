@@ -13,7 +13,7 @@ with static member Start = { Commit = 0L; Prepare = 0L }
             Some { Commit =  commit; Prepare = prepare }
         | _ -> None
             
-     member x.Token = sprintf "%020d::%020d" x.Commit x.Prepare
+     member x.BuildToken () = sprintf "%020d::%020d" x.Commit x.Prepare
 
 type IBulkRavenMessage = 
     abstract member GlobalPosition : EventPosition option
