@@ -1,6 +1,7 @@
 ﻿namespace Eventful
 
 open System
+open FSharp.Control
 
 type ExpectedAggregateVersion =
 | Any
@@ -41,8 +42,15 @@ module EventStream =
     | GetEventStoreTypeToClassMap of unit * (EventStoreTypeToClassMap -> 'N)
     | GetClassToEventStoreTypeMap of unit * (ClassToEventStoreTypeMap -> 'N)
     | ReadValue of EventToken * ((obj * 'TMetadata) -> 'N)
+    | RunAsync of Async<EventStreamProgram<unit,'TMetadata>> * (unit -> 'N)
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
+    and 
+        FreeEventStream<'F,'R,'TMetadata> = 
+        | FreeEventStream of EventStreamLanguage<FreeEventStream<'F,'R,'TMetadata>,'TMetadata>
+        | Pure of 'R
+    and
+        EventStreamProgram<'A,'TMetadata> = FreeEventStream<obj,'A,'TMetadata>
 
     let fmap f streamWorker = 
         match streamWorker with
@@ -54,14 +62,12 @@ module EventStream =
             GetClassToEventStoreTypeMap (classToEventStoreTypeMap, next >> f)
         | ReadValue (eventToken, readValue) -> 
             ReadValue (eventToken, readValue >> f)
+        | RunAsync (asyncBlock, next) -> 
+            RunAsync (asyncBlock, (next >> f))
         | WriteToStream (stream, expectedVersion, events, next) -> 
             WriteToStream (stream, expectedVersion, events, (next >> f))
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
-
-    type FreeEventStream<'F,'R,'TMetadata> = 
-        | FreeEventStream of EventStreamLanguage<FreeEventStream<'F,'R,'TMetadata>,'TMetadata>
-        | Pure of 'R
 
     let empty = Pure ()
 
@@ -76,6 +82,8 @@ module EventStream =
         GetClassToEventStoreTypeMap ((), id) |> liftF
     let readValue eventToken = 
         ReadValue(eventToken, id) |> liftF
+    let runAsync f =
+        RunAsync(f, id) |> liftF
     let writeToStream stream number events = 
         WriteToStream(stream, number, events, id) |> liftF
 
@@ -121,8 +129,6 @@ module EventStream =
         member x.Delay(func) = delay func
 
     let eventStream = new EventStreamBuilder()
-
-    type EventStreamProgram<'A,'TMetadata> = FreeEventStream<obj,'A,'TMetadata>
 
     let inline returnM x = returnM eventStream x
 

@@ -3,6 +3,7 @@
 open System
 open FSharpx.Choice
 open FSharpx.Collections
+open FSharp.Control
 
 open Eventful.EventStream
 
@@ -55,19 +56,19 @@ type ICommandHandler<'TId,'TCommandContext, 'TMetadata> =
     abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId, 'TMetadata> -> 'TCommandContext -> obj -> EventStreamProgram<CommandResult<'TMetadata>,'TMetadata>
     abstract member Visitable : IRegistrationVisitable
 
-type IEventHandler<'TId,'TMetadata> =
+type IEventHandler<'TId,'TMetadata, 'TEventContext when 'TId : equality> =
     abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, 'TId> list -> IStateBlockBuilder<'TMetadata, 'TId> list
     abstract member EventType : Type
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
     abstract member Handler : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId, 'TMetadata> -> 'TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> EventStreamProgram<EventResult,'TMetadata>
 
 type AggregateCommandHandlers<'TId,'TCommandContext,'TMetadata> = seq<ICommandHandler<'TId,'TCommandContext,'TMetadata>>
-type AggregateEventHandlers<'TId,'TMetadata> = seq<IEventHandler<'TId,'TMetadata>>
+type AggregateEventHandlers<'TId,'TMetadata, 'TEventContext  when 'TId : equality> = seq<IEventHandler<'TId,'TMetadata, 'TEventContext >>
 
-type AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata> private 
+type AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata when 'TId : equality> private 
     (
         commandHandlers : list<ICommandHandler<'TId,'TCommandContext,'TMetadata>>, 
-        eventHandlers : list<IEventHandler<'TId,'TMetadata>>
+        eventHandlers : list<IEventHandler<'TId,'TMetadata, 'TEventContext>>
     ) =
     member x.CommandHandlers = commandHandlers
     member x.EventHandlers = eventHandlers
@@ -82,7 +83,7 @@ type AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata> private
 
     static member Empty = new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata>(List.empty, List.empty)
     
-type IHandler<'TEvent,'TId,'TCommandContext,'TEventContext> = 
+type IHandler<'TEvent,'TId,'TCommandContext,'TEventContext when 'TId : equality> = 
     abstract member add : AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata> -> AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata>
 
 open FSharpx
@@ -115,7 +116,8 @@ type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TId, 'TMetadata, '
     SystemConfiguration : SystemConfiguration<'TId, 'TMetadata>
 }
 
-open Eventful.EventStream
+type MultiEventRun<'TId,'TMetadata,'TState when 'TId : equality> = ('TId * ('TState -> seq<obj * metadataBuilder<'TMetadata>>))
+
 open Eventful.Validation
 
 module AggregateActionBuilder =
@@ -427,8 +429,8 @@ module AggregateActionBuilder =
     let buildSimpleCmdHandler<'TId,'TCmd,'TCmdState,'TCommandContext,'TEvent, 'TMetadata when 'TId : equality> systemConfiguration stateBuilder = 
         (simpleHandler<'TId,'TCmdState,'TCmd,'TCommandContext,'TEvent, 'TMetadata> systemConfiguration stateBuilder) >> buildCmd
         
-    let getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata> (fId : 'TLinkEvent -> 'TId) (metadataBuilder : metadataBuilder<'TMetadata>) = {
-        new IEventHandler<'TId,'TMetadata> with 
+    let getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata, 'TCommandContext, 'TEventContext when 'TId : equality> (fId : 'TLinkEvent -> 'TId) (metadataBuilder : metadataBuilder<'TMetadata>) = {
+        new IEventHandler<'TId,'TMetadata, 'TEventContext > with 
              member this.EventType = typeof<'TLinkEvent>
              member this.AddStateBuilder builders = builders
              member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData<'TMetadata>) = eventStream {
@@ -439,8 +441,8 @@ module AggregateActionBuilder =
 
                 let resultingStream = aggregateConfig.GetEventStreamName eventContext aggregateId
 
-                // todo: should not be new stream
                 let! result = EventStream.writeLink resultingStream Any sourceStream sourceEventNumber metadata
+
                 return 
                     match result with
                     | WriteResult.WriteSuccess _ -> 
@@ -452,70 +454,119 @@ module AggregateActionBuilder =
              }
         }
 
-    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata when 'TId : equality> (fId : 'TOnEvent -> 'TId seq) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TId>) (runEvent : 'TId -> 'TState -> 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = {
-        new IEventHandler<'TId,'TMetadata> with 
-            member this.EventType = typeof<'TOnEvent>
-            member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
-            member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber evt = eventStream {
-                let typedEvent = evt.Body :?> 'TOnEvent
-                let eventKeys = (fId typedEvent)
-                for eventKey in eventKeys do
-                    let resultingStream = aggregateConfig.GetEventStreamName eventContext eventKey
+    let writeEvents aggregateConfig eventsConsumed eventContext eventKey evts  = eventStream {
+        let resultingStream = aggregateConfig.GetEventStreamName eventContext eventKey
 
-                    let! (eventsConsumed, combinedState) = 
-                        aggregateConfig.StateBuilder 
-                        |> AggregateStateBuilder.ofStateBuilderList
-                        |> AggregateStateBuilder.toStreamProgram resultingStream eventKey
-                    let state = stateBuilder.GetState combinedState
+        let! resultingEvents = 
+            evts
+            |> Seq.toList
+            |> EventStream.mapM (fun (event,metadata) -> 
+                let aggregateId = aggregateConfig.GetAggregateId eventKey
+                let metadata =  
+                    metadata aggregateId (Guid.NewGuid()) (Guid.NewGuid().ToString())
 
-                    let! resultingEvents = 
-                        runEvent eventKey state typedEvent
-                        |> Seq.toList
-                        |> EventStream.mapM (fun (event,metadata) -> 
-                            let aggregateId = aggregateConfig.GetAggregateId eventKey
-                            let metadata =  
-                                metadata aggregateId (Guid.NewGuid()) (Guid.NewGuid().ToString())
+                getEventStreamEvent event metadata)
 
-                            getEventStreamEvent event metadata)
+        let expectedVersion = 
+            match eventsConsumed with
+            | 0 -> NewStream
+            | x -> AggregateVersion (x - 1)
 
-                    let expectedVersion = 
-                        match eventsConsumed with
-                        | 0 -> NewStream
-                        | x -> AggregateVersion (x - 1)
+        let! result = EventStream.writeToStream resultingStream expectedVersion resultingEvents
 
-                    let! result = EventStream.writeToStream resultingStream expectedVersion resultingEvents
-
-                    return 
-                        match result with
-                        | WriteResult.WriteSuccess _ -> ()
-                        | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
-                        | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
-                        | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"
-            }
+        return 
+            match result with
+            | WriteResult.WriteSuccess _ -> ()
+            | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
+            | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
+            | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"
     }
 
-    let linkEvent<'TLinkEvent,'TId,'TCommandContext,'TEventContext,'TMetadata> fId (metadata : metadataBuilder<'TMetadata>) = 
-        getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata> fId metadata
+    let processSequence
+        (aggregateConfig : AggregateConfiguration<'TCommandContext,'TEventContext,'TId,'TMetadata>)
+        (stateBuilder : IStateBuilder<'TState,_,_>)
+        (eventContext : 'TEventContext)  
+        (handlers : AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState>>) 
+        =
+        handlers
+        |> AsyncSeq.map (fun (id, handler) ->
+            eventStream {
+                let resultingStream = aggregateConfig.GetEventStreamName eventContext id
+                let! (eventsConsumed, combinedState) = 
+                    aggregateConfig.StateBuilder 
+                    |> AggregateStateBuilder.ofStateBuilderList
+                    |> AggregateStateBuilder.toStreamProgram resultingStream id
+                let state = stateBuilder.GetState combinedState
+                let evts = handler state
+                return! writeEvents aggregateConfig eventsConsumed eventContext id evts
+            }
+        )
 
-    let onEventMulti<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata when 'TId : equality> fId (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TId>) (runEvent : 'TId -> 'TEventState -> 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = 
-        getEventInterfaceForOnEvent<'TOnEvent,'TEvent,'TId,'TEventState, 'TMetadata> fId stateBuilder runEvent
+    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata, 'TCommandContext, 'TEventContext when 'TId : equality> (stateBuilder: IStateBuilder<_,_,_>) (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState>>) = {
+        new IEventHandler<'TId,'TMetadata, 'TEventContext> with 
+            member this.EventType = typeof<'TOnEvent>
+            member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
+            member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber evt = 
+                eventStream {
+                    let typedEvent = evt.Body :?> 'TOnEvent
 
-    let onEvent<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata when 'TId : equality> fId (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TId>) (runEvent : 'TEventState -> 'TOnEvent -> seq<'TEvent * metadataBuilder<'TMetadata>>) = 
-        onEventMulti (fId >> Seq.singleton) stateBuilder (fun _ state evt -> runEvent state evt)
+                    let asyncSeq = fId (typedEvent, eventContext)
+                    let handlerSequence = processSequence aggregateConfig stateBuilder eventContext asyncSeq
 
+                    let acc existingP p =
+                        eventStream {
+                            do! existingP
+                            do! p 
+                        }
 
-type AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, 'TMetadata> = {
+                    let runSequence = handlerSequence |> AsyncSeq.fold acc EventStream.empty
+
+                    do! runAsync runSequence
+                    return ()
+                }
+    }
+
+    let linkEvent<'TLinkEvent,'TId,'TCommandContext,'TEventContext,'TMetadata when 'TId : equality> fId (metadata : metadataBuilder<'TMetadata>) = 
+        getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata,'TCommandContext,'TEventContext> fId metadata
+
+    let onEventMultiAsync<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext when 'TId : equality> 
+        stateBuilder 
+        (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TEventState>>) = 
+        getEventInterfaceForOnEvent<'TOnEvent,'TEvent,'TId,'TEventState, 'TMetadata, 'TCommandContext,'TEventContext> stateBuilder fId
+
+    let onEventMulti<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext when 'TId : equality> 
+        stateBuilder 
+        (fId : ('TOnEvent * 'TEventContext) -> seq<MultiEventRun<'TId,'TMetadata,'TEventState>>) = 
+        onEventMultiAsync stateBuilder (fId >> AsyncSeq.ofSeq)
+
+    let onEvent<'TOnEvent,'TEventState,'TId,'TMetadata,'TEventContext when 'TId : equality> 
+        (fId : 'TOnEvent -> 'TEventContext -> 'TId) 
+        (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TId>) 
+        (runEvent : 'TEventState -> 'TOnEvent -> seq<obj * metadataBuilder<'TMetadata>>) = 
+        
+        let runEvent' = fun evt state ->
+            runEvent state evt
+
+        let handler = 
+            (fun (evt, eventCtx) -> 
+                let aggId = fId evt eventCtx
+                let h = runEvent' evt
+                (aggId, h) |> Seq.singleton
+            )
+        onEventMulti stateBuilder handler
+
+type AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, 'TMetadata when 'TId : equality> = {
     Configuration : AggregateConfiguration<'TCommandContext, 'TEventContext, 'TId, 'TMetadata>
     Handlers : AggregateHandlers<'TId, 'TCommandContext, 'TEventContext, 'TMetadata>
 }
 
 module Aggregate = 
-    let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata>
+    let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata when 'TId : equality>
         (getCommandStreamName : 'TCommandContext -> 'TId -> string)
         (getEventStreamName : 'TEventContext -> 'TId -> string) 
         (getAggregateId : 'TId -> Guid) 
         (commandHandlers : AggregateCommandHandlers<'TId,'TCommandContext, 'TMetadata>)
-        (eventHandlers : AggregateEventHandlers<'TId,'TMetadata>) = 
+        (eventHandlers : AggregateEventHandlers<'TId,'TMetadata, 'TEventContext >) = 
 
             let commandStateBuilders = 
                 commandHandlers |> Seq.map (fun x -> x.AddStateBuilder)

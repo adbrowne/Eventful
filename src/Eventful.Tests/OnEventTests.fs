@@ -6,6 +6,7 @@ open Eventful.Testing
 
 open Xunit
 open FsUnit.Xunit
+open FSharp.Control
 
 module OnEventTests =
     open EventSystemTestCommon
@@ -31,13 +32,13 @@ module OnEventTests =
                 |> AggregateActionBuilder.buildCmd
         }
 
-        let evtHandlers = seq {
+        let evtHandlers : seq<IEventHandler<_,_,_>> = seq {
             yield 
                 AggregateActionBuilder.onEvent 
-                    (fun (e : FooEvent) -> e.Id) 
+                    (fun (e : FooEvent) _ -> e.Id) 
                     StateBuilder.nullStateBuilder 
                     (fun s e -> 
-                        ({ BarEvent.Id = e.Id }, metadataBuilder)
+                        ({ BarEvent.Id = e.Id } :> obj, metadataBuilder)
                         |> Seq.singleton
                     )
         }
@@ -101,14 +102,17 @@ module OnEventMuliAggregateTests =
         }
 
         let evtHandlers = seq {
+            let h = (fun aggregateId s -> 
+                    ({ BarEvent.Id = aggregateId } :> obj, metadataBuilder)
+                    |> Seq.singleton
+                )
             yield 
-                AggregateActionBuilder.onEventMulti 
-                    (fun (e : FooEvent) -> seq { yield e.Id; yield e.SecondId }) 
+                AggregateActionBuilder.onEventMulti
                     StateBuilder.nullStateBuilder 
-                    (fun aggregateId s e -> 
-                        ({ BarEvent.Id = aggregateId }, metadataBuilder)
-                        |> Seq.singleton
-                    )
+                    (fun (e : FooEvent, _) -> seq {
+                        yield (e.Id, h e.Id); 
+                        yield (e.SecondId, h e.SecondId)
+                    }) 
         }
 
         Eventful.Aggregate.toAggregateDefinition getCommandStreamName getStreamName id cmdHandlers evtHandlers

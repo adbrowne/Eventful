@@ -105,10 +105,10 @@ module Book =
 
             let onBookAwarded bookCopyCount (evt : BookPrizeAwardedEvent) = seq {
                 if(bookCopyCount > 10) then
-                    yield ({ BookPromotedEvent.BookId = evt.BookId }, emptyMetadata)
+                    yield ({ BookPromotedEvent.BookId = evt.BookId } :> obj, emptyMetadata)
             }
 
-            yield onEvent (fun (evt : BookPrizeAwardedEvent) -> evt.BookId) copyCount onBookAwarded
+            yield onEvent (fun (evt : BookPrizeAwardedEvent) _ -> evt.BookId) copyCount onBookAwarded
         }
 
     let bookIdGuid (bookId : BookId) = bookId.Id

@@ -8,12 +8,13 @@ open FSharpx.Option
 
 module TestInterpreter =
     let rec interpret 
-        prog 
+        (prog : EventStreamProgram<'T,_>)
         (eventStore : TestEventStore<'TMetadata>) 
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
         (values : Map<EventToken,(obj * 'TMetadata)>) 
-        (writes : Vector<string * int * EventStreamEvent<'TMetadata>>)= 
+        (writes : Vector<string * int * EventStreamEvent<'TMetadata>>)
+        : (TestEventStore<'TMetadata> * 'T)= 
         match prog with
         | FreeEventStream (GetEventStoreTypeToClassMap ((), f)) ->
             let next = f eventStoreTypeToClassMap
@@ -21,6 +22,14 @@ module TestInterpreter =
         | FreeEventStream (GetClassToEventStoreTypeMap ((), f)) ->
             let next = f classToEventStoreTypeMap
             interpret next eventStore eventStoreTypeToClassMap classToEventStoreTypeMap values writes
+        | FreeEventStream (RunAsync (b,f)) ->
+            let subProgram = b |> Async.RunSynchronously
+            let continuation = 
+                eventStream {
+                    let! _ = subProgram
+                    return! f()
+                }
+            interpret continuation eventStore eventStoreTypeToClassMap classToEventStoreTypeMap values writes
         | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
             let readEvent = maybe {
                     let! streamEvents = eventStore.Events |> Map.tryFind stream
