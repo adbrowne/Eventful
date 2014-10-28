@@ -70,10 +70,11 @@ task CreateNugetPackages {
   $version = $version.Substring(0, $version.LastIndexOf("."))
   $version = "$version-beta"
 
-  exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.nuspec -version $version -Verbosity detailed}}
-  Move-Item -force Eventful.$version.nupkg Eventful.nupkg
+  #exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.nuspec -version $version -Verbosity detailed}}
+  #Move-Item -force Eventful.$version.nupkg Eventful.nupkg
 
   exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.nuspec -version $version -Verbosity detailed -Symbols }}  
+  Move-Item -force Eventful.$version.nupkg Eventful.nupkg
   Move-Item -force Eventful.$version.symbols.nupkg Eventful.symbols.nupkg
 
   #New-Item -force .\packages\Raven\lib\net45 -itemtype directory

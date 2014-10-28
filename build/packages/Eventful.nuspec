@@ -20,7 +20,7 @@
   <files>
     <file src="..\Release\Eventful.dll" target="lib\net40" /> 
     <file src="..\Release\Eventful.pdb" target="lib\net40" /> 
-    <file src="..\..\src\**\*.fs" target="src" />
-    <file src="..\..\src\**\*.cs" target="src" />
+    <file src="..\..\src\Eventful\**\*.fs" target="src" />
+    <file src="..\..\src\Eventful\**\*.cs" target="src" />
   </files>
 </package>
