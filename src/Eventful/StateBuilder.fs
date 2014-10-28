@@ -101,7 +101,7 @@ module StateBuilder =
     let handler (getKey : GetEventKey<'TMetadata, 'TEvent, 'TKey>) (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| SingleEvent (typeof<'TEvent>, untypedGetKey getKey, untypedHandler f)
 
-    let allEventsHandler getKey f (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
+    let allEventsHandler getKey (f : ('TState * obj * 'TMetadata) -> 'TState) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| AllEvents (getKey, untypedHandler f)
 
     let run (key : 'TKey) (evt : 'TEvent) (metadata : 'TMetadata) (builder: StateBuilder<'TState, 'TMetadata, 'TKey> , currentState : 'TState) =
