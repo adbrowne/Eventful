@@ -17,4 +17,10 @@
       <dependency id="EventStore.Client" version="3.0" />
     </dependencies>
   </metadata>
+  <files>
+    <file src="..\Release\Eventful.EventStore.dll" target="lib\net40" /> 
+    <file src="..\Release\Eventful.EventStore.pdb" target="lib\net40" /> 
+    <file src="..\..\src\Eventful.EventStore\**\*.fs" target="src" />
+    <file src="..\..\src\Eventful.EventStore\**\*.cs" target="src" />
+  </files>
 </package>

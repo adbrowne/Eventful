@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package >
   <metadata minClientVersion="2.5">
-    <id>Eventful.Neo4j</id>
+    <id>Eventful.RavenDb</id>
     <version>1.0.0.0</version>
     <authors>Andrew Browne, Picnic Software</authors>
     <owners>Andrew Browne</owners>
@@ -14,7 +14,13 @@
       <dependency id="FSharpx.Collections" version="1.9.2" />
       <dependency id="Common.Logging" version="2.0" />
       <dependency id="Eventful" version="[$EventfulVersion$]" />
-      <dependency id="Neo4jClient" version="1.0" />
+      <dependency id="RavenDB.Client" version="[2.0,3.0]" />
     </dependencies>
   </metadata>
+  <files>
+    <file src="..\Release\Eventful.RavenDb.dll" target="lib\net40" /> 
+    <file src="..\Release\Eventful.RavenDb.pdb" target="lib\net40" /> 
+    <file src="..\..\src\Eventful.RavenDb\**\*.fs" target="src" />
+    <file src="..\..\src\Eventful.RavenDb\**\*.cs" target="src" />
+  </files>
 </package>

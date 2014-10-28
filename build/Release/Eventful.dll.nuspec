@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <package >
-  <metadata minClientVersion="2.5">
+  <metadata>
     <id>Eventful</id>
-    <version>1.0.0.0</version>
-    <authors>Andrew Browne, Picnic Software</authors>
+    <version>0.0.1</version>
+    <authors>Andrew Browne</authors>
     <owners>Andrew Browne</owners>
     <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
     <projectUrl>https://github.com/adbrowne/eventful</projectUrl>
@@ -11,10 +11,7 @@
     <description>An EventSourcing library</description>
     <copyright>Copyright 2014</copyright>
     <dependencies>
-      <dependency id="FSharpx.Collections" version="1.9.2" />
-      <dependency id="FSharpx.Core" version="1.8.41" />
-      <dependency id="Common.Logging" version="2.0" />
-      <dependency id="Metrics.NET" version="0.2.0" />
+      <dependency id="FSharpx.Collections" version="1.9" />
     </dependencies>
   </metadata>
 </package>

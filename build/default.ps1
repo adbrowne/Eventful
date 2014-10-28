@@ -70,27 +70,21 @@ task CreateNugetPackages {
   $version = $version.Substring(0, $version.LastIndexOf("."))
   $version = "$version-beta"
 
-  #exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.nuspec -version $version -Verbosity detailed}}
-  #Move-Item -force Eventful.$version.nupkg Eventful.nupkg
-
   exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.nuspec -version $version -Verbosity detailed -Symbols }}  
   Move-Item -force Eventful.$version.nupkg Eventful.nupkg
   Move-Item -force Eventful.$version.symbols.nupkg Eventful.symbols.nupkg
 
-  #New-Item -force .\packages\Raven\lib\net45 -itemtype directory
-  #Copy-Item .\Release\Eventful.RavenDb.dll .\packages\Raven\lib\net45
-  #exec { & {.\tools\nuget\nuget.exe pack .\packages\Raven\Eventful.Raven.nuspec -version $version -Verbosity detailed -Properties EventfulVersion=$version}}
-  #Move-Item -force Eventful.RavenDb.$version.nupkg RavenDb.nupkg
+  exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.EventStore.nuspec -version $version -Verbosity detailed -Symbols  -Properties EventfulVersion=$version}}  
+  Move-Item -force Eventful.EventStore.$version.nupkg Eventful.EventStore.nupkg
+  Move-Item -force Eventful.EventStore.$version.symbols.nupkg Eventful.EventStore.symbols.nupkg
 
-  #New-Item -force .\packages\EventStore\lib\net45 -itemtype directory
-  #Copy-Item .\Release\Eventful.EventStore.dll .\packages\EventStore\lib\net45
-  #exec { & {.\tools\nuget\nuget.exe pack .\packages\EventStore\Eventful.EventStore.nuspec -version $version -Verbosity detailed -Properties EventfulVersion=$version}}
-  #Move-Item -force Eventful.EventStore.$version.nupkg EventStore.nupkg
+  exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.RavenDb.nuspec -version $version -Verbosity detailed -Symbols  -Properties EventfulVersion=$version}}  
+  Move-Item -force Eventful.RavenDb.$version.nupkg Eventful.RavenDb.nupkg
+  Move-Item -force Eventful.RavenDb.$version.symbols.nupkg Eventful.RavenDb.symbols.nupkg
 
-  #New-Item -force .\packages\Neo4j\lib\net45 -itemtype directory
-  #Copy-Item .\Release\Eventful.Neo4j.dll .\packages\Neo4j\lib\net45
-  #exec { & {.\tools\nuget\nuget.exe pack .\packages\Neo4j\Eventful.Neo4j.nuspec -version $version -Verbosity detailed -Properties EventfulVersion=$version}}
-  #Move-Item -force Eventful.Neo4j.$version.nupkg Neo4j.nupkg
+  exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.Neo4j.nuspec -version $version -Verbosity detailed -Symbols  -Properties EventfulVersion=$version}}  
+  Move-Item -force Eventful.Neo4j.$version.nupkg Eventful.Neo4j.nupkg
+  Move-Item -force Eventful.Neo4j.$version.symbols.nupkg Eventful.Neo4j.symbols.nupkg
 }
 
 task PackagePush -depends Package {
