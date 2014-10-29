@@ -39,7 +39,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
 
     let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
         async {
-            let program = evtHandler eventContext eventStream eventNumber evt
+            let! program = evtHandler eventContext eventStream eventNumber evt
             return! interpreter program
         }
 
@@ -110,18 +110,16 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
             }
 
     member x.RunCommand (context:'TCommandContext) (cmd : obj) = 
-        async {
-            let program = EventfulHandlers.getCommandProgram context cmd handlers
-            let! result = 
-                EventStreamInterpreter.interpret 
-                    client 
-                    inMemoryCache 
-                    serializer 
-                    handlers.EventStoreTypeToClassMap 
-                    handlers.ClassToEventStoreTypeMap 
-                    program
-            return result
-        }
+        let program = EventfulHandlers.getCommandProgram context cmd handlers
+        let result = 
+            EventStreamInterpreter.interpret 
+                client 
+                inMemoryCache 
+                serializer 
+                handlers.EventStoreTypeToClassMap 
+                handlers.ClassToEventStoreTypeMap 
+                program
+        result
 
     member x.LastEventProcessed = lastEventProcessed
 

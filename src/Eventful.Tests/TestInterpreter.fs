@@ -22,14 +22,9 @@ module TestInterpreter =
         | FreeEventStream (GetClassToEventStoreTypeMap ((), f)) ->
             let next = f classToEventStoreTypeMap
             interpret next eventStore eventStoreTypeToClassMap classToEventStoreTypeMap values writes
-        | FreeEventStream (RunAsync (b,f)) ->
-            let subProgram = b |> Async.RunSynchronously
-            let continuation = 
-                eventStream {
-                    let! _ = subProgram
-                    return! f()
-                }
-            interpret continuation eventStore eventStoreTypeToClassMap classToEventStoreTypeMap values writes
+        | FreeEventStream (RunAsync asyncBlock) ->
+            let next = asyncBlock |> Async.RunSynchronously
+            interpret next eventStore eventStoreTypeToClassMap classToEventStoreTypeMap values writes
         | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
             let readEvent = maybe {
                     let! streamEvents = eventStore.Events |> Map.tryFind stream

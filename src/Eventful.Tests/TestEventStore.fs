@@ -40,7 +40,7 @@ module TestEventStore =
             AllEventsStream = store.AllEventsStream |> Queue.conj (stream, eventNumber, streamEvent)}
 
     let runHandlerForEvent (context: 'TEventContext) interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
-        let program = evtHandler context eventStream eventNumber evt
+        let program = evtHandler context eventStream eventNumber evt |> Async.RunSynchronously
         interpreter program testEventStore
         |> fst
 
@@ -65,5 +65,5 @@ module TestEventStore =
             processPendingEvents context interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =
-        let program = handler cmd
+        let program = handler cmd 
         interpreter program testEventStore

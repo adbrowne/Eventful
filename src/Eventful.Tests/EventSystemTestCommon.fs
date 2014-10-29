@@ -25,7 +25,7 @@ module EventSystemTestCommon =
     let addEventTypes evtTypes handlers =
         Seq.fold (fun h x -> addEventType x h) handlers evtTypes
 
-    let getCommandStreamName (_ : Guid) (id : Guid) = 
+    let getCommandStreamName _ (id : Guid) = 
         sprintf "Foo-%s" <| id.ToString("N")
 
     let getStreamName () (id : Guid) =

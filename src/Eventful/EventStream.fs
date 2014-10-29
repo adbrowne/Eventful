@@ -1,7 +1,7 @@
 ﻿namespace Eventful
 
 open System
-open FSharp.Control
+open FSharpx
 
 type ExpectedAggregateVersion =
 | Any
@@ -38,12 +38,12 @@ module EventStream =
     }
 
     type EventStreamLanguage<'N,'TMetadata> =
-    | ReadFromStream of string * int * (EventToken option -> 'N)
-    | GetEventStoreTypeToClassMap of unit * (EventStoreTypeToClassMap -> 'N)
-    | GetClassToEventStoreTypeMap of unit * (ClassToEventStoreTypeMap -> 'N)
-    | ReadValue of EventToken * ((obj * 'TMetadata) -> 'N)
-    | RunAsync of Async<EventStreamProgram<unit,'TMetadata>> * (unit -> 'N)
-    | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
+    | ReadFromStream of string * int *  (EventToken option -> 'N)
+    | GetEventStoreTypeToClassMap of unit *  (EventStoreTypeToClassMap -> 'N)
+    | GetClassToEventStoreTypeMap of unit *  (ClassToEventStoreTypeMap -> 'N)
+    | ReadValue of EventToken *  ((obj * 'TMetadata) -> 'N)
+    | RunAsync of Async<'N>
+    | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> *  (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
     and 
         FreeEventStream<'F,'R,'TMetadata> = 
@@ -62,12 +62,12 @@ module EventStream =
             GetClassToEventStoreTypeMap (classToEventStoreTypeMap, next >> f)
         | ReadValue (eventToken, readValue) -> 
             ReadValue (eventToken, readValue >> f)
-        | RunAsync (asyncBlock, next) -> 
-            RunAsync (asyncBlock, (next >> f))
         | WriteToStream (stream, expectedVersion, events, next) -> 
             WriteToStream (stream, expectedVersion, events, (next >> f))
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
+        | RunAsync asyncBlock -> 
+            RunAsync <| Async.map f asyncBlock
 
     let empty = Pure ()
 
@@ -82,10 +82,10 @@ module EventStream =
         GetClassToEventStoreTypeMap ((), id) |> liftF
     let readValue eventToken = 
         ReadValue(eventToken, id) |> liftF
-    let runAsync f =
-        RunAsync(f, id) |> liftF
     let writeToStream stream number events = 
         WriteToStream(stream, number, events, id) |> liftF
+    let runAsync (a : Async<'a>) : FreeEventStream<'f2,'a,'m> =  
+        RunAsync(a) |> liftF
 
     let rec bind f v =
         match v with

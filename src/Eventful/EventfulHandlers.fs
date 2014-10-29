@@ -5,7 +5,7 @@ open Eventful.EventStream
 open FSharpx.Collections
 
                                             // Source StreamId, Source Event Number, Event -> Program
-type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> EventStreamProgram<'T, 'TMetadata>)
+type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
 type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T, 'TMetadata>) * IRegistrationVisitable
 
 type MyEventResult = unit

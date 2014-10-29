@@ -28,14 +28,11 @@ module EventStreamInterpreter =
             | FreeEventStream (GetClassToEventStoreTypeMap ((), f)) ->
                 let next = f classToEventStoreTypeMap
                 loop next values writes
-            | FreeEventStream (RunAsync (b,f)) ->
-                let subProgram = b |> Async.RunSynchronously
-                let next = 
-                    eventStream {
-                        let! _ = subProgram
-                        return! f()
-                    }
-                loop next values writes
+            | FreeEventStream (RunAsync asyncBlock) ->
+                async {
+                    let! next = asyncBlock 
+                    return! loop next values writes
+                }
             | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
                 async {
                     let cacheKey = getCacheKey stream eventNumber
