@@ -103,8 +103,11 @@ type Client (connection : IEventStoreConnection) =
                                | None -> Nullable.op_Implicit(Position.Start)
 
         let onEventHandler (event : ResolvedEvent) =
-            handler event.Event.EventId event
-            |> Async.RunSynchronously
+            try
+                handler event.Event.EventId event
+                |> Async.RunSynchronously
+            with | exn ->
+                log.ErrorWithException(lazy(sprintf "Exception thrown by subscription event handler", exn))
 
         log.Debug <| lazy(sprintf "Subscription starting at: %A" nullablePosition)
         connection.SubscribeToAllFrom(nullablePosition, false, (fun _ event -> onEventHandler event), (fun _ -> onLive ()), (fun _ reason exn -> log.Debug <| lazy(sprintf "Dropped %A %A" reason exn)))
