@@ -120,7 +120,7 @@ type TestEventStoreSystemFixture () =
         |> addEventType typeof<WidgetCreatedEvent>
 
     let client = new Client(eventStoreProcess.Connection)
-    let newSystem client = new EventStoreSystem<unit,unit,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, ())
+    let newSystem client = new EventStoreSystem<unit,unit,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, (fun _ -> ()))
 
     let system = newSystem client
 

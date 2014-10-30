@@ -12,9 +12,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
         handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>,
         client : Client,
         serializer: ISerializer,
-        // todo: this shouldn't be required
-        // there needs to be be a mapping from TMetadata to TEventContext
-        eventContext : 'TEventContext
+        getEventContextFromMetadata : 'TMetadata -> 'TEventContext
     ) =
 
     let log = createLogger "Eventful.EventStoreSystem"
@@ -39,6 +37,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
 
     let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
         async {
+            let eventContext = getEventContextFromMetadata evt.Metadata
             let! program = evtHandler eventContext eventStream eventNumber evt
             return! interpreter program
         }

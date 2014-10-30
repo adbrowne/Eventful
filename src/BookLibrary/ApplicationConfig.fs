@@ -74,7 +74,7 @@ module ApplicationConfig =
         |> addEventTypes eventTypes
 
     let buildEventStoreSystem client =
-        new EventStoreSystem<unit,unit,BookLibraryEventMetadata>(handlers, client, esSerializer, ())
+        new EventStoreSystem<unit,unit,BookLibraryEventMetadata>(handlers, client, esSerializer, (fun _ -> ()))
 
     let initializedSystem () = 
         async {
