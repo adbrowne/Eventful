@@ -82,6 +82,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
             timer.Dispose()
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
+        log.Debug <| lazy(sprintf "EventAppeared: %A: %A %A" event.Event.EventType event.OriginalEvent.EventStreamId event.OriginalEvent.EventNumber)
         match handlers.EventStoreTypeToClassMap.ContainsKey event.Event.EventType with
         | true ->
             let eventType = handlers.EventStoreTypeToClassMap.Item event.Event.EventType

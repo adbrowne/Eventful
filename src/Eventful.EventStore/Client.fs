@@ -106,4 +106,5 @@ type Client (connection : IEventStoreConnection) =
             handler event.Event.EventId event
             |> Async.RunSynchronously
 
+        log.Debug <| lazy(sprintf "Subscription starting at: %A" nullablePosition)
         connection.SubscribeToAllFrom(nullablePosition, false, (fun _ event -> onEventHandler event), (fun _ -> onLive ()), (fun _ reason exn -> log.Debug <| lazy(sprintf "Dropped %A %A" reason exn)))
