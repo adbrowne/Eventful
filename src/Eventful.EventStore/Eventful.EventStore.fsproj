@@ -67,7 +67,6 @@
     <Compile Include="ProcessingTracker.fs" />
     <Compile Include="ISerializer.fs" />
     <Compile Include="EventStreamInterpreter.fs" />
-    <Compile Include="EventModel.fs" />
     <Compile Include="EventStoreSystem.fs" />
     <Compile Include="MultiTenancyEventStoreSubscriber.fs" />
   </ItemGroup>
