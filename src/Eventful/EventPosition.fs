@@ -15,6 +15,6 @@ with static member Start = { Commit = 0L; Prepare = 0L }
             
      member x.BuildToken () = sprintf "%020d::%020d" x.Commit x.Prepare
 
-type IBulkRavenMessage = 
+type IBulkMessage = 
     abstract member GlobalPosition : EventPosition option
     abstract member EventType : System.Type

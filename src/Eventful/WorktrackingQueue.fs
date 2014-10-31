@@ -11,9 +11,9 @@ type internal CompleteQueueMessage<'TGroup, 'TItem when 'TGroup : comparison> =
     | Complete of 'TGroup * Guid
     | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
-type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
+type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem>
     (
-        grouping : 'TInput -> ('TWorkItem * Set<'TGroup>),
+        grouping : 'TInput -> ('TWorkItem * seq<'TGroup>),
         workAction : 'TGroup -> 'TWorkItem seq -> Async<unit>,
         ?maxItems : int, 
         ?workerCount,
@@ -86,7 +86,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
 
     let sequenceGrouping a =
         let (item, groups) = grouping a
-        groups |> Set.toSeq |> Seq.map (fun g -> (item, g))
+        groups |> Seq.map (fun g -> (item, g))
         
     /// fired each time a full queue is detected
     [<CLIEvent>]
