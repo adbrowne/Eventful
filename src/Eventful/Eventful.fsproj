@@ -75,6 +75,7 @@
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="WorktrackingQueue.CSharp.fs" />
     <Compile Include="MagicMapper.fs" />
+    <Compile Include="UnitEventContext.fs" />
     <Compile Include="EventPosition.fs" />
     <Compile Include="EventStream.fs" />
     <Compile Include="Validation.fs" />

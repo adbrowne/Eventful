@@ -1,6 +1,7 @@
 ﻿namespace BookLibrary
 
 open System
+open Eventful
 open BookLibrary.Aggregates
 
 [<CLIMutable>]
@@ -11,6 +12,9 @@ type AddBookPrizeAwardCommand = {
 
 module Award =
     let getStreamName () (awardId : AwardId) =
+        sprintf "Award-%s" <| awardId.Id.ToString("N")
+
+    let getEventStreamName (context : UnitEventContext) (awardId : AwardId) =
         sprintf "Award-%s" <| awardId.Id.ToString("N")
 
     let inline getAwardId (a: ^a) _ = 
@@ -33,7 +37,7 @@ module Award =
     let awardIdGuid (awardId : AwardId) = awardId.Id
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName awardIdGuid cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName awardIdGuid cmdHandlers Seq.empty
 
 open System.Web
 open System.Net.Http

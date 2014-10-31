@@ -38,6 +38,9 @@ module Book =
     let getStreamName () (bookId : BookId) =
         sprintf "Book-%s" <| bookId.Id.ToString("N")
 
+    let getEventStreamName (context : UnitEventContext) (bookId : BookId) =
+        sprintf "Book-%s" <| bookId.Id.ToString("N")
+
     let inline getBookId (a: ^a) _ = 
         (^a : (member BookId: BookId) (a))
 
@@ -113,7 +116,7 @@ module Book =
 
     let bookIdGuid (bookId : BookId) = bookId.Id
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName bookIdGuid cmdHandlers eventHandlers
+        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName bookIdGuid cmdHandlers eventHandlers
 
     type BookDocument = {
         BookId : Guid

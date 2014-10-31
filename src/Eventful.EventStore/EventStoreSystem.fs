@@ -7,7 +7,7 @@ open System
 open FSharpx
 open FSharpx.Collections
 
-type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadata : equality> 
+type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadata : equality and 'TEventContext :> System.IDisposable> 
     ( 
         handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata>,
         client : Client,
@@ -37,7 +37,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata when 'TMetadat
 
     let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
         async {
-            let eventContext = getEventContextFromMetadata evt.Metadata
+            use eventContext = getEventContextFromMetadata evt.Metadata
             let! program = evtHandler eventContext eventStream eventNumber evt
             return! interpreter program
         }

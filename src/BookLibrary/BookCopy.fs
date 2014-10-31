@@ -1,6 +1,7 @@
 ﻿namespace BookLibrary
 
 open System
+open Eventful
 open BookLibrary.Aggregates
 
 [<CLIMutable>]
@@ -11,6 +12,9 @@ type AddBookCopyCommand = {
 
 module BookCopy =
     let getStreamName () (bookCopyId : BookCopyId) =
+        sprintf "BookCopy-%s" <| bookCopyId.Id.ToString("N")
+
+    let getEventStreamName (context : UnitEventContext) (bookCopyId : BookCopyId) =
         sprintf "BookCopy-%s" <| bookCopyId.Id.ToString("N")
 
     let inline getBookCopyId (a: ^a) _ = 
@@ -33,7 +37,7 @@ module BookCopy =
     let bookCopyIdGuid (bookCopyId : BookCopyId) = bookCopyId.Id
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getStreamName bookCopyIdGuid cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName bookCopyIdGuid cmdHandlers Seq.empty
 
 open System.Web
 open System.Net.Http

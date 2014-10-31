@@ -79,11 +79,22 @@ type WidgetCreatedEvent = {
 
 open TestEventStoreSystemHelpers
 
+type MockDisposable = {
+    mutable Disposed : bool
+}
+with 
+    interface IDisposable with
+        member x.Dispose() =
+            x.Disposed <- true
+
 // event store system running test system
 type TestEventStoreSystemFixture () =
     let eventStoreProcess = InMemoryEventStoreRunner.startInMemoryEventStore ()
 
     let getStreamName typeName () (id:WidgetId) =
+        sprintf "%s-%s" typeName (id.Id.ToString("N"))
+
+    let getEventStreamName typeName (context : MockDisposable) (id:WidgetId) =
         sprintf "%s-%s" typeName (id.Id.ToString("N"))
         
     let widgetCmdHandlers = 
@@ -98,7 +109,7 @@ type TestEventStoreSystemFixture () =
                      |> buildCmd
             }
 
-    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getStreamName "Widget") (fun (x : WidgetId) -> x.Id) widgetCmdHandlers Seq.empty
+    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getEventStreamName "Widget") (fun (x : WidgetId) -> x.Id) widgetCmdHandlers Seq.empty
 
     let widgetCounterEventHandlers =
         seq {
@@ -106,7 +117,7 @@ type TestEventStoreSystemFixture () =
                 yield linkEvent getId
             }
 
-    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getStreamName "WidgetCounter") (fun (x : WidgetId) -> x.Id) Seq.empty widgetCounterEventHandlers
+    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getEventStreamName "WidgetCounter") (fun (x : WidgetId) -> x.Id) Seq.empty widgetCounterEventHandlers
 
     let addEventType evtType handlers =
         handlers
@@ -119,8 +130,15 @@ type TestEventStoreSystemFixture () =
         |> EventfulHandlers.addAggregate widgetCounterAggregate
         |> addEventType typeof<WidgetCreatedEvent>
 
+    let eventContexts = new System.Collections.Concurrent.ConcurrentQueue<MockDisposable>()
+
+    let buildContext _ =
+        let disposable = { MockDisposable.Disposed = false }
+        eventContexts.Enqueue disposable
+        disposable
+
     let client = new Client(eventStoreProcess.Connection)
-    let newSystem client = new EventStoreSystem<unit,unit,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, (fun _ -> ()))
+    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, buildContext)
 
     let system = newSystem client
 
@@ -136,5 +154,13 @@ type TestEventStoreSystemFixture () =
 
     interface IDisposable with
         member this.Dispose () =
+
             (system :> IDisposable).Dispose()
             (eventStoreProcess :> IDisposable).Dispose()
+
+            let allEventContextsDisposed = 
+                eventContexts
+                |> Seq.forall (fun x -> x.Disposed)
+
+            if not allEventContextsDisposed then
+                failwith "Some eventcontexts were not disposed"
