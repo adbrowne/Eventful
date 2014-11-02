@@ -67,7 +67,7 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>
         groupItems.Add(nextKey, newValues)
         (nextKey, values)
 
-type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>
+type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem>
     (
         ?maxItems, 
         ?name : string,

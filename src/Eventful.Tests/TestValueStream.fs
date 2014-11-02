@@ -17,7 +17,7 @@ type SubscriberEvent =
       Context : EventContext
       StreamId : string
       EventNumber: int }
-    interface IBulkRavenMessage with
+    interface IBulkMessage with
         member x.GlobalPosition = Some x.Context.Position
         member x.EventType = x.Event.GetType()
 
