@@ -87,7 +87,6 @@ module AsyncCommandTests =
         Eventful.Aggregate.toAggregateDefinition 
             getCommandStreamName 
             getStreamName 
-            id 
             cmdHandlers 
             evtHandlers
 

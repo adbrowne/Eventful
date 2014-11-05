@@ -51,10 +51,10 @@ module TestAggregate =
 
     let stateBuilder = StateBuilder.nullStateBuilder<TestEventMetadata, TestId>
 
-    let inline buildMetadata aggregateId messageId sourceMessageId = { 
+    let inline buildMetadata (aggregateId : TestId) messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
             MessageId = messageId 
-            AggregateId = aggregateId }
+            AggregateId = aggregateId.Id }
 
     let inline withMetadata f cmd = 
         let cmdResult = f cmd
@@ -94,7 +94,7 @@ module TestAggregate =
         }
 
     let handlers =
-        toAggregateDefinition getStreamName getStreamName (fun (x : TestId) -> x.Id) cmdHandlers Seq.empty
+        toAggregateDefinition getStreamName getStreamName cmdHandlers Seq.empty
 
 module AggregateConfigurationErrorTests = 
 

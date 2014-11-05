@@ -20,8 +20,11 @@ module BookCopy =
     let inline getBookCopyId (a: ^a) _ = 
         (^a : (member BookCopyId: BookCopyId) (a))
 
+    let inline buildBookCopyMetadata (bookCopyId : BookCopyId) = 
+        Aggregates.emptyMetadata bookCopyId.Id
+
     let inline bookCopyCmdHandler f = 
-        cmdHandler (fun x -> { BookCopyId.Id = x.AggregateId }) f
+        cmdHandler (fun x -> { BookCopyId.Id = x.AggregateId }) f buildBookCopyMetadata
 
     let cmdHandlers = 
         seq {
@@ -34,10 +37,8 @@ module BookCopy =
            yield bookCopyCmdHandler addBookCopy
         }
 
-    let bookCopyIdGuid (bookCopyId : BookCopyId) = bookCopyId.Id
-
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName bookCopyIdGuid cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName cmdHandlers Seq.empty
 
 open System.Web
 open System.Net.Http

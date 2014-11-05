@@ -49,7 +49,6 @@ module CommandTests =
         Eventful.Aggregate.toAggregateDefinition 
             getCommandStreamName 
             getStreamName 
-            id 
             cmdHandlers 
             evtHandlers
 

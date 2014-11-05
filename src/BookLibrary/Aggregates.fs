@@ -39,14 +39,14 @@ module Aggregates =
 
     let emptyMetadata aggregateId messageId sourceMessageId = { SourceMessageId = sourceMessageId; MessageId = messageId; EventTime = DateTime.UtcNow; AggregateId = aggregateId }
 
-    let cmdHandlerS getId stateBuilder f =
+    let cmdHandlerS getId stateBuilder f buildMetadata =
         AggregateActionBuilder.fullHandler
             (systemConfiguration  getId)
             stateBuilder
             (fun state () cmd -> 
                 let events = 
                     f state cmd 
-                    |> (fun evt -> (evt :> obj, emptyMetadata))
+                    |> (fun evt -> (evt :> obj, buildMetadata))
                     |> Seq.singleton
 
                 let uniqueId = Guid.NewGuid().ToString()
@@ -62,8 +62,8 @@ module Aggregates =
     let cmdHandler getId f =
         cmdHandlerS getId StateBuilder.nullStateBuilder (fun _ -> f)
 
-    let inline linkEvent fId =
-        Eventful.AggregateActionBuilder.linkEvent fId emptyMetadata
+    let inline linkEvent fId buildMetadata =
+        Eventful.AggregateActionBuilder.linkEvent fId buildMetadata
 
     let inline onEvent fId sb f =
         Eventful.AggregateActionBuilder.onEvent fId sb f

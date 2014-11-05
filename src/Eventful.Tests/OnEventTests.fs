@@ -43,7 +43,7 @@ module OnEventTests =
                     )
         }
 
-        Eventful.Aggregate.toAggregateDefinition getCommandStreamName getStreamName id cmdHandlers evtHandlers
+        Eventful.Aggregate.toAggregateDefinition getCommandStreamName getStreamName cmdHandlers evtHandlers
 
     let handlers =
         EventfulHandlers.empty
@@ -115,7 +115,7 @@ module OnEventMuliAggregateTests =
                     }) 
         }
 
-        Eventful.Aggregate.toAggregateDefinition getCommandStreamName getStreamName id cmdHandlers evtHandlers
+        Eventful.Aggregate.toAggregateDefinition getCommandStreamName getStreamName cmdHandlers evtHandlers
 
     let handlers =
         EventfulHandlers.empty

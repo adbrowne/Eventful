@@ -26,10 +26,10 @@ module TestEventStoreSystemHelpers =
         GetAggregateId = (fun (x : TestMetadata) -> { WidgetId.Id = x.AggregateId })
     }
 
-    let inline buildMetadata aggregateId messageId sourceMessageId = { 
+    let inline buildMetadata (aggregateId : WidgetId) messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
             MessageId = messageId 
-            AggregateId = aggregateId }
+            AggregateId = aggregateId.Id }
 
     let inline withMetadata f cmd = 
         let cmdResult = f cmd
@@ -109,7 +109,7 @@ type TestEventStoreSystemFixture () =
                      |> buildCmd
             }
 
-    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getEventStreamName "Widget") (fun (x : WidgetId) -> x.Id) widgetCmdHandlers Seq.empty
+    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getEventStreamName "Widget") widgetCmdHandlers Seq.empty
 
     let widgetCounterEventHandlers =
         seq {
@@ -117,7 +117,7 @@ type TestEventStoreSystemFixture () =
                 yield linkEvent getId
             }
 
-    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getEventStreamName "WidgetCounter") (fun (x : WidgetId) -> x.Id) Seq.empty widgetCounterEventHandlers
+    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getEventStreamName "WidgetCounter") Seq.empty widgetCounterEventHandlers
 
     let addEventType evtType handlers =
         handlers

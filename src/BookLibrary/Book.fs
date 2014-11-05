@@ -63,11 +63,14 @@ module Book =
 
     let getBookIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { BookId.Id = x.AggregateId })
 
-    let inline bookCmdHandlerS stateBuilder f = 
-        cmdHandlerS getBookIdFromMetadata stateBuilder f
+    let inline buildBookMetadata (bookId : BookId) = 
+        Aggregates.emptyMetadata bookId.Id
 
-    let inline bookCmdHandler f = 
-        cmdHandler getBookIdFromMetadata f
+    let inline bookCmdHandlerS stateBuilder f = 
+        cmdHandlerS getBookIdFromMetadata stateBuilder f (fun bookId -> Aggregates.emptyMetadata bookId.Id)
+
+    let inline bookCmdHandler f =
+        cmdHandler getBookIdFromMetadata f (fun bookId -> Aggregates.emptyMetadata bookId.Id)
 
     let cmdHandlers = 
         seq {
@@ -104,19 +107,18 @@ module Book =
 
     let eventHandlers =
         seq {
-            yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId)
+            yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId) buildBookMetadata
 
             let onBookAwarded bookCopyCount (evt : BookPrizeAwardedEvent) = seq {
                 if(bookCopyCount > 10) then
-                    yield ({ BookPromotedEvent.BookId = evt.BookId } :> obj, emptyMetadata)
+                    yield ({ BookPromotedEvent.BookId = evt.BookId } :> obj, buildBookMetadata)
             }
 
             yield onEvent (fun (evt : BookPrizeAwardedEvent) _ -> evt.BookId) copyCount onBookAwarded
         }
 
-    let bookIdGuid (bookId : BookId) = bookId.Id
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName bookIdGuid cmdHandlers eventHandlers
+        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName cmdHandlers eventHandlers
 
     type BookDocument = {
         BookId : Guid
