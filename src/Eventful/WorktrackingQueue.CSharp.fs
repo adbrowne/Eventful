@@ -13,7 +13,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         workerCount,
         complete : Func<'TItem, System.Threading.Tasks.Task>
     ) =
-    let groupingfs = (fun i -> (i, grouping.Invoke(i) |> Set.ofSeq))
+    let groupingfs = (fun i -> (i, grouping.Invoke(i)))
 
     let completeFs = 
         match complete with

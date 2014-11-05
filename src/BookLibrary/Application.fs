@@ -89,7 +89,7 @@ type TopShelfService () =
             let readQueue = new RavenReadQueue(documentStore, 100, 1000, 10, Async.DefaultCancellationToken, cache)
 
             let bulkRavenProjector =    
-                new BulkRavenProjector<EventStoreMessage>
+                BulkRavenProjector.create
                     (
                         documentStore,
                         documentProcessor,

@@ -14,7 +14,7 @@ open Raven.Abstractions.Data
 open Raven.Json.Linq
 open FSharp.Collections.ParallelSeq
 
-type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage> 
+type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage> 
     (
         documentStore:Raven.Client.IDocumentStore, 
         documentProcessor:DocumentProcessor<string, 'TMessage>,

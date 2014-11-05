@@ -11,7 +11,7 @@ type EventStoreMessage = {
     EventPosition : EventPosition
     StreamName : string
 } with
-    interface IBulkRavenMessage with
+    interface IBulkMessage with
         member x.GlobalPosition = 
             Some x.EventPosition
         member x.EventType =
