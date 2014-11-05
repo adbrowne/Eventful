@@ -68,7 +68,7 @@ type Client (connection : IEventStoreConnection) =
     member x.append streamId expectedVersion eventData = async {
         try
             let! result = connection.AppendToStreamAsync(streamId, expectedVersion, eventData) |> Async.AwaitTask
-            log.Debug <| lazy(sprintf "Wrote %A %A %A" streamId expectedVersion (eventData |> Seq.head |> (fun x -> x.Type)))
+            log.Debug <| lazy(sprintf "Wrote %A %A %A" streamId expectedVersion (eventData |> Seq.map (fun x -> x.Type) |> Seq.toArray |> (fun x -> String.Join(",", x))))
 
             return WriteResult.WriteSuccess (EventPosition.ofEventStorePosition result.LogPosition)
         with 
