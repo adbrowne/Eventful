@@ -17,7 +17,7 @@ open TestEventStoreSystemHelpers
 
 type AggregateIntegrationTests () = 
 
-    let mutable system : EventStoreSystem<unit, MockDisposable, TestMetadata> option = None
+    let mutable system : EventStoreSystem<unit, MockDisposable, TestMetadata, obj> option = None
 
     let streamPositionMap : Map<string, int> ref = ref Map.empty
 

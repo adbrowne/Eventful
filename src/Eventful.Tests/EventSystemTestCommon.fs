@@ -47,7 +47,7 @@ module EventSystemTestCommon =
             (fun _ (cmdContext : Guid) cmd -> 
                 let events = 
                     f cmd 
-                    |> (fun evt -> (evt :> obj, metadataBuilder))
+                    |> (fun evt -> (evt :> IEvent, metadataBuilder))
                     |> Seq.singleton
 
                 let uniqueId = cmdContext.ToString()

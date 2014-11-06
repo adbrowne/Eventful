@@ -30,6 +30,7 @@ module CommandTests =
     type FooEvent = {
         Id : Guid
     }
+    with interface IEvent
 
     let eventTypes = seq {
         yield typeof<FooEvent>
@@ -40,7 +41,7 @@ module CommandTests =
             yield 
                 cmdHandler
                     (fun (cmd : FooCmd) -> 
-                        { FooEvent.Id = cmd.Id } )    
+                        { FooEvent.Id = cmd.Id } :> IEvent )
                 |> AggregateActionBuilder.buildCmd
         }
 

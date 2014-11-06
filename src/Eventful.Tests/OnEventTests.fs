@@ -18,6 +18,7 @@ module OnEventTests =
     type FooEvent = {
         Id : Guid
     }
+    with interface IEvent
 
     let eventTypes = seq {
         yield typeof<FooEvent>
@@ -81,6 +82,7 @@ module OnEventMuliAggregateTests =
         Id : Guid
         SecondId : Guid
     }
+    with interface IEvent
 
     let eventTypes = seq {
         yield typeof<FooEvent>

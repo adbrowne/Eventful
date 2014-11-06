@@ -5,8 +5,8 @@ open Eventful
 open System
 
 type IBookLibrarySystem =
-    abstract member RunCommand<'a> : 'a -> Async<CommandResult<BookLibraryEventMetadata>>
-    abstract member RunCommandTask<'a> : 'a -> Task<CommandResult<BookLibraryEventMetadata>>
+    abstract member RunCommand<'a> : 'a -> Async<CommandResult<obj,BookLibraryEventMetadata>>
+    abstract member RunCommandTask<'a> : 'a -> Task<CommandResult<obj,BookLibraryEventMetadata>>
 
 [<CLIMutable>]
 type BookId = {

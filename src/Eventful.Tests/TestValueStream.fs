@@ -10,6 +10,8 @@ type EventContext = {
     Position : EventPosition
 }
 
+type IEvent = interface end
+
 type Dictionary<'Key,'Value> = System.Collections.Generic.Dictionary<'Key,'Value>
 
 type SubscriberEvent = 

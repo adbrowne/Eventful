@@ -7,10 +7,10 @@ open FSharpx.Choice
 open FSharpx.Option
 open Eventful.EventStream
 
-type TestSystem<'TMetadata, 'TCommandContext when 'TMetadata : equality>
+type TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent when 'TMetadata : equality>
     (
-        handlers : EventfulHandlers<'TCommandContext,unit,'TMetadata>, 
-        lastResult : CommandResult<'TMetadata>, 
+        handlers : EventfulHandlers<'TCommandContext,unit,'TMetadata, 'TBaseEvent>, 
+        lastResult : CommandResult<'TBaseEvent,'TMetadata>, 
         allEvents : TestEventStore<'TMetadata>
     ) =
 
@@ -37,7 +37,7 @@ type TestSystem<'TMetadata, 'TCommandContext when 'TMetadata : equality>
 
         let allEvents = TestEventStore.processPendingEvents () interpret handlers allEvents
 
-        new TestSystem<'TMetadata, 'TCommandContext>(handlers, result, allEvents)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>(handlers, result, allEvents)
 
     // runs the command. throws on failure
     member x.RunCommand (cmd : obj) (context : 'TCommandContext) =    
@@ -54,7 +54,7 @@ type TestSystem<'TMetadata, 'TCommandContext when 'TMetadata : equality>
 
     member x.Run (cmds : (obj * 'TCommandContext) list) =
         cmds
-        |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext>) (cmd, context) -> s.RunCommand cmd context) x
+        |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>) (cmd, context) -> s.RunCommand cmd context) x
 
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 
@@ -87,9 +87,9 @@ type TestSystem<'TMetadata, 'TCommandContext when 'TMetadata : equality>
             CommandSuccess.Events = List.empty
             Position = None
         }
-        new TestSystem<'TMetadata, 'TCommandContext>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
-    let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext>) = y.RunCommand x c
-    let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext>) = y.RunCommandNoThrow x c
+    let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>) = y.RunCommand x c
+    let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>) = y.RunCommandNoThrow x c

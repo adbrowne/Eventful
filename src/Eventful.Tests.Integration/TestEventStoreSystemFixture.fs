@@ -138,7 +138,7 @@ type TestEventStoreSystemFixture () =
         disposable
 
     let client = new Client(eventStoreProcess.Connection)
-    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Testing.TestMetadata>(handlers, client, RunningTests.esSerializer, buildContext)
+    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Testing.TestMetadata,obj>(handlers, client, RunningTests.esSerializer, buildContext)
 
     let system = newSystem client
 

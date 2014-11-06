@@ -16,7 +16,7 @@ type TopShelfService () =
     let log = createLogger "EmergencyRoom.EmergencyRoomTopShelfService"
 
     let mutable client : Client option = None
-    let mutable eventStoreSystem : EventStoreSystem<unit,UnitEventContext,BookLibraryEventMetadata> option = None
+    let mutable eventStoreSystem : EventStoreSystem<unit,UnitEventContext,BookLibraryEventMetadata,obj> option = None
 
     let matchingKeys (message : EventStoreMessage) = seq {
         let methodWithoutGeneric = Book.documentBuilder.GetType().GetMethod("GetKeysFromEvent", Reflection.BindingFlags.Public ||| Reflection.BindingFlags.Instance)
@@ -73,7 +73,7 @@ type TopShelfService () =
             let! connection = ApplicationConfig.getConnection()
             let c = new Client(connection)
 
-            let system = ApplicationConfig.buildEventStoreSystem c
+            let system : EventStoreSystem<_,_,_,_> = ApplicationConfig.buildEventStoreSystem c
             system.Start() |> Async.StartAsTask |> ignore
 
             let documentStore = ApplicationConfig.buildDocumentStore()

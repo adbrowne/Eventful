@@ -79,14 +79,14 @@ namespace BookLibrary.Web.Controllers
             return await RunCommand(cmd, s => RedirectToAction("Edit"));
         }
 
-        private async Task<ActionResult> RunCommand(UpdateBookTitleCommand cmd, Func<CommandSuccess<BookLibraryEventMetadata>, ActionResult> onSuccess)
+        private async Task<ActionResult> RunCommand(UpdateBookTitleCommand cmd, Func<CommandSuccess<object,BookLibraryEventMetadata>, ActionResult> onSuccess)
         {
             var result = await _system.RunCommandTask(cmd);
             if (result.IsChoice1Of2)
             {
                 var successResult =
                     ((
-                        FSharpChoice<CommandSuccess<BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>>.Choice1Of2)result).Item;
+                        FSharpChoice<CommandSuccess<object,BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>>.Choice1Of2)result).Item;
                 return onSuccess(successResult);
                 
             }
@@ -115,11 +115,11 @@ namespace BookLibrary.Web.Controllers
             }
         }
 
-        private void AddErrorsToModelState(FSharpChoice<CommandSuccess<BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>> result)
+        private void AddErrorsToModelState(FSharpChoice<CommandSuccess<object,BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>> result)
         {
             var errorResult =
                 ((
-                    FSharpChoice<CommandSuccess<BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>>.Choice2Of2)result).Item;
+                    FSharpChoice<CommandSuccess<object,BookLibraryEventMetadata>, fsharpxcore::FSharpx.Collections.NonEmptyList<CommandFailure>>.Choice2Of2)result).Item;
             foreach (var error in errorResult)
             {
                 var commandError = error as CommandFailure.CommandError;

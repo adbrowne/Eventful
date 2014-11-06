@@ -44,7 +44,7 @@ module TestEventStore =
         interpreter program testEventStore
         |> fst
 
-    let runEventHandlers (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata>) (testEventStore : TestEventStore<'TMetadata>) (eventStream, eventNumber, eventStreamEvent) =
+    let runEventHandlers (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) (testEventStore : TestEventStore<'TMetadata>) (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
         | Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             let handlers = 
@@ -57,7 +57,7 @@ module TestEventStore =
             handlers |> Seq.fold (runHandlerForEvent context interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
         | _ -> testEventStore
 
-    let rec processPendingEvents (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata>) (testEventStore : TestEventStore<'TMetadata>) =
+    let rec processPendingEvents (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) (testEventStore : TestEventStore<'TMetadata>) =
         match testEventStore.AllEventsStream with
         | Queue.Nil -> testEventStore
         | Queue.Cons (x, xs) ->
