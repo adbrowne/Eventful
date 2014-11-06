@@ -17,7 +17,7 @@ type RavenWriteQueue
         cache : System.Runtime.Caching.MemoryCache
     ) =
 
-    let log = Common.Logging.LogManager.GetLogger("Eventful.RavenReadQueue")
+    let log = Common.Logging.LogManager.GetLogger("Eventful.RavenWriteQueue")
 
     let batchWriteTracker = Metric.Histogram("RavenWriteQueue Batch Size", Unit.Items)
     let batchWriteTime = Metric.Timer("RavenWriteQueue Timer", Unit.None)

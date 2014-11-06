@@ -33,6 +33,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Tests.Integration"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Neo4j", "Eventful.Neo4j\Eventful.Neo4j.fsproj", "{01019B14-EDAD-4754-BA5B-7C49D1D63326}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo4jClient", "..\vendor\Neo4jClient\Neo4jClient\Neo4jClient.csproj", "{343B9889-6DDF-4474-A1EC-05508A652E5A}"
+EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Testing", "Eventful.Testing\Eventful.Testing.fsproj", "{7C47CD17-5BD2-47FD-9361-80D7CED2DC71}"
 EndProject
 Global
@@ -81,6 +83,10 @@ Global
 		{01019B14-EDAD-4754-BA5B-7C49D1D63326}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{01019B14-EDAD-4754-BA5B-7C49D1D63326}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{01019B14-EDAD-4754-BA5B-7C49D1D63326}.Release|Any CPU.Build.0 = Release|Any CPU
+		{343B9889-6DDF-4474-A1EC-05508A652E5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{343B9889-6DDF-4474-A1EC-05508A652E5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{343B9889-6DDF-4474-A1EC-05508A652E5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{343B9889-6DDF-4474-A1EC-05508A652E5A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7C47CD17-5BD2-47FD-9361-80D7CED2DC71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7C47CD17-5BD2-47FD-9361-80D7CED2DC71}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7C47CD17-5BD2-47FD-9361-80D7CED2DC71}.Release|Any CPU.ActiveCfg = Release|Any CPU
