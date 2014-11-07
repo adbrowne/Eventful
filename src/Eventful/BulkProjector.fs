@@ -103,6 +103,7 @@ type BulkProjector<'TKey, 'TMessage when 'TMessage :> IBulkMessage>
             ?groupComparer = keyComparer, 
             runImmediately = false,
             workTimeout = workTimeout)
+        :> IWorktrackingQueue<_,_,_>
 
     let mutable lastPositionWritten : Option<EventPosition> = None
 
