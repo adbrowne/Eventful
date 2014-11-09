@@ -20,7 +20,7 @@ module Award =
     let inline getAwardId (a: ^a) _ = 
         (^a : (member AwardId: AwardId) (a))
 
-    let inline buildAwardMetadata awardId = 
+    let inline buildAwardMetadata (awardId : AwardId) = 
         Aggregates.emptyMetadata awardId.Id
 
     let inline awardCmdHandler f = 

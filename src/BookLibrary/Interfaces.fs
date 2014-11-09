@@ -27,6 +27,18 @@ type AwardId = {
 with static member New () = { Id = Guid.NewGuid() }
 
 [<CLIMutable>]
+type DeliveryId = {
+    Id : Guid
+}
+with static member New () = { Id = Guid.NewGuid() }
+
+[<CLIMutable>]
+type FileId = {
+    Id : Guid
+}
+with static member New () = { Id = Guid.NewGuid() }
+
+[<CLIMutable>]
 type BookCopyAddedEvent = {
     BookCopyId : BookCopyId
     BookId : BookId
@@ -41,4 +53,10 @@ type BookPromotedEvent = {
 type BookPrizeAwardedEvent = {
     AwardId : AwardId
     BookId : BookId
+}
+
+[<CLIMutable>]
+type DeliveryAcceptedEvent = {
+    DeliveryId : DeliveryId
+    FileId : FileId
 }
