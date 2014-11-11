@@ -80,6 +80,11 @@
       <Project>{8dcb39a0-a882-486a-b147-fc4b44a42f0a}</Project>
       <Private>True</Private>
     </ProjectReference>
+    <ProjectReference Include="..\Eventful.Testing\Eventful.Testing.fsproj">
+      <Name>Eventful.Testing</Name>
+      <Project>{7c47cd17-5bd2-47fd-9361-80d7ced2dc71}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful.Tests\Eventful.Tests.fsproj">
       <Name>Eventful.Tests</Name>
       <Project>{dfbaa651-9312-47e2-aec7-04c8fe48e0b0}</Project>

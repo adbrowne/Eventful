@@ -99,10 +99,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <Compile Include="TestValueStream.fs" />
-    <Compile Include="TestEventStore.fs" />
-    <Compile Include="TestInterpreter.fs" />
-    <Compile Include="TestSystem.fs" />
     <Compile Include="TestHelpers.fs" />
+    <Compile Include="TestMetadata.fs" />
     <Compile Include="PreludeTests.fs" />
     <Compile Include="EventPositionTests.fs" />
     <Compile Include="CacheKeyTests.fs" />
@@ -127,6 +125,11 @@
     <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
       <Name>Eventful.EventStore</Name>
       <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.Testing\Eventful.Testing.fsproj">
+      <Name>Eventful.Testing</Name>
+      <Project>{7c47cd17-5bd2-47fd-9361-80d7ced2dc71}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\Eventful\Eventful.fsproj">

@@ -10,6 +10,7 @@ open Eventful.EventStore
 open Eventful.Aggregate
 open Eventful.AggregateActionBuilder
 open Eventful.Testing
+open Eventful.Tests
 
 open FSharpx.Option
 

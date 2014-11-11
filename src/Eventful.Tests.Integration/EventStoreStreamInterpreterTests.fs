@@ -8,6 +8,7 @@ open Eventful.EventStream
 open Eventful.EventStore
 open Eventful.Testing
 open FSharpx.Collections
+open Eventful.Tests
 
 type MyEvent = {
     Name : string
@@ -25,7 +26,7 @@ type EventStoreStreamInterpreterTests () =
         Guid.NewGuid().ToString()
 
     let event = { Name = "Andrew Browne" }
-    let metadata = { SourceMessageId = Guid.NewGuid().ToString(); MessageId = Guid.NewGuid(); AggregateId = Guid.NewGuid() }
+    let metadata = { TestMetadata.SourceMessageId = Guid.NewGuid().ToString(); MessageId = Guid.NewGuid(); AggregateId = Guid.NewGuid() }
 
     let classToEventTypeName =
         PersistentHashMap.empty

@@ -21,12 +21,6 @@ type TestId = {
     Id : Guid
 }
 
-type TestEventMetadata = {
-    MessageId: Guid
-    SourceMessageId: string
-    AggregateId : Guid
-}
-
 [<CLIMutable>]
 type TestCommand = {
     TestId : TestId
@@ -46,10 +40,10 @@ module TestAggregate =
 
     let systemConfiguration = {
         GetUniqueId = (fun _ -> None)
-        GetAggregateId = (fun (x : TestEventMetadata) -> { TestId.Id = x.AggregateId})
+        GetAggregateId = (fun (x : TestMetadata) -> { TestId.Id = x.AggregateId})
     }
 
-    let stateBuilder = StateBuilder.nullStateBuilder<TestEventMetadata, TestId>
+    let stateBuilder = StateBuilder.nullStateBuilder<TestMetadata, TestId>
 
     let inline buildMetadata (aggregateId : TestId) messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
@@ -115,4 +109,4 @@ module AggregateConfigurationErrorTests =
         let matcher (exn : System.Exception) =
             exn.Message = "Object reference not set to an instance of an object."
 
-        result.LastResult |> should containException<TestEventMetadata> (Some "Retrieving aggregate id from command", matcher)
+        result.LastResult |> should containException<TestMetadata> (Some "Retrieving aggregate id from command", matcher)

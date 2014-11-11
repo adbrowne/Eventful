@@ -74,6 +74,10 @@ task CreateNugetPackages {
   Move-Item -force Eventful.$version.nupkg Eventful.nupkg
   Move-Item -force Eventful.$version.symbols.nupkg Eventful.symbols.nupkg
 
+  exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.Testing.nuspec -version $version -Verbosity detailed -Symbols  -Properties EventfulVersion=$version}}  
+  Move-Item -force Eventful.Testing.$version.nupkg Eventful.Testing.nupkg
+  Move-Item -force Eventful.Testing.$version.symbols.nupkg Eventful.Testing.symbols.nupkg
+
   exec { & {.\tools\nuget\nuget.exe pack .\packages\Eventful.EventStore.nuspec -version $version -Verbosity detailed -Symbols  -Properties EventfulVersion=$version}}  
   Move-Item -force Eventful.EventStore.$version.nupkg Eventful.EventStore.nupkg
   Move-Item -force Eventful.EventStore.$version.symbols.nupkg Eventful.EventStore.symbols.nupkg

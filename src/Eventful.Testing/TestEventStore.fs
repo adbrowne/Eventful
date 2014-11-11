@@ -4,12 +4,6 @@ open FSharpx.Collections
 open Eventful
 open System
 
-type TestMetadata = {
-    MessageId : Guid
-    SourceMessageId : String
-    AggregateId : Guid
-}
-
 type TestEventStore<'TMetadata when 'TMetadata : equality> = {
     Position : EventPosition
     Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>

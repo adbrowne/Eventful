@@ -1,9 +1,10 @@
-﻿namespace Eventful.Testing
+﻿namespace Eventful.Tests
 
 open Xunit
 open FsUnit.Xunit
 open System
 open Eventful
+open Eventful.Testing
 open Eventful.EventStream
 open FSharpx.Collections
 

@@ -11,6 +11,7 @@ open Eventful.EventStore
 open Eventful.Aggregate
 open Eventful.AggregateActionBuilder
 open Eventful.Testing
+open Eventful.Tests
 
 open FSharpx.Option
 
@@ -19,7 +20,7 @@ type WidgetId = {
 } 
 
 module TestEventStoreSystemHelpers =
-    let emptyMetadata : Eventful.Testing.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
+    let emptyMetadata : Eventful.Tests.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
 
     let systemConfiguration = {
         SystemConfiguration.GetUniqueId = (fun (x : TestMetadata) -> Some x.SourceMessageId)
@@ -27,7 +28,7 @@ module TestEventStoreSystemHelpers =
     }
 
     let inline buildMetadata (aggregateId : WidgetId) messageId sourceMessageId = { 
-            SourceMessageId = sourceMessageId 
+            Eventful.Tests.TestMetadata.SourceMessageId = sourceMessageId 
             MessageId = messageId 
             AggregateId = aggregateId.Id }
 
@@ -138,7 +139,7 @@ type TestEventStoreSystemFixture () =
         disposable
 
     let client = new Client(eventStoreProcess.Connection)
-    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Testing.TestMetadata,obj>(handlers, client, RunningTests.esSerializer, buildContext)
+    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj>(handlers, client, RunningTests.esSerializer, buildContext)
 
     let system = newSystem client
 
