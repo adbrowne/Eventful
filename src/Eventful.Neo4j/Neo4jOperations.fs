@@ -37,7 +37,7 @@ module Operations =
         { query with Query = query.Query.OrWhere(clause) }
 
     let withParamQ name value (query : CypherQuery) =
-        let parameterName = sprintf "%s-%i" name query.NextParameterIndex
+        let parameterName = sprintf "%s_%i" name query.NextParameterIndex
         let query' =
             { query with
                 Query = query.Query.WithParam(name, value)
@@ -72,7 +72,7 @@ module Operations =
 
     let withNodeSelectorQ (name : string) (nodeId : NodeId) (query : CypherQuery) =
         let query, idParameter = query |> withParamQ "eventful_id" nodeId.Id
-        (query, sprintf "%s:`Graph-%s`:`%s` {eventful_id: %s}" name query.GraphName nodeId.Label idParameter)
+        (query, sprintf "(%s:`Graph-%s`:`%s` {eventful_id: %s})" name query.GraphName nodeId.Label idParameter)
 
     let withNodeWhereClauseQ (name : string) (nodeId : NodeId) (query : CypherQuery) =
         let query, idParameter = query |> withParamQ "eventful_id" nodeId.Id

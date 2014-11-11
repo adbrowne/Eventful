@@ -12,28 +12,18 @@ open Neo4jClient
 module BulkNeo4jProjector =
     let create
         (
-            graphClient : ICypherGraphClient,
             graphName : string,
-            matchingKeys : 'TMessage -> seq<NodeId>,
-            processMessages : (NodeId * seq<'TMessage>) -> Func<Task<seq<GraphAction>>>,  /// returns a func so the task does not start immediately when using Async.StartAsTask
+            projectors : Projector<NodeId, 'TMessage, unit, GraphAction> seq,
+            cancellationToken : CancellationToken,
+            onEventComplete : 'TMessage -> Async<unit>,
+            graphClient : ICypherGraphClient,
+            writeQueue : Neo4jWriteQueue,
             maxEventQueueSize : int,
             eventWorkers : int,
-            workTimeout : TimeSpan option,
-            onEventComplete : 'TMessage -> Async<unit>,
-            cancellationToken : CancellationToken,
-            writeQueue : Neo4jWriteQueue
+            workTimeout : TimeSpan option
         ) =
-
-        let eventProcessor =
-            { MatchingKeys = matchingKeys
-              Process = (fun (key, events) ->
-                (fun () ->
-                    async { 
-                        let! actions = processMessages(key, events).Invoke() |> Async.AwaitTask
-                        return! writeQueue.Work graphName actions
-                    }
-                    |> Async.StartAsTask)
-                |> (fun x -> Func<_> x) ) }
+        let executor actions =
+            writeQueue.Work graphName actions
 
         let positionNodeId =
             { Label = Neo4jConstants.PositionNodeLabel
@@ -52,13 +42,14 @@ module BulkNeo4jProjector =
             return writeResult |> (function Choice1Of2 _ -> true | _ -> false)
         }
 
-        BulkProjector<_, 'TMessage>(
-            eventProcessor,
-            graphName,
-            maxEventQueueSize,
-            eventWorkers,
+        BulkProjector<_, _, _>(
+            "Neo4j-" + graphName,
+            projectors,
+            executor,
+            cancellationToken,
             onEventComplete,
             getPersistedPosition,
             writeUpdatedPosition,
-            cancellationToken,
+            maxEventQueueSize,
+            eventWorkers,
             workTimeout)

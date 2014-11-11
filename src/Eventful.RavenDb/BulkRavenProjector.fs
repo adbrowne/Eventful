@@ -16,29 +16,24 @@ open Raven.Json.Linq
 module BulkRavenProjector =
     let create
         (
-            documentStore:Raven.Client.IDocumentStore, 
-            documentProcessor:DocumentProcessor<string, 'TMessage>,
             databaseName: string,
-            maxEventQueueSize : int,
-            eventWorkers: int,
-            onEventComplete : 'TMessage -> Async<unit>,
+            projectors : Projector<string, 'TMessage, IDocumentFetcher, ProcessAction> seq,
             cancellationToken : CancellationToken,
+            onEventComplete : 'TMessage -> Async<unit>,
+            documentStore:Raven.Client.IDocumentStore, 
             writeQueue : RavenWriteQueue,
             readQueue : RavenReadQueue,
+            maxEventQueueSize : int,
+            eventWorkers: int,
             workTimeout : TimeSpan option
         ) =
         let fetcher = new DocumentFetcher(documentStore, databaseName, readQueue) :> IDocumentFetcher
 
-        let eventProcessor =
-            { MatchingKeys = documentProcessor.MatchingKeys
-              Process = (fun (key, events) ->
-                (fun () ->
-                    async { 
-                        let! writeRequests = documentProcessor.Process(key, fetcher, events).Invoke() |> Async.AwaitTask
-                        return! writeQueue.Work databaseName writeRequests
-                    }
-                    |> Async.StartAsTask)
-                |> (fun x -> Func<_> x) ) }
+        let projectorsWithFetcher =
+            BulkProjector.projectorsWithContext projectors fetcher
+
+        let executor actions =
+            writeQueue.Work databaseName actions
 
         let getPersistedPosition = async {
             let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument RavenConstants.PositionDocumentKey |> Async.AwaitTask
@@ -61,14 +56,15 @@ module BulkRavenProjector =
             return writeResult |> RavenWriteQueue.resultWasSuccess
         }
 
-        BulkProjector<string, 'TMessage>(
-            eventProcessor,
-            databaseName,
-            maxEventQueueSize,
-            eventWorkers,
+        BulkProjector<_, _, _>(
+            "Raven-" + databaseName,
+            projectorsWithFetcher,
+            executor,
+            cancellationToken,
             onEventComplete,
             getPersistedPosition,
             writeUpdatedPosition,
-            cancellationToken,
+            maxEventQueueSize,
+            eventWorkers,
             workTimeout,
             keyComparer = StringComparer.InvariantCultureIgnoreCase)

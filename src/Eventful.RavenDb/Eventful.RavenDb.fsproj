@@ -62,7 +62,6 @@
   <ItemGroup>
     <None Include="packages.config" />
     <Compile Include="DocumentWriteRequest.fs" />
-    <Compile Include="DocumentProcessor.fs" />
     <Compile Include="BatchOperations.fs" />
     <Compile Include="RavenOperations.fs" />
     <Compile Include="RavenWriteQueue.fs" />

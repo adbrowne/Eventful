@@ -162,7 +162,7 @@ module RavenProjectorTests =
         } |> Async.RunSynchronously
         ()
 
-    let ``Get Document Processor`` documentStore =
+    let ``Get Projector`` documentStore =
         let countingDocKeyPrefix =  "MyCountingDocs/"
         let countingDocKey (key : Guid) =
             countingDocKeyPrefix + key.ToString()  
@@ -203,7 +203,7 @@ module RavenProjectorTests =
                 processValue value doc
             | _ -> doc
 
-        let processBatch (docKey : string, fetcher : IDocumentFetcher, events) = async {
+        let processBatch (fetcher : IDocumentFetcher) (docKey) events = async {
             let requestId = Guid.NewGuid()
             let permDocKey = "PermissionDocs/" + docKey
             let! (doc, metadata, etag) =  
@@ -249,16 +249,12 @@ module RavenProjectorTests =
             }
         }
 
-        let processBatchTask a : Func<System.Threading.Tasks.Task<_>> =
-            let c = processBatch a
-            ConverterHelper.ToFunc(fun () -> Async.StartAsTask c) 
-
-        let myProcessor : DocumentProcessor<string, SubscriberEvent> = {
+        let projector = {
             MatchingKeys = matcher
-            Process = processBatchTask
+            ProcessEvents = processBatch
         }
 
-        myProcessor
+        projector |> Seq.singleton
 
     let testDatabase = "tenancy-blue"
 
@@ -273,7 +269,7 @@ module RavenProjectorTests =
         }
         
         let rnd = new Random()
-        let myProcessor = ``Get Document Processor`` documentStore
+        let myProjector = ``Get Projector`` documentStore
         let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
 
         let cancellationToken = Async.DefaultCancellationToken
@@ -281,7 +277,18 @@ module RavenProjectorTests =
         let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
         let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken,  cache)
 
-        let projector = BulkRavenProjector.create(documentStore, myProcessor, testDatabase, 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue, None)
+        let projector =
+            BulkRavenProjector.create(
+                testDatabase,
+                myProjector,
+                cancellationToken,
+                writeComplete,
+                documentStore,
+                writeQueue,
+                readQueue,
+                1000000,
+                1000,
+                None)
 
         projector
   

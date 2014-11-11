@@ -83,7 +83,6 @@
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventfulHandlers.fs" />
     <Compile Include="DocumentBuilder.fs" />
-    <Compile Include="BatchEventProcessor.fs" />
     <Compile Include="BulkProjector.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
