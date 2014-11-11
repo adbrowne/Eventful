@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package >
+  <metadata minClientVersion="2.5">
+    <id>Eventful.Testing</id>
+    <version>1.0.0.0</version>
+    <authors>Andrew Browne, Picnic Software</authors>
+    <owners>Andrew Browne</owners>
+    <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
+    <projectUrl>https://github.com/adbrowne/eventful</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>An EventSourcing library. Test helpers.</description>
+    <copyright>Copyright 2014</copyright>
+    <dependencies>
+      <dependency id="FSharpx.Collections" version="1.9.2" />
+      <dependency id="FSharpx.Core" version="1.8.41" />
+      <dependency id="Common.Logging" version="2.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="..\Release\Eventful.Testing.dll" target="lib\net40" /> 
+    <file src="..\Release\Eventful.Testing.pdb" target="lib\net40" /> 
+    <file src="..\..\src\Eventful.Testing\**\*.fs" target="src" />
+    <file src="..\..\src\Eventful.Testing\**\*.cs" target="src" />
+  </files>
+</package>
