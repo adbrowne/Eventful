@@ -18,10 +18,6 @@ type FromRouteAttribute () =
         inherit System.Attribute()
     end
 
-type AggregateType =
-| Book
-| BookCopy
-
 type BookLibraryEventMetadata = {
     MessageId: Guid
     AggregateId : Guid

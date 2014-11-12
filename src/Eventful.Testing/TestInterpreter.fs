@@ -9,12 +9,12 @@ open FSharpx.Option
 module TestInterpreter =
     let rec interpret 
         (prog : EventStreamProgram<'T,_>)
-        (eventStore : TestEventStore<'TMetadata>) 
+        (eventStore : TestEventStore<'TMetadata, 'TAggregateType>) 
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
         (values : Map<EventToken,(obj * 'TMetadata)>) 
         (writes : Vector<string * int * EventStreamEvent<'TMetadata>>)
-        : (TestEventStore<'TMetadata> * 'T)= 
+        : (TestEventStore<'TMetadata, 'TAggregateType> * 'T)= 
         match prog with
         | FreeEventStream (GetEventStoreTypeToClassMap ((), f)) ->
             let next = f eventStoreTypeToClassMap

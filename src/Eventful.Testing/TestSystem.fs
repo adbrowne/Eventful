@@ -7,14 +7,15 @@ open FSharpx.Choice
 open FSharpx.Option
 open Eventful.EventStream
 
-type TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent when 'TMetadata : equality>
+type TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison>
     (
-        handlers : EventfulHandlers<'TCommandContext,unit,'TMetadata, 'TBaseEvent>, 
+        time : DateTime,
+        handlers : EventfulHandlers<'TCommandContext,unit,'TMetadata, 'TBaseEvent,'TAggregateType>, 
         lastResult : CommandResult<'TBaseEvent,'TMetadata>, 
-        allEvents : TestEventStore<'TMetadata>
+        allEvents : TestEventStore<'TMetadata, 'TAggregateType>
     ) =
 
-    let interpret prog (testEventStore : TestEventStore<'TMetadata>) =
+    let interpret prog (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         TestInterpreter.interpret 
             prog 
             testEventStore 
@@ -37,7 +38,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent when 'TMetadata : equa
 
         let allEvents = TestEventStore.processPendingEvents () interpret handlers allEvents
 
-        new TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>(handlers, result, allEvents)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType>(time, handlers, result, allEvents)
 
     // runs the command. throws on failure
     member x.RunCommand (cmd : obj) (context : 'TCommandContext) =    
@@ -54,7 +55,9 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent when 'TMetadata : equa
 
     member x.Run (cmds : (obj * 'TCommandContext) list) =
         cmds
-        |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>) (cmd, context) -> s.RunCommand cmd context) x
+        |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType>) (cmd, context) -> s.RunCommand cmd context) x
+
+    member x.RunToEnd () = x
 
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 
@@ -87,9 +90,10 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent when 'TMetadata : equa
             CommandSuccess.Events = List.empty
             Position = None
         }
-        new TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType>(DateTime.UtcNow, handlers, Choice1Of2 emptySuccess, TestEventStore.empty)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
-    let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>) = y.RunCommand x c
-    let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent>) = y.RunCommandNoThrow x c
+    let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommand x c
+    let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommandNoThrow x c
+    let runToEnd (y:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType>) = y.RunToEnd()

@@ -68,6 +68,10 @@ type IEventHandler<'TId,'TMetadata, 'TEventContext when 'TId : equality> =
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
     abstract member Handler : AggregateEventConfiguration<'TEventContext, 'TId, 'TMetadata> -> 'TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> Async<EventStreamProgram<EventResult,'TMetadata>>
 
+type IWakeupHandler<'TMetadata> =
+    abstract member WakeupFold : WakeupFold<'TMetadata>
+    abstract member Handler : EventStreamProgram<EventResult,'TMetadata>
+
 type AggregateCommandHandlers<'TId,'TCommandContext,'TMetadata, 'TBaseEvent> = seq<ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent>>
 type AggregateEventHandlers<'TId,'TMetadata, 'TEventContext  when 'TId : equality> = seq<IEventHandler<'TId,'TMetadata, 'TEventContext >>
 
@@ -577,14 +581,17 @@ module AggregateActionBuilder =
             )
         onEventMulti stateBuilder handler
 
-type AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent when 'TId : equality> = {
+type AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TId : equality and 'TAggregateType : comparison> = {
     CommandConfiguration : AggregateCommandConfiguration<'TCommandContext,'TId, 'TMetadata>
     EventConfiguration : AggregateEventConfiguration<'TEventContext, 'TId, 'TMetadata>
     Handlers : AggregateHandlers<'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>
+    AggregateType : 'TAggregateType
+    Wakeup : IWakeupHandler<'TMetadata> option
 }
 
 module Aggregate = 
-    let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent when 'TId : equality>
+    let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TId : equality and 'TAggregateType : comparison>
+        (aggregateType : 'TAggregateType)
         (getCommandStreamName : 'TCommandContext -> 'TId -> string)
         (getEventStreamName : 'TEventContext -> 'TId -> string) 
         (commandHandlers : AggregateCommandHandlers<'TId,'TCommandContext, 'TMetadata,'TBaseEvent>)
@@ -616,7 +623,17 @@ module Aggregate =
                 eventHandlers |> Seq.fold (fun (x:AggregateHandlers<_,_,_,_,_>) h -> x.AddEventHandler h) handlers
 
             {
+                AggregateType = aggregateType
                 CommandConfiguration = commandConfig
                 EventConfiguration = eventConfig
                 Handlers = handlers
+                Wakeup = None
             }
+
+    let withWakeup (wakeupFold : WakeupFold<'TMetadata>) (stateBuilder : StateBuilder<'T,'TMetadata, 'TAggregateId>) (wakeupHandler : 'T -> DateTime ->  seq<'TBaseEvent * metadataBuilder<'TId,'TMetadata>>) (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent,'TAggregateType>) =
+        let wakeup = {
+            new IWakeupHandler<'TMetadata> with
+                member x.WakeupFold = wakeupFold
+                member x.Handler = EventStream.empty
+        }
+        { aggregateDefinition with Wakeup = Some wakeup }

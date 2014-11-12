@@ -2,11 +2,20 @@
 
 open System.Threading.Tasks
 open Eventful
+open Eventful.EventStore
 open System
 
 type IBookLibrarySystem =
     abstract member RunCommand<'a> : 'a -> Async<CommandResult<obj,BookLibraryEventMetadata>>
     abstract member RunCommandTask<'a> : 'a -> Task<CommandResult<obj,BookLibraryEventMetadata>>
+
+type AggregateType =
+    | Book = 1
+    | BookCopy = 2
+    | Award = 3
+    | Delivery = 4
+
+type BookLibraryEventStoreSystem = EventStoreSystem<unit,UnitEventContext,BookLibraryEventMetadata,obj,AggregateType>
 
 [<CLIMutable>]
 type BookId = {

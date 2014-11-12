@@ -4,10 +4,17 @@ open FSharpx.Collections
 open Eventful
 open System
 
-type TestEventStore<'TMetadata when 'TMetadata : equality> = {
+type WakeupRecord<'TAggregateType> = {
+    Time : DateTime
+    Stream: string
+    AggregateKey : string
+}
+
+type TestEventStore<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> = {
     Position : EventPosition
     Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>
     AllEventsStream : Queue<string * int * EventStreamEvent<'TMetadata>>
+    WakeupQueue : IPriorityQueue<WakeupRecord<'TAggregateType>>
 }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -17,9 +24,13 @@ module TestEventStore =
             Commit = position.Commit + 1L
             Prepare = position.Commit + 1L
         }
-    let empty<'TMetadata when 'TMetadata : equality> : TestEventStore<'TMetadata> = { Position = EventPosition.Start; Events = Map.empty; AllEventsStream = Queue.empty }
+    let empty<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> : TestEventStore<'TMetadata, 'TAggregateType> = { 
+        Position = EventPosition.Start
+        Events = Map.empty
+        AllEventsStream = Queue.empty 
+        WakeupQueue = PriorityQueue.empty false }
 
-    let addEvent stream (streamEvent: EventStreamEvent<'TMetadata>) (store : TestEventStore<'TMetadata>) =
+    let addEvent stream (streamEvent: EventStreamEvent<'TMetadata>) (store : TestEventStore<'TMetadata, 'TAggregateType>) =
         let streamEvents = 
             match store.Events |> Map.tryFind stream with
             | Some events -> events
@@ -38,7 +49,7 @@ module TestEventStore =
         interpreter program testEventStore
         |> fst
 
-    let runEventHandlers (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) (testEventStore : TestEventStore<'TMetadata>) (eventStream, eventNumber, eventStreamEvent) =
+    let runEventHandlers (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent, 'TAggregateType>) (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
         | Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             let handlers = 
@@ -51,7 +62,7 @@ module TestEventStore =
             handlers |> Seq.fold (runHandlerForEvent context interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
         | _ -> testEventStore
 
-    let rec processPendingEvents (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) (testEventStore : TestEventStore<'TMetadata>) =
+    let rec processPendingEvents (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         match testEventStore.AllEventsStream with
         | Queue.Nil -> testEventStore
         | Queue.Cons (x, xs) ->

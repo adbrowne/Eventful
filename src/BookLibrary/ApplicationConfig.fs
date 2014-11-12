@@ -7,7 +7,7 @@ open EventStore.ClientAPI
 open Eventful
 open Eventful.EventStore
 
-type BookLibrarySystem (system : EventStoreSystem<unit,UnitEventContext,BookLibraryEventMetadata,obj>) = 
+type BookLibrarySystem (system : BookLibraryEventStoreSystem) = 
     interface IBookLibrarySystem with
         member x.RunCommand cmd =
             system.RunCommand () cmd
@@ -74,7 +74,7 @@ module ApplicationConfig =
         |> addEventTypes eventTypes
 
     let buildEventStoreSystem client =
-        new EventStoreSystem<unit,UnitEventContext,BookLibraryEventMetadata,obj>(handlers, client, esSerializer, (fun _ -> UnitEventContext))
+        new BookLibraryEventStoreSystem(handlers, client, esSerializer, (fun _ -> UnitEventContext))
 
     let initializedSystem () = 
         async {

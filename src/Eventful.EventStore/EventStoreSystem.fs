@@ -7,9 +7,9 @@ open System
 open FSharpx
 open FSharpx.Collections
 
-type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent when 'TMetadata : equality and 'TEventContext :> System.IDisposable> 
+type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType when 'TMetadata : equality and 'TEventContext :> System.IDisposable and 'TAggregateType : comparison> 
     ( 
-        handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>,
+        handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>,
         client : Client,
         serializer: ISerializer,
         getEventContextFromMetadata : 'TMetadata -> 'TEventContext
@@ -42,7 +42,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
             return! interpreter program
         }
 
-    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>) (eventStream, eventNumber, eventStreamEvent) =
+    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>) (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
         | EventStreamEvent.Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             async {

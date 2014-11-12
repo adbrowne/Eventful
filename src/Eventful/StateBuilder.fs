@@ -6,10 +6,6 @@ open Eventful
 
 type StateRunner<'TMetadata, 'TState, 'TEvent> = 'TEvent -> 'TMetadata -> 'TState -> 'TState
 
-type HandlerFunction<'TState, 'TMetadata, 'TEvent> = 'TState * 'TEvent * 'TMetadata -> 'TState
-type GetAllEventsKey<'TMetadata, 'TKey> = 'TMetadata -> 'TKey
-type GetEventKey<'TMetadata, 'TEvent, 'TKey> = 'TEvent -> 'TMetadata -> 'TKey
-
 type IStateBlockBuilder<'TMetadata, 'TKey> = 
     abstract Type : Type
     abstract Name : string
@@ -20,33 +16,28 @@ type IStateBuilder<'TState, 'TMetadata, 'TKey> =
     abstract GetBlockBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list
     abstract GetState : Map<string, obj> -> 'TState
 
-type StateBuilderHandler<'TState, 'TMetadata, 'TKey> = 
-    | AllEvents of GetAllEventsKey<'TMetadata, 'TKey> * HandlerFunction<'TState, 'TMetadata, obj>
-    | SingleEvent of Type * GetEventKey<'TMetadata, obj, 'TKey> * HandlerFunction<'TState, 'TMetadata, obj>
-
 type StateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
     (
         name: string, 
-        initialState : 'TState, 
-        handlers : StateBuilderHandler<'TState, 'TMetadata, 'TKey> list
+        eventFold : EventFold<'TState, 'TMetadata, 'TKey>
     ) = 
 
     let getStateFromMap (stateMap : Map<string,obj>) =
        stateMap 
        |> Map.tryFind name 
        |> Option.map (fun s -> s :?> 'TState)
-       |> Option.getOrElse initialState 
+       |> Option.getOrElse eventFold.InitialState 
 
-    static member Empty name initialState = new StateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, List.empty)
+    static member Empty name initialState = new StateBuilder<'TState, 'TMetadata, 'TKey>(name, EventFold.Empty initialState)
 
-    member x.InitialState = initialState
+    member x.InitialState = eventFold.InitialState
 
     member x.AddHandler<'T> (h:StateBuilderHandler<'TState, 'TMetadata, 'TKey>) =
-        new StateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, h::handlers)
+        new StateBuilder<'TState, 'TMetadata, 'TKey>(name, eventFold.AddHandler h)
 
     member x.GetRunners<'TEvent> () : (GetEventKey<'TMetadata, 'TEvent, 'TKey> * StateRunner<'TMetadata, 'TState, 'TEvent>) seq = 
         seq {
-            for handler in handlers do
+            for handler in eventFold.Handlers do
                match handler with
                | AllEvents (getKey, handlerFunction) ->
                     let getKey _ metadata = getKey metadata
@@ -64,7 +55,7 @@ type StateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
     interface IStateBlockBuilder<'TMetadata, 'TKey> with
         member x.Name = name
         member x.Type = typeof<'TState>
-        member x.InitialState = initialState :> obj
+        member x.InitialState = eventFold.InitialState :> obj
         member x.GetRunners<'TEvent> () =
             x.GetRunners<'TEvent> ()
             |> Seq.map 
@@ -86,23 +77,11 @@ module StateBuilder =
     let nullStateBuilder<'TMetadata, 'TKey when 'TKey : equality> =
         StateBuilder<unit, 'TMetadata, 'TKey>.Empty "$Empty" ()
 
-    let untypedHandler f (state, (evt : obj), metadata) = 
-        match evt with
-        | :? 'TEvent as evt ->
-            f (state, evt, metadata) 
-        | _ -> failwith <| sprintf "Expecting type: %s but got type: %s" typeof<'TEvent>.FullName (evt.GetType().FullName)
-
-    let untypedGetKey f (evt : obj) metadata = 
-        match evt with
-        | :? 'TEvent as evt ->
-            f evt metadata
-        | _ -> failwith <| sprintf "Expecting type: %s but got type: %s" typeof<'TEvent>.FullName (evt.GetType().FullName)
-
     let handler (getKey : GetEventKey<'TMetadata, 'TEvent, 'TKey>) (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
-        b.AddHandler <| SingleEvent (typeof<'TEvent>, untypedGetKey getKey, untypedHandler f)
+        b.AddHandler <| SingleEvent (typeof<'TEvent>, EventFold.untypedGetKey getKey, EventFold.untypedHandler f)
 
     let allEventsHandler getKey (f : ('TState * obj * 'TMetadata) -> 'TState) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
-        b.AddHandler <| AllEvents (getKey, untypedHandler f)
+        b.AddHandler <| AllEvents (getKey, EventFold.untypedHandler f)
 
     let run (key : 'TKey) (evt : 'TEvent) (metadata : 'TMetadata) (builder: StateBuilder<'TState, 'TMetadata, 'TKey> , currentState : 'TState) =
         let keyHandlers = 
@@ -135,7 +114,7 @@ type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
         extract : Map<string, obj> -> 'TState
     ) = 
 
-    static member Empty name initialState = new StateBuilder<'TState, 'TMetadata, 'TKey>(name, initialState, List.empty)
+    static member Empty name initialState = StateBuilder.Empty name initialState
 
     member x.InitialState = 
         let acc s (b : IStateBlockBuilder<'TMetadata, 'TKey>) =

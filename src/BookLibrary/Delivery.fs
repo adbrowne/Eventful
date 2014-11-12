@@ -37,4 +37,4 @@ module Delivery =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition AggregateType.Delivery getStreamName getEventStreamName cmdHandlers Seq.empty

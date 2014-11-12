@@ -110,7 +110,7 @@ type TestEventStoreSystemFixture () =
                      |> buildCmd
             }
 
-    let widgetHandlers = toAggregateDefinition (getStreamName "Widget") (getEventStreamName "Widget") widgetCmdHandlers Seq.empty
+    let widgetHandlers = toAggregateDefinition "Widget" (getStreamName "Widget") (getEventStreamName "Widget") widgetCmdHandlers Seq.empty
 
     let widgetCounterEventHandlers =
         seq {
@@ -118,7 +118,7 @@ type TestEventStoreSystemFixture () =
                 yield linkEvent getId
             }
 
-    let widgetCounterAggregate = toAggregateDefinition (getStreamName "WidgetCounter") (getEventStreamName "WidgetCounter") Seq.empty widgetCounterEventHandlers
+    let widgetCounterAggregate = toAggregateDefinition "WidgetCounter" (getStreamName "WidgetCounter") (getEventStreamName "WidgetCounter") Seq.empty widgetCounterEventHandlers
 
     let addEventType evtType handlers =
         handlers
@@ -139,7 +139,7 @@ type TestEventStoreSystemFixture () =
         disposable
 
     let client = new Client(eventStoreProcess.Connection)
-    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj>(handlers, client, RunningTests.esSerializer, buildContext)
+    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj,string>(handlers, client, RunningTests.esSerializer, buildContext)
 
     let system = newSystem client
 

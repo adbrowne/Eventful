@@ -38,7 +38,7 @@ module BookCopy =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition AggregateType.BookCopy getStreamName getEventStreamName cmdHandlers Seq.empty
 
 open System.Web
 open System.Net.Http

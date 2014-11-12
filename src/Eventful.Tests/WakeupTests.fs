@@ -7,7 +7,7 @@ open Eventful.Testing
 open Xunit
 open FsUnit.Xunit
 
-module CommandTests =
+module WakeupTests =
     open EventSystemTestCommon
 
     let metadataBuilder aggregateId messageId sourceMessageId = { 
@@ -27,6 +27,11 @@ module CommandTests =
         Id : Guid
     }
 
+    type WakeupRunEvent = {
+        Id : Guid
+    }
+    with interface IEvent
+
     type FooEvent = {
         Id : Guid
     }
@@ -45,14 +50,30 @@ module CommandTests =
                 |> AggregateActionBuilder.buildCmd
         }
 
+        let wakeupBuilder = 
+            EventFold.Empty None
+            |> EventFold.handler 
+                (fun _ _ -> ()) 
+                (fun (s, (e:FooEvent), m) -> Some DateTime.UtcNow)
+            |> EventFold.handler 
+                (fun _ _ -> ()) 
+                (fun (s, (e:WakeupRunEvent), m) -> None)
+
         let evtHandlers = Seq.empty
 
+        let onWakeup () (time : DateTime) =
+            Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid() } :> IEvent, EventSystemTestCommon.metadataBuilder)
+
         Eventful.Aggregate.toAggregateDefinition 
-            "TestAggregate" 
+            "TestAggregate"
             getCommandStreamName 
             getStreamName 
-            cmdHandlers 
+            cmdHandlers
             evtHandlers
+        |> Eventful.Aggregate.withWakeup 
+            wakeupBuilder 
+            StateBuilder.nullStateBuilder 
+            onWakeup
 
     let handlers =
         EventfulHandlers.empty
@@ -65,24 +86,23 @@ module CommandTests =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
         |> StateBuilder.toInterface
 
-    [<Fact>]
+    let wakeupRunEventCounter : IStateBuilder<int, TestMetadata, Guid> =
+        StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> e.Id)
+        |> StateBuilder.toInterface
+
+    [<Fact(Skip = "not yet implemented")>]
     [<Trait("category", "unit")>]
-    let ``Command with same unique id not run twice`` () : unit =
+    let ``Wakeup event is run one time`` () : unit =
         let thisId = Guid.NewGuid()
         let streamName = getStreamName () thisId
 
-        // some unique id that can make the command processing idempotent
         let commandId = Guid.NewGuid() 
 
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.runCommand { FooCmd.Id = thisId } commandId // first run
-            |> TestSystem.runCommandNoThrow { FooCmd.Id = thisId } commandId // second run
+            |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
+            |> TestSystem.runToEnd
 
-        let fooCount = afterRun.EvaluateState streamName thisId fooEventCounter
+        let wakeupRunCount = afterRun.EvaluateState streamName thisId wakeupRunEventCounter
 
-        fooCount |> should equal 1
-
-        match afterRun.LastResult with
-        | Choice2Of2 msgs when msgs = FSharpx.Collections.NonEmptyList.singleton (CommandError "AlreadyProcessed") -> Assert.True(true)
-        | _ -> Assert.True(false, "Command succeeded")
+        wakeupRunCount |> should equal 1

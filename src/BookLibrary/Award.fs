@@ -38,7 +38,7 @@ module Award =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition AggregateType.Award getStreamName getEventStreamName cmdHandlers Seq.empty
 
 open System.Web
 open System.Net.Http

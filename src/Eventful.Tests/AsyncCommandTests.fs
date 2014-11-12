@@ -85,6 +85,7 @@ module AsyncCommandTests =
         let evtHandlers = Seq.empty
 
         Eventful.Aggregate.toAggregateDefinition 
+            "TestAggregate"
             getCommandStreamName 
             getStreamName 
             cmdHandlers 

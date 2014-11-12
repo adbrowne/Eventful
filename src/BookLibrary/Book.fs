@@ -118,7 +118,7 @@ module Book =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition getStreamName getEventStreamName cmdHandlers eventHandlers
+        Eventful.Aggregate.toAggregateDefinition AggregateType.Book getStreamName getEventStreamName cmdHandlers eventHandlers
 
     type BookDocument = {
         BookId : Guid

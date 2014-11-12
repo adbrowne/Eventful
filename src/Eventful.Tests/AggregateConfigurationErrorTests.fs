@@ -88,7 +88,7 @@ module TestAggregate =
         }
 
     let handlers =
-        toAggregateDefinition getStreamName getStreamName cmdHandlers Seq.empty
+        toAggregateDefinition "testaggregate" getStreamName getStreamName cmdHandlers Seq.empty
 
 module AggregateConfigurationErrorTests = 
 
