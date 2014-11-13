@@ -40,7 +40,7 @@ module Operations =
         let parameterName = sprintf "%s_%i" name query.NextParameterIndex
         let query' =
             { query with
-                Query = query.Query.WithParam(name, value)
+                Query = query.Query.WithParam(parameterName, value)
                 NextParameterIndex = query.NextParameterIndex + 1 }
 
         (query', sprintf "{%s}" parameterName)
