@@ -77,7 +77,9 @@
   #---------------------------------#
   #             build               #
   #---------------------------------#
-  before_build: nuget restore src\Eventful.sln
+  before_build:
+    - nuget restore src\Eventful.sln
+    - git submodule update --init
   after_build: 
     ps: .\build\build.ps1 AppveyorPostBuild
   
