@@ -78,8 +78,9 @@
   #             build               #
   #---------------------------------#
   before_build:
-    - nuget restore src\Eventful.sln
     - git submodule update --init
+    - nuget restore src\Eventful.sln
+    - nuget restore vendor\Neo4jClient\Neo4jClient.sln
   after_build: 
     ps: .\build\build.ps1 AppveyorPostBuild
   
