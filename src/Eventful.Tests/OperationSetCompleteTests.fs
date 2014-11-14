@@ -48,5 +48,6 @@ module OperationSetCompleteTests =
         not !isDone
 
     [<Property>]
+    [<Trait("category", "unit")>]
     let ``abs(v) % k equals abs(v % k)`` v (NonZeroInt k) = 
         (abs v) % k = abs(v % k)
