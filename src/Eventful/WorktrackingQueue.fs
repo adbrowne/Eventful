@@ -20,7 +20,7 @@ type internal CompleteQueueMessage<'TGroup, 'TItem when 'TGroup : comparison> =
 
 type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem>
     (
-        grouping : 'TInput -> ('TWorkItem * seq<'TGroup>),
+        grouping : 'TInput -> seq<'TWorkItem * 'TGroup>,
         workAction : 'TGroup -> 'TWorkItem seq -> Async<unit>,
         ?maxItems : int, 
         ?workerCount,
@@ -89,10 +89,6 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem>
         for i in [1.._workerCount] do
             runAsyncAsTask workerName cancellationToken workAsync |> ignore
 
-    let sequenceGrouping a =
-        let (item, groups) = grouping a
-        groups |> Seq.map (fun g -> (item, g))
-        
     /// fired each time a full queue is detected
     [<CLIEvent>]
     member this.QueueFullEvent = queue.QueueFullEvent
@@ -104,10 +100,10 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem>
         working <- true
 
     member this.Add (item:'TInput) =
-        queue.Add (item, sequenceGrouping, _complete item)
+        queue.Add (item, grouping, _complete item)
 
     member this.AddWithCallback (item:'TInput, onComplete : ('TInput -> Async<unit>)) =
-        queue.Add (item, sequenceGrouping, onComplete item)
+        queue.Add (item, grouping, onComplete item)
 
     member this.AsyncComplete () =
         queue.CurrentItemsComplete ()

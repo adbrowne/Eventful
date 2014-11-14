@@ -18,20 +18,19 @@ type TopShelfService () =
     let mutable client : Client option = None
     let mutable eventStoreSystem : BookLibraryEventStoreSystem option = None
 
-    let matchingKeys (message : EventStoreMessage) = seq {
+    let matchingKeys (message : EventStoreMessage) =
         let methodWithoutGeneric = Book.documentBuilder.GetType().GetMethod("GetKeysFromEvent", Reflection.BindingFlags.Public ||| Reflection.BindingFlags.Instance)
         let genericMethod = methodWithoutGeneric.MakeGenericMethod([|message.Event.GetType()|])
         let keys = genericMethod.Invoke(Book.documentBuilder, [|message.Event; message.EventContext|]) :?> string list
 
-        yield! keys 
-    }
+        keys |> Seq.ofList
 
     let runMessage (docKey : string) (document : Book.BookDocument) (message : EventStoreMessage) =
         let methodWithoutGeneric = Book.documentBuilder.GetType().GetMethod("ApplyEvent", Reflection.BindingFlags.Public ||| Reflection.BindingFlags.Instance)
         let genericMethod = methodWithoutGeneric.MakeGenericMethod([|message.Event.GetType()|])
         genericMethod.Invoke(Book.documentBuilder, [|docKey; document; message.Event; message.EventContext|]) :?> Book.BookDocument
 
-    let processVisitEvent documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<EventStoreMessage>) = async {
+    let processVisitEvent documentStore (documentFetcher:IDocumentFetcher) (docKey:string) (messages : seq<EventStoreMessage>) = async {
         let! doc = documentFetcher.GetDocument<Book.BookDocument>(docKey) |> Async.AwaitTask
         let bookId : BookId = 
             messages
@@ -61,12 +60,6 @@ type TopShelfService () =
         }
     }
 
-    let processDocuments documentStore (docKey:string, documentFetcher:IDocumentFetcher, messages : seq<EventStoreMessage>) =
-        let f = (fun () -> 
-                    processVisitEvent documentStore (docKey, documentFetcher, messages) |> Async.StartAsTask
-                ) 
-        new System.Func<Task<seq<ProcessAction>>>(f)
-
     member x.Start () =
         log.Debug <| lazy "Starting App"
         async {
@@ -78,9 +71,9 @@ type TopShelfService () =
 
             let documentStore = ApplicationConfig.buildDocumentStore()
 
-            let documentProcessor = {
+            let projector = {
                 MatchingKeys = matchingKeys
-                Process = processDocuments documentStore
+                ProcessEvents = processVisitEvent documentStore
             }
 
             let cache = new System.Runtime.Caching.MemoryCache("myCache")
@@ -91,14 +84,15 @@ type TopShelfService () =
             let bulkRavenProjector =    
                 BulkRavenProjector.create
                     (
+                        ApplicationConfig.dbName,
+                        Seq.singleton projector,
+                        Async.DefaultCancellationToken,  
+                        (fun _ -> async { () }),
                         documentStore,
-                        documentProcessor,
-                        ApplicationConfig.dbName, 
-                        100000, 
-                        1000, 
-                        (fun _ -> async { () }), Async.DefaultCancellationToken,  
                         writeQueue,
                         readQueue,
+                        100000, 
+                        1000, 
                         Some (TimeSpan.FromSeconds(60.0))
                     )
             bulkRavenProjector.StartWork ()
