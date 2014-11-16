@@ -89,6 +89,13 @@ module Operations =
         let query, clause = query |> withNodeWhereClauseQ name nodeId
         query |> addWhere clause
     
+    let updateNodeQ (name : string) (nodeId : NodeId) (data : obj) (query : CypherQuery) =
+        let query, dataParameter = query |> withParamQ "data" data
+        let query, idParameter = query |> withParamQ "eventful_id" nodeId.Id  // TODO: This parameter is probably already in the query, would be nice to reuse it instead of duplicating it.
+
+        query
+        |> setQ (sprintf "%s = %s, %s.eventful_id = %s" name dataParameter name idParameter)  // Because we're replacing all the parameters, we have to make sure to set eventful_id again.
+
 
     let getNode (graphClient : ICypherGraphClient) (graphName : string) (nodeId : NodeId) =
         async {
@@ -98,15 +105,16 @@ module Operations =
                 |> returnQ "node"
                 |> resultsAsyncQ
                 
-            let shouldHaveExactlyOne =
+            let noneOneMany =
                 results
                 |> Seq.truncate 2
                 |> Seq.toList
 
             return
-                match shouldHaveExactlyOne with
+                match noneOneMany with
+                | [] -> None
                 | [ result ] -> Some result
-                | _ -> None
+                | _ -> failwith (sprintf "Multiple nodes found in graph %s that match id %A" graphName nodeId)
         }
 
     // All results currently have to be of the same type.
@@ -147,11 +155,9 @@ module Operations =
             |> deleteQ "r"
 
         | UpdateNode (node, data) ->
-            let query, dataParameter = query |> withParamQ "data" data
-
             query
             |> mergeNodeIdQ "node" node
-            |> setQ (sprintf "node = %s" dataParameter)
+            |> updateNodeQ "node" node data
 
     let graphActionSeqToQuery (graphClient : ICypherGraphClient) (graphName : string) actions =
         let folder (query, isFirst) action =
