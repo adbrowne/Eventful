@@ -13,7 +13,8 @@ module CommandTests =
     let metadataBuilder aggregateId messageId sourceMessageId = { 
         TestMetadata.AggregateId = aggregateId
         MessageId = messageId 
-        SourceMessageId = sourceMessageId }
+        SourceMessageId = sourceMessageId
+        AggregateType =  "TestAggregate" }
 
     let addEventType evtType handlers =
         handlers
@@ -57,7 +58,7 @@ module CommandTests =
             evtHandlers
 
     let handlers =
-        EventfulHandlers.empty
+        EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate fooHandlers
         |> addEventTypes eventTypes
 

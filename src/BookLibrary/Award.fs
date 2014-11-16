@@ -23,7 +23,7 @@ module Award =
     let getBookAwardIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { AwardId.Id = x.AggregateId })
 
     let inline buildAwardMetadata (awardId : AwardId) = 
-        Aggregates.emptyMetadata awardId.Id
+        Aggregates.emptyMetadata awardId.Id AggregateType.Award 
 
     let inline awardCmdHandler f = 
         cmdHandler f buildAwardMetadata

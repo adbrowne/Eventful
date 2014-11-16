@@ -18,20 +18,33 @@ type FromRouteAttribute () =
         inherit System.Attribute()
     end
 
+type AggregateType =
+    | Book = 1
+    | BookCopy = 2
+    | Award = 3
+    | Delivery = 4
+
 type BookLibraryEventMetadata = {
     MessageId: Guid
     AggregateId : Guid
     SourceMessageId: string
     EventTime : DateTime
+    AggregateType : AggregateType
 }
 with 
     static member GetUniqueId x = Some x.SourceMessageId
+    static member GetAggregateType x = x.AggregateType
 
 module Aggregates = 
 
     let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<BookLibraryEventMetadata, 'TId>
 
-    let emptyMetadata aggregateId messageId sourceMessageId = { SourceMessageId = sourceMessageId; MessageId = messageId; EventTime = DateTime.UtcNow; AggregateId = aggregateId }
+    let emptyMetadata aggregateId aggregateType messageId sourceMessageId = { 
+        SourceMessageId = sourceMessageId 
+        MessageId = messageId 
+        EventTime = DateTime.UtcNow 
+        AggregateType = aggregateType
+        AggregateId = aggregateId }
 
     let cmdHandlerS stateBuilder f buildMetadata =
         AggregateActionBuilder.fullHandler

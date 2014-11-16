@@ -43,7 +43,8 @@ module TestAggregate =
     let inline buildMetadata (aggregateId : TestId) messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
             MessageId = messageId 
-            AggregateId = aggregateId.Id }
+            AggregateId = aggregateId.Id
+            AggregateType =  "testaggregate" }
 
     let inline withMetadata f cmd = 
         let cmdResult = f cmd
@@ -95,7 +96,7 @@ module TestAggregate =
 module AggregateConfigurationErrorTests = 
 
     let emptyTestSystem =
-        EventfulHandlers.empty
+        EventfulHandlers.empty (konst "testaggregate")
         |> EventfulHandlers.addAggregate TestAggregate.handlers
         |> TestSystem.Empty
 

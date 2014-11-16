@@ -22,7 +22,7 @@ module Delivery =
     let getDeliveryIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { DeliveryId.Id = x.AggregateId })
 
     let inline buildDeliveryMetadata (deliveryId : DeliveryId) = 
-        Aggregates.emptyMetadata deliveryId.Id
+        Aggregates.emptyMetadata deliveryId.Id AggregateType.Delivery
 
     let inline deliveryCmdHandler f = 
         cmdHandler f buildDeliveryMetadata

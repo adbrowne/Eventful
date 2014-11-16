@@ -20,12 +20,17 @@ type WidgetId = {
 } 
 
 module TestEventStoreSystemHelpers =
-    let emptyMetadata : Eventful.Tests.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
+    let emptyMetadata : Eventful.Tests.TestMetadata = { 
+        SourceMessageId = String.Empty
+        MessageId = Guid.Empty
+        AggregateId = Guid.Empty   
+        AggregateType = "AggregateType" }
 
     let inline buildMetadata (aggregateId : WidgetId) messageId sourceMessageId = { 
-            Eventful.Tests.TestMetadata.SourceMessageId = sourceMessageId 
+            TestMetadata.SourceMessageId = sourceMessageId 
             MessageId = messageId 
-            AggregateId = aggregateId.Id }
+            AggregateId = aggregateId.Id 
+            AggregateType = "AggregateType" }
 
     let inline withMetadata f cmd = 
         let cmdResult = f cmd
@@ -57,10 +62,6 @@ module TestEventStoreSystemHelpers =
         Eventful.AggregateActionBuilder.onEvent fId s (withMetadata f)
     let inline linkEvent fId = 
         Eventful.AggregateActionBuilder.linkEvent fId buildMetadata
-
-type AggregateType =
-| Widget
-| WidgetCounter
 
 type CreateWidgetCommand = {
     WidgetId : WidgetId
@@ -136,7 +137,7 @@ type TestEventStoreSystemFixture () =
         |> EventfulHandlers.addEventStoreType evtType.Name evtType 
 
     let handlers =
-        EventfulHandlers.empty
+        EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate widgetHandlers
         |> EventfulHandlers.addAggregate widgetCounterAggregate
         |> addEventType typeof<WidgetCreatedEvent>

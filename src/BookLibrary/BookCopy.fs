@@ -23,7 +23,7 @@ module BookCopy =
     let getBookCopyIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { BookCopyId.Id = x.AggregateId })
 
     let inline buildBookCopyMetadata (bookCopyId : BookCopyId) = 
-        Aggregates.emptyMetadata bookCopyId.Id
+        Aggregates.emptyMetadata bookCopyId.Id AggregateType.BookCopy
 
     let inline bookCopyCmdHandler f = 
         cmdHandler f buildBookCopyMetadata

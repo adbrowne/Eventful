@@ -20,7 +20,8 @@ module AsyncCommandTests =
     let metadataBuilder aggregateId messageId sourceMessageId = { 
         TestMetadata.AggregateId = aggregateId
         MessageId = messageId 
-        SourceMessageId = sourceMessageId }
+        SourceMessageId = sourceMessageId 
+        AggregateType =  "TestAggregate" }
 
     let addEventType evtType handlers =
         handlers
@@ -93,7 +94,7 @@ module AsyncCommandTests =
             evtHandlers
 
     let handlers =
-        EventfulHandlers.empty
+        EventfulHandlers.empty (konst "TestAggregate")
         |> EventfulHandlers.addAggregate fooHandlers
         |> addEventTypes eventTypes
 

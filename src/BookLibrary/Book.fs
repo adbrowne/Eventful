@@ -64,13 +64,13 @@ module Book =
     let getBookIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { BookId.Id = x.AggregateId })
 
     let inline buildBookMetadata (bookId : BookId) = 
-        Aggregates.emptyMetadata bookId.Id
+        Aggregates.emptyMetadata bookId.Id AggregateType.Book
 
     let inline bookCmdHandlerS stateBuilder f = 
-        cmdHandlerS stateBuilder f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id)
+        cmdHandlerS stateBuilder f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id AggregateType.Book )
 
     let inline bookCmdHandler f =
-        cmdHandler f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id)
+        cmdHandler f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id AggregateType.Book)
 
     let cmdHandlers = 
         seq {

@@ -67,7 +67,7 @@ module ApplicationConfig =
         |> Eventful.Utils.getLoadableTypes
 
     let handlers =
-        EventfulHandlers.empty
+        EventfulHandlers.empty BookLibraryEventMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (Book.handlers ())
         |> EventfulHandlers.addAggregate (BookCopy.handlers ())
         |> EventfulHandlers.addAggregate (Award.handlers ())
