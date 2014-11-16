@@ -35,14 +35,8 @@ module EventSystemTestCommon =
         StateBuilder.eventTypeCountBuilder (fun (e:BarEvent) _ -> e.Id)
         |> StateBuilder.toInterface
 
-    let systemConfiguration = {
-        SystemConfiguration.GetUniqueId = (fun (x : TestMetadata) -> Some x.SourceMessageId)
-        GetAggregateId = (fun (x : TestMetadata) -> x.AggregateId)
-    }
-
     let cmdHandler f =
         AggregateActionBuilder.fullHandler
-            systemConfiguration 
             StateBuilder.nullStateBuilder
             (fun _ (cmdContext : Guid) cmd -> 
                 let events = 

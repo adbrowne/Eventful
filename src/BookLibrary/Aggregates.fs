@@ -24,20 +24,17 @@ type BookLibraryEventMetadata = {
     SourceMessageId: string
     EventTime : DateTime
 }
+with 
+    static member GetUniqueId x = Some x.SourceMessageId
 
 module Aggregates = 
-    let systemConfiguration getId = {
-        SystemConfiguration.GetUniqueId = (fun x -> Some x.SourceMessageId)
-        GetAggregateId = getId
-    }
 
     let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<BookLibraryEventMetadata, 'TId>
 
     let emptyMetadata aggregateId messageId sourceMessageId = { SourceMessageId = sourceMessageId; MessageId = messageId; EventTime = DateTime.UtcNow; AggregateId = aggregateId }
 
-    let cmdHandlerS getId stateBuilder f buildMetadata =
+    let cmdHandlerS stateBuilder f buildMetadata =
         AggregateActionBuilder.fullHandler
-            (systemConfiguration  getId)
             stateBuilder
             (fun state () cmd -> 
                 let events = 
@@ -55,8 +52,8 @@ module Aggregates =
             )
         |> AggregateActionBuilder.buildCmd
 
-    let cmdHandler getId f =
-        cmdHandlerS getId StateBuilder.nullStateBuilder (fun _ -> f)
+    let cmdHandler f =
+        cmdHandlerS StateBuilder.nullStateBuilder (fun _ -> f)
 
     let inline linkEvent fId buildMetadata =
         Eventful.AggregateActionBuilder.linkEvent fId buildMetadata

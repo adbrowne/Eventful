@@ -20,11 +20,13 @@ module Award =
     let inline getAwardId (a: ^a) _ = 
         (^a : (member AwardId: AwardId) (a))
 
+    let getBookAwardIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { AwardId.Id = x.AggregateId })
+
     let inline buildAwardMetadata (awardId : AwardId) = 
         Aggregates.emptyMetadata awardId.Id
 
     let inline awardCmdHandler f = 
-        cmdHandler (fun x -> { AwardId.Id = x.AggregateId }) f buildAwardMetadata
+        cmdHandler f buildAwardMetadata
 
     let cmdHandlers = 
         seq {
@@ -38,7 +40,14 @@ module Award =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition AggregateType.Award getStreamName getEventStreamName cmdHandlers Seq.empty
+        Eventful.Aggregate.toAggregateDefinition 
+            AggregateType.Award 
+            BookLibraryEventMetadata.GetUniqueId
+            getBookAwardIdFromMetadata
+            getStreamName 
+            getEventStreamName 
+            cmdHandlers 
+            Seq.empty
 
 open System.Web
 open System.Net.Http

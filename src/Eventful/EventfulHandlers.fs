@@ -2,19 +2,24 @@
 
 open System
 open Eventful.EventStream
+open FSharpx
 open FSharpx.Collections
 
                                             // Source StreamId, Source Event Number, Event -> Program
 type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
 type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T, 'TMetadata>) * IRegistrationVisitable
+type EventfulStreamConfig<'TMetadata> = {
+    Wakeup : IWakeupHandler<'TMetadata> option
+    StateBuilder : IStateBuilder<Map<string,obj>, 'TMetadata, unit>
+}
 
 type MyEventResult = unit
 
-type EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>
+type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,'TAggregateType when 'TAggregateType : comparison>
     (
         commandHandlers : Map<string, EventfulCommandHandler<CommandResult<'TBaseEvent, 'TMetadata>, 'TCommandContext, 'TMetadata>>, 
         eventHandlers : Map<string, EventfulEventHandler<MyEventResult, 'TEventContext, 'TMetadata> list>,
-        wakeup : IWakeupHandler<'TMetadata>,
+        aggregateTypes : Map<'TAggregateType,EventfulStreamConfig<'TMetadata>>,
         eventStoreTypeToClassMap : EventStoreTypeToClassMap,
         classToEventStoreTypeMap : ClassToEventStoreTypeMap
     ) =
@@ -22,39 +27,42 @@ type EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
     member x.EventHandlers = eventHandlers
     member x.EventStoreTypeToClassMap = eventStoreTypeToClassMap
     member x.ClassToEventStoreTypeMap = classToEventStoreTypeMap
-    member x.Wakeup = wakeup
+    member x.AggregateTypes = aggregateTypes
 
     member x.AddCommandHandler = function
         | EventfulCommandHandler(cmdType,_,_) as handler -> 
             let cmdTypeFullName = cmdType.FullName
             let commandHandlers' = commandHandlers |> Map.add cmdTypeFullName handler
-            new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>(commandHandlers', eventHandlers, wakeup, eventStoreTypeToClassMap, classToEventStoreTypeMap)
+            new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>(commandHandlers', eventHandlers, aggregateTypes, eventStoreTypeToClassMap, classToEventStoreTypeMap)
+
     member x.AddEventHandler = function
         | EventfulEventHandler(eventType,_) as handler -> 
             let evtName = eventType.Name
             let eventHandlers' = 
                 eventHandlers |> Map.insertWith List.append evtName [handler]
-            new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers', wakeup, eventStoreTypeToClassMap, classToEventStoreTypeMap)
-    member x.SetWakeUp newWakeup = 
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers, newWakeup, eventStoreTypeToClassMap, classToEventStoreTypeMap)
+            new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers', aggregateTypes, eventStoreTypeToClassMap, classToEventStoreTypeMap)
+
+    member x.AddAggregateType aggregateType config  = 
+        let aggregateTypes' = aggregateTypes |> Map.add aggregateType config
+        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers, aggregateTypes', eventStoreTypeToClassMap, classToEventStoreTypeMap)
+
     member x.AddEventStoreTypeToClassMapping (eventStoreType : string) (evtType : Type) =
         let eventStoreTypeToClassMap' = eventStoreTypeToClassMap |> PersistentHashMap.add eventStoreType evtType 
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers, wakeup, eventStoreTypeToClassMap', classToEventStoreTypeMap)
+        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers, aggregateTypes, eventStoreTypeToClassMap', classToEventStoreTypeMap)
 
     member x.AddClassToEventStoreTypeMap (evtType : Type) (eventStoreType : string) =
         let classToEventStoreTypeMap' = classToEventStoreTypeMap |> PersistentHashMap.add evtType eventStoreType 
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers, wakeup, eventStoreTypeToClassMap, classToEventStoreTypeMap')
+        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(commandHandlers, eventHandlers, aggregateTypes, eventStoreTypeToClassMap, classToEventStoreTypeMap')
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventfulHandlers = 
-    let empty<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType> = 
-        let noWakeup = {
-            new IWakeupHandler<'TMetadata> with
-                member x.WakeupFold = Wakeup.noWakeup<'TMetadata>
-                member x.Handler = EventStream.empty
-        } 
-
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(Map.empty, Map.empty, noWakeup, PersistentHashMap.empty, PersistentHashMap.empty)
+    let empty<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType when 'TAggregateType : comparison> = 
+        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(
+            Map.empty, 
+            Map.empty, 
+            Map.empty, 
+            PersistentHashMap.empty, 
+            PersistentHashMap.empty)
 
     let addCommandHandlers config (commandHandlers : ICommandHandler<_,_, _,_> list) eventfulHandlers =
         commandHandlers
@@ -66,6 +74,9 @@ module EventfulHandlers =
         |> Seq.map (fun x -> EventfulEventHandler(x.EventType, x.Handler config))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>) h -> s.AddEventHandler h) eventfulHandlers
 
+    let addAggregateType aggregateType config (eventfulHandlers : EventfulHandlers<_,_,_,_,_>) =
+        eventfulHandlers.AddAggregateType aggregateType config
+
     let addEventStoreType (eventStoreType : string) (classType : Type) (eventfulHandlers : EventfulHandlers<_,_,_,_,_>) =
         eventfulHandlers.AddEventStoreTypeToClassMapping eventStoreType classType 
 
@@ -73,9 +84,54 @@ module EventfulHandlers =
         eventfulHandlers.AddClassToEventStoreTypeMap classType eventStoreType 
 
     let addAggregate (aggregateDefinition : AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, _,'TBaseEvent,'TAggregateType>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>) =
-        eventfulHandlers
-        |> addCommandHandlers aggregateDefinition.CommandConfiguration aggregateDefinition.Handlers.CommandHandlers
-        |> addEventHandlers aggregateDefinition.EventConfiguration aggregateDefinition.Handlers.EventHandlers
+        let commandStateBuilders = 
+            aggregateDefinition.Handlers.CommandHandlers 
+            |> List.map (fun x -> x.AddStateBuilder)
+
+        let eventStateBuilders =
+            aggregateDefinition.Handlers.EventHandlers 
+            |> List.map (fun x -> x.AddStateBuilder)
+
+        let uniqueIdBuilder = 
+            AggregateActionBuilder.uniqueIdBuilder aggregateDefinition.GetUniqueId
+
+        let (wakeupBuilders, extractWakeup) =
+            match aggregateDefinition.Wakeup with
+            | Some wakeup ->
+                (wakeup.WakeupFold.GetBlockBuilders, (fun map -> wakeup.WakeupFold.GetState map))
+            | None -> ([], konst None)
+
+        let combinedAggregateStateBuilder = 
+            commandStateBuilders
+            |> List.append eventStateBuilders
+            |> List.fold (|>) []
+            |> List.append uniqueIdBuilder.GetBlockBuilders
+            |> List.append wakeupBuilders
+            |> AggregateStateBuilder.ofStateBuilderList
+
+        let commandConfig = {
+            AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder 
+            GetAggregateId = aggregateDefinition.GetAggregateId
+            GetUniqueId = aggregateDefinition.GetUniqueId
+            GetStreamName = aggregateDefinition.GetCommandStreamName
+        }
+
+        let eventConfig = {
+            AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder
+            GetAggregateId = aggregateDefinition.GetAggregateId
+            GetUniqueId = aggregateDefinition.GetUniqueId
+            GetStreamName = aggregateDefinition.GetEventStreamName
+        }
+
+        let aggregateConfig = {
+            EventfulStreamConfig.Wakeup = aggregateDefinition.Wakeup
+            StateBuilder = combinedAggregateStateBuilder
+        }
+
+        eventfulHandlers 
+        |> addCommandHandlers commandConfig aggregateDefinition.Handlers.CommandHandlers
+        |> addEventHandlers eventConfig aggregateDefinition.Handlers.EventHandlers
+        |> addAggregateType aggregateDefinition.AggregateType aggregateConfig
 
     let getCommandProgram (context:'TCommandContext) (cmd:obj) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>) =
         let cmdType = cmd.GetType()

@@ -36,7 +36,7 @@ module CommandTests =
         yield typeof<FooEvent>
     }
 
-    let fooHandlers =    
+    let fooHandlers : TestAggregateDefinition<_,_> =    
         let cmdHandlers = seq {
             yield 
                 cmdHandler
@@ -49,6 +49,8 @@ module CommandTests =
 
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate" 
+            TestMetadata.GetUniqueId
+            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers 

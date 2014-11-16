@@ -51,13 +51,12 @@ module WakeupTests =
         }
 
         let wakeupBuilder = 
-            EventFold.Empty None
-            |> EventFold.handler 
-                (fun _ _ -> ()) 
+            StateBuilder.Empty "WakeupTime" None
+            |> StateBuilder.aggregateStateHandler
                 (fun (s, (e:FooEvent), m) -> Some DateTime.UtcNow)
-            |> EventFold.handler 
-                (fun _ _ -> ()) 
+            |> StateBuilder.aggregateStateHandler 
                 (fun (s, (e:WakeupRunEvent), m) -> None)
+            |> StateBuilder.toInterface
 
         let evtHandlers = Seq.empty
 
@@ -66,6 +65,8 @@ module WakeupTests =
 
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate"
+            TestMetadata.GetUniqueId
+            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers
@@ -90,7 +91,7 @@ module WakeupTests =
         StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> e.Id)
         |> StateBuilder.toInterface
 
-    [<Fact(Skip = "not yet implemented")>]
+    [<Fact(Skip = "Not yet implemented")>]
     [<Trait("category", "unit")>]
     let ``Wakeup event is run one time`` () : unit =
         let thisId = Guid.NewGuid()

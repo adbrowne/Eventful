@@ -22,11 +22,6 @@ type WidgetId = {
 module TestEventStoreSystemHelpers =
     let emptyMetadata : Eventful.Tests.TestMetadata = { SourceMessageId = String.Empty; MessageId = Guid.Empty; AggregateId = Guid.Empty  }
 
-    let systemConfiguration = {
-        SystemConfiguration.GetUniqueId = (fun (x : TestMetadata) -> Some x.SourceMessageId)
-        GetAggregateId = (fun (x : TestMetadata) -> { WidgetId.Id = x.AggregateId })
-    }
-
     let inline buildMetadata (aggregateId : WidgetId) messageId sourceMessageId = { 
             Eventful.Tests.TestMetadata.SourceMessageId = sourceMessageId 
             MessageId = messageId 
@@ -38,7 +33,6 @@ module TestEventStoreSystemHelpers =
 
     let cmdBuilderS stateBuilder f =
         AggregateActionBuilder.fullHandler
-            systemConfiguration 
             stateBuilder
             (fun state () cmd -> 
                 let events = 
@@ -110,7 +104,15 @@ type TestEventStoreSystemFixture () =
                      |> buildCmd
             }
 
-    let widgetHandlers = toAggregateDefinition "Widget" (getStreamName "Widget") (getEventStreamName "Widget") widgetCmdHandlers Seq.empty
+    let widgetHandlers = 
+        toAggregateDefinition 
+            "Widget" 
+            TestMetadata.GetUniqueId
+            (fun (x : TestMetadata) -> { WidgetId.Id = x.AggregateId })
+            (getStreamName "Widget") 
+            (getEventStreamName "Widget") 
+            widgetCmdHandlers 
+            Seq.empty
 
     let widgetCounterEventHandlers =
         seq {
@@ -118,7 +120,15 @@ type TestEventStoreSystemFixture () =
                 yield linkEvent getId
             }
 
-    let widgetCounterAggregate = toAggregateDefinition "WidgetCounter" (getStreamName "WidgetCounter") (getEventStreamName "WidgetCounter") Seq.empty widgetCounterEventHandlers
+    let widgetCounterAggregate = 
+        toAggregateDefinition 
+            "WidgetCounter" 
+            TestMetadata.GetUniqueId
+            (fun (x : TestMetadata) -> { WidgetId.Id = x.AggregateId })
+            (getStreamName "WidgetCounter") 
+            (getEventStreamName "WidgetCounter") 
+            Seq.empty 
+            widgetCounterEventHandlers
 
     let addEventType evtType handlers =
         handlers

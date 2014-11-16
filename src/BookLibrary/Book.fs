@@ -46,12 +46,12 @@ module Book =
 
     let bookTitle = 
         StateBuilder.Empty "bookTitle" ""
-        |> StateBuilder.handler getBookId (fun (_, (e : BookAddedEvent), _) -> e.Title)
-        |> StateBuilder.handler getBookId (fun (_, (e : BookTitleUpdatedEvent), _) -> e.Title)
+        |> StateBuilder.aggregateStateHandler (fun (_, (e : BookAddedEvent), _) -> e.Title)
+        |> StateBuilder.aggregateStateHandler (fun (_, (e : BookTitleUpdatedEvent), _) -> e.Title)
 
     let copyCount =
         StateBuilder.Empty "bookCopyCount" 0
-        |> StateBuilder.handler getBookId (fun (s, (e : BookCopyAddedEvent), _) -> s + 1)
+        |> StateBuilder.aggregateStateHandler (fun (s, (e : BookCopyAddedEvent), _) -> s + 1)
 
     let doesNotEqual err other value =
         if other = value then
@@ -67,10 +67,10 @@ module Book =
         Aggregates.emptyMetadata bookId.Id
 
     let inline bookCmdHandlerS stateBuilder f = 
-        cmdHandlerS getBookIdFromMetadata stateBuilder f (fun bookId -> Aggregates.emptyMetadata bookId.Id)
+        cmdHandlerS stateBuilder f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id)
 
     let inline bookCmdHandler f =
-        cmdHandler getBookIdFromMetadata f (fun bookId -> Aggregates.emptyMetadata bookId.Id)
+        cmdHandler f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id)
 
     let cmdHandlers = 
         seq {
@@ -118,7 +118,14 @@ module Book =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition AggregateType.Book getStreamName getEventStreamName cmdHandlers eventHandlers
+        Eventful.Aggregate.toAggregateDefinition 
+            AggregateType.Book 
+            BookLibraryEventMetadata.GetUniqueId
+            getBookIdFromMetadata
+            getStreamName 
+            getEventStreamName 
+            cmdHandlers 
+            eventHandlers
 
     type BookDocument = {
         BookId : Guid
@@ -132,7 +139,8 @@ module Book =
 
     let documentBuilder : DocumentBuilder<BookId, BookDocument, BookLibraryEventMetadata> = 
         DocumentBuilder.Empty<BookId, BookDocument> BookDocument.NewDoc (fun x -> sprintf "Book/%s" (x.Id.ToString()))
-        |> DocumentBuilder.mapStateToProperty bookTitle (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
+        // todo work out how this will work once statebuilders do not have ids
+        //|> DocumentBuilder.mapStateToProperty bookTitle (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
 
 open System.Web
 open System.Net.Http

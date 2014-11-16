@@ -44,7 +44,14 @@ module OnEventTests =
                     )
         }
 
-        Eventful.Aggregate.toAggregateDefinition "TestAggregate" getCommandStreamName getStreamName cmdHandlers evtHandlers
+        Eventful.Aggregate.toAggregateDefinition 
+            "TestAggregate" 
+            TestMetadata.GetUniqueId
+            TestMetadata.GetAggregateId
+            getCommandStreamName 
+            getStreamName 
+            cmdHandlers 
+            evtHandlers
 
     let handlers =
         EventfulHandlers.empty
@@ -117,7 +124,14 @@ module OnEventMuliAggregateTests =
                     }) 
         }
 
-        Eventful.Aggregate.toAggregateDefinition "TestAggregate" getCommandStreamName getStreamName cmdHandlers evtHandlers
+        Eventful.Aggregate.toAggregateDefinition 
+            "TestAggregate" 
+            TestMetadata.GetUniqueId
+            TestMetadata.GetAggregateId
+            getCommandStreamName 
+            getStreamName 
+            cmdHandlers 
+            evtHandlers
 
     let handlers =
         EventfulHandlers.empty

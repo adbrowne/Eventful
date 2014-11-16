@@ -50,7 +50,6 @@ module AsyncCommandTests =
 
     let cmdHandlerAsync f =
         AggregateActionBuilder.fullHandlerAsync
-            systemConfiguration 
             StateBuilder.nullStateBuilder
             (fun _ (cmdContext : CommandContextWithAsyncService) cmd -> async {
                 let! events = async {
@@ -86,6 +85,8 @@ module AsyncCommandTests =
 
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate"
+            TestMetadata.GetUniqueId
+            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers 

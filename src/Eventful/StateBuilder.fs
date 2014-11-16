@@ -80,6 +80,14 @@ module StateBuilder =
     let handler (getKey : GetEventKey<'TMetadata, 'TEvent, 'TKey>) (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| SingleEvent (typeof<'TEvent>, EventFold.untypedGetKey getKey, EventFold.untypedHandler f)
 
+    // aggregate state has no id, it is scoped to the stream
+    let aggregateStateHandler (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, unit>) =
+        SingleEvent (typeof<'TEvent>, EventFold.untypedGetKey (fun _ _ -> ()), EventFold.untypedHandler f)
+        |> b.AddHandler
+
+    let allAggregateEventsHandler (f : ('TState * obj * 'TMetadata) -> 'TState) (b : StateBuilder<'TState, 'TMetadata, unit>) =
+        b.AddHandler <| AllEvents (konst (), EventFold.untypedHandler f)
+
     let allEventsHandler getKey (f : ('TState * obj * 'TMetadata) -> 'TState) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| AllEvents (getKey, EventFold.untypedHandler f)
 
@@ -130,6 +138,9 @@ type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module AggregateStateBuilder =
+
+    let constant<'TState,'TMetdata,'TKey when 'TKey : equality> value = new AggregateStateBuilder<'TState,'TMetdata,'TKey>([], konst value)
+
     let combine f (b1 : IStateBuilder<'TState1, 'TMetadata, 'TKey>) (b2 : IStateBuilder<'TState2, 'TMetadata, 'TKey>) : IStateBuilder<'TStateCombined, 'TMetadata, 'TKey> =
         let combinedUnitBuilders = 
             Seq.append b1.GetBlockBuilders b2.GetBlockBuilders 
@@ -180,7 +191,7 @@ module AggregateStateBuilder =
         let extract unitStates = stateBuilder.GetState unitStates |> f
         new AggregateStateBuilder<'T2, 'TMetadata, 'TKey>(stateBuilder.GetBlockBuilders, extract) :> IStateBuilder<'T2, 'TMetadata, 'TKey>
 
-    let toStreamProgram streamName key (stateBuilder:IStateBuilder<'TState, 'TMetadata, 'TKey>) = EventStream.eventStream {
+    let toStreamProgram streamName (key : 'TKey) (stateBuilder:IStateBuilder<'TState, 'TMetadata, 'TKey>) = EventStream.eventStream {
         let rec loop eventsConsumed currentState = EventStream.eventStream {
             let! token = EventStream.readFromStream streamName eventsConsumed
             match token with

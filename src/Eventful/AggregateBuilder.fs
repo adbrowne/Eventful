@@ -32,41 +32,28 @@ type IRegistrationVisitable =
 
 type EventResult = unit
 
-type AggregateCommandConfiguration<'TCommandContext, 'TAggregateId, 'TMetadata> = {
-    // the combination of all the named state builders
-    // for commands and events
-    StateBuilder : IStateBlockBuilder<'TMetadata, 'TAggregateId> list
-
-    GetCommandStreamName : 'TCommandContext -> 'TAggregateId -> string
-}
-
-type AggregateEventConfiguration<'TEventContext, 'TAggregateId, 'TMetadata> = {
-    // the combination of all the named state builders
-    // for commands and events
-    StateBuilder : IStateBlockBuilder<'TMetadata, 'TAggregateId> list
-
-    GetEventStreamName : 'TEventContext -> 'TAggregateId -> string
-}
-
-type SystemConfiguration<'TId, 'TMetadata> = {
-    //used to make processing idempotent
-    GetUniqueId : 'TMetadata -> string option 
-    GetAggregateId : 'TMetadata -> 'TId
+// 'TContext can either be CommandContext or EventContext
+type AggregateConfiguration<'TContext, 'TAggregateId, 'TMetadata> = {
+    /// used to make processing idempotent
+    GetUniqueId : 'TMetadata -> string option
+    GetAggregateId : 'TMetadata -> 'TAggregateId
+    GetStreamName : 'TContext -> 'TAggregateId -> string
+    StateBuilder : IStateBuilder<Map<string,obj>, 'TMetadata, unit>
 }
 
 type ICommandHandler<'TId,'TCommandContext, 'TMetadata, 'TBaseEvent> =
     abstract member CmdType : Type
-    abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, 'TId> list -> IStateBlockBuilder<'TMetadata, 'TId> list
+    abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, unit> list -> IStateBlockBuilder<'TMetadata, unit> list
     abstract member GetId : 'TCommandContext-> obj -> 'TId
                     // AggregateType -> Cmd -> Source Stream -> EventNumber -> Program
-    abstract member Handler : AggregateCommandConfiguration<'TCommandContext, 'TId, 'TMetadata> -> 'TCommandContext -> obj -> EventStreamProgram<CommandResult<'TBaseEvent,'TMetadata>,'TMetadata>
+    abstract member Handler : AggregateConfiguration<'TCommandContext, 'TId, 'TMetadata> -> 'TCommandContext -> obj -> EventStreamProgram<CommandResult<'TBaseEvent,'TMetadata>,'TMetadata>
     abstract member Visitable : IRegistrationVisitable
 
 type IEventHandler<'TId,'TMetadata, 'TEventContext when 'TId : equality> =
-    abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, 'TId> list -> IStateBlockBuilder<'TMetadata, 'TId> list
+    abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, unit> list -> IStateBlockBuilder<'TMetadata, unit> list
     abstract member EventType : Type
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
-    abstract member Handler : AggregateEventConfiguration<'TEventContext, 'TId, 'TMetadata> -> 'TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> Async<EventStreamProgram<EventResult,'TMetadata>>
+    abstract member Handler : AggregateConfiguration<'TEventContext, 'TId, 'TMetadata> -> 'TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> Async<EventStreamProgram<EventResult,'TMetadata>>
 
 type IWakeupHandler<'TMetadata> =
     abstract member WakeupFold : WakeupFold<'TMetadata>
@@ -99,17 +86,6 @@ type IHandler<'TEvent,'TId,'TCommandContext,'TEventContext when 'TId : equality>
 open FSharpx
 open Eventful.Validation
 
-type IStateValidatorRegistration<'TMetadata,'TKey> =
-    abstract member Register<'TState> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TState -> seq<ValidationFailure>) -> (IStateBlockBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>))
-
-type ICombinedValidatorRegistration<'TMetadata,'TKey> =
-    abstract member Register<'TState,'TInput> : IStateBuilder<'TState, 'TMetadata, 'TKey>  -> ('TInput -> 'TState -> seq<ValidationFailure>) -> (IStateBlockBuilder<'TMetadata, 'TKey> list * ('TInput -> Map<string,obj> -> seq<ValidationFailure>))
-
-type Validator<'TCmd,'TState, 'TMetadata, 'TKey> = 
-| CommandValidator of ('TCmd -> seq<ValidationFailure>)
-| StateValidator of (IStateValidatorRegistration<'TMetadata,'TKey> -> (IStateBlockBuilder<'TMetadata, 'TKey> list * (Map<string,obj> -> seq<ValidationFailure>)))
-| CombinedValidator of (ICombinedValidatorRegistration<'TMetadata,'TKey> -> (IStateBlockBuilder<'TMetadata, 'TKey> list * ('TCmd -> Map<string,obj> -> seq<ValidationFailure>)))
-
 type metadataBuilder<'TAggregateId,'TMetadata> = 'TAggregateId -> Guid -> string -> 'TMetadata
 
 type CommandHandlerOutput<'TBaseEvent,'TAggregateId,'TMetadata> = {
@@ -117,13 +93,10 @@ type CommandHandlerOutput<'TBaseEvent,'TAggregateId,'TMetadata> = {
     Events : seq<'TBaseEvent * metadataBuilder<'TAggregateId,'TMetadata>>
 }
 
-type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TAggregateId, 'TMetadata, 'TValidatedState, 'TBaseEvent> = {
+type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TAggregateId, 'TMetadata, 'TBaseEvent> = {
     GetId : 'TCommandContext -> 'TCmd -> 'TAggregateId
-    StateBuilder : IStateBuilder<'TCommandState, 'TMetadata, 'TAggregateId>
-    StateValidation : 'TCommandState -> Choice<'TValidatedState, NonEmptyList<ValidationFailure>> 
-    Validators : Validator<'TCmd,'TCommandState,'TMetadata,'TAggregateId> list
-    Handler : 'TValidatedState -> 'TCommandContext -> 'TCmd -> Async<Choice<CommandHandlerOutput<'TBaseEvent,'TAggregateId,'TMetadata>, NonEmptyList<ValidationFailure>>>
-    SystemConfiguration : SystemConfiguration<'TAggregateId, 'TMetadata>
+    StateBuilder : IStateBuilder<'TCommandState, 'TMetadata, unit>
+    Handler : 'TCommandState -> 'TCommandContext -> 'TCmd -> Async<Choice<CommandHandlerOutput<'TBaseEvent,'TAggregateId,'TMetadata>, NonEmptyList<ValidationFailure>>>
 }
 
 type MultiEventRun<'TAggregateId,'TMetadata,'TState when 'TAggregateId : equality> = ('TAggregateId * ('TState -> seq<obj * metadataBuilder<'TAggregateId,'TMetadata>>))
@@ -135,27 +108,21 @@ module AggregateActionBuilder =
 
     let log = createLogger "Eventful.AggregateActionBuilder"
 
-    let fullHandlerAsync<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent> systemConfiguration stateBuilder f =
+    let fullHandlerAsync<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent> stateBuilder f =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
             StateBuilder = stateBuilder
-            Validators = List.empty
-            StateValidation = Success
             Handler = f
-            SystemConfiguration = systemConfiguration
-        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata,'TState, 'TBaseEvent> 
+        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
-    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent> systemConfiguration stateBuilder f =
+    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent> stateBuilder f =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
             StateBuilder = stateBuilder
-            Validators = List.empty
-            StateValidation = Success
             Handler = (fun a b c ->  f a b c |> Async.returnM)
-            SystemConfiguration = systemConfiguration
-        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata,'TState, 'TBaseEvent> 
+        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
-    let simpleHandler<'TAggregateId, 'TState, 'TCmd, 'TCommandContext, 'TMetadata, 'TBaseEvent> systemConfiguration stateBuilder (f : 'TCmd -> (string * 'TBaseEvent * metadataBuilder<'TAggregateId,'TMetadata>)) =
+    let simpleHandler<'TAggregateId, 'TState, 'TCmd, 'TCommandContext, 'TMetadata, 'TBaseEvent> stateBuilder (f : 'TCmd -> (string * 'TBaseEvent * metadataBuilder<'TAggregateId,'TMetadata>)) =
         let makeResult (uniqueId, evt : 'TBaseEvent, metadata) = { 
             UniqueId = uniqueId 
             Events =  (evt, metadata) |> Seq.singleton 
@@ -164,11 +131,8 @@ module AggregateActionBuilder =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TAggregateId>)
             StateBuilder = stateBuilder
-            Validators = List.empty
-            StateValidation = Success
             Handler = (fun _ _ -> f >> makeResult >> Success >> Async.returnM)
-            SystemConfiguration = systemConfiguration
-        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata,'TState, 'TBaseEvent> 
+        } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata, 'TBaseEvent> 
 
     let toChoiceValidator cmd r =
         if r |> Seq.isEmpty then
@@ -176,65 +140,28 @@ module AggregateActionBuilder =
         else
             NonEmptyList.create (r |> Seq.head) (r |> Seq.tail |> List.ofSeq) |> Failure
 
-    let runValidation validators cmd state =
-        let v = new FSharpx.Validation.NonEmptyListValidation<ValidationFailure>()
-        validators
-        |> List.map (function
-                        | CommandValidator validator -> validator cmd |> (toChoiceValidator cmd)
-                        | StateValidator validatorRegistration -> 
-                            let registration = 
-                                { new IStateValidatorRegistration<_,_> with 
-                                    member x.Register stateBuilder validator = 
-                                        let runValidation unitValueMap : seq<ValidationFailure> = 
-                                            let state = stateBuilder.GetState unitValueMap
-                                            validator state
-
-                                        (stateBuilder.GetBlockBuilders, runValidation)
-                                }
-
-                            let (unitBuilders, runValidation) = validatorRegistration registration
-                            
-                            runValidation state |> (toChoiceValidator cmd)
-                        | CombinedValidator validatorRegistration -> 
-                            let registration = 
-                                { new ICombinedValidatorRegistration<_,_> with 
-                                    member x.Register stateBuilder validator = 
-                                        let runValidation cmd unitValueMap : seq<ValidationFailure> = 
-                                            let state = stateBuilder.GetState unitValueMap
-                                            validator cmd state
-
-                                        (stateBuilder.GetBlockBuilders, runValidation)
-                                }
-
-                            let (unitBuilders, runValidation) = validatorRegistration registration
-                            
-                            runValidation cmd state |> (toChoiceValidator cmd)
-                     )
-         |> List.map (fun x -> x)
-         |> List.fold (fun s validator -> v.apl validator s) (Choice.returnM cmd) 
-
-    let untypedGetId<'TId,'TCmd,'TEvent,'TState, 'TCommandContext, 'TMetadata, 'TValidatedState, 'TBaseEvent> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TValidatedState, 'TBaseEvent>) (context : 'TCommandContext) (cmd:obj) =
+    let untypedGetId<'TId,'TCmd,'TEvent,'TState, 'TCommandContext, 'TMetadata, 'TValidatedState, 'TBaseEvent> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) (context : 'TCommandContext) (cmd:obj) =
         match cmd with
         | :? 'TCmd as cmd ->
             sb.GetId context cmd
         | _ -> failwith <| sprintf "Invalid command %A" (cmd.GetType())
 
-    let uniqueIdBuilder (systemConfiguration: SystemConfiguration<'TId,'TMetadata>) =
+    let uniqueIdBuilder getUniqueId =
         StateBuilder.Empty "$Eventful::UniqueIdBuilder" Set.empty
         |> StateBuilder.allEventsHandler 
-            (fun m -> systemConfiguration.GetAggregateId m) 
+            (fun m -> ()) 
             (fun (s,e,m) -> 
-                match systemConfiguration.GetUniqueId m with
+                match getUniqueId m with
                 | Some uniqueId ->
                     s |> Set.add uniqueId
                 | None -> s)
         |> StateBuilder.toInterface
 
     let inline runCommand 
-        (systemConfiguration: SystemConfiguration<'TAggregateId,'TMetadata>) 
+        (aggregateConfiguration: AggregateConfiguration<'TCommandContext,'TAggregateId,'TMetadata>) 
         stream 
         (eventsConsumed, combinedState) 
-        (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, 'TAggregateId>) 
+        (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, unit>) 
         (aggregateId : 'TAggregateId) 
         f = 
         eventStream {
@@ -246,7 +173,7 @@ module AggregateActionBuilder =
                 match result with
                 | Choice1Of2 (r : CommandHandlerOutput<'TBaseEvent,'TAggregateId,'TMetadata>) -> 
                     eventStream {
-                        let uniqueIds = (uniqueIdBuilder systemConfiguration).GetState combinedState
+                        let uniqueIds = (uniqueIdBuilder aggregateConfiguration.GetUniqueId).GetState combinedState
                         if uniqueIds |> Set.contains r.UniqueId then
                             return Choice2Of2 CommandRunFailure<_>.AlreadyProcessed
                         else
@@ -291,41 +218,6 @@ module AggregateActionBuilder =
                     }
         }
 
-    let getValidatorUnitBuilders (validator : Validator<'TCmd,'TCommandState,'TMetadata,'TId>)= 
-        match validator with
-        | CommandValidator validator -> []
-        | StateValidator validatorRegistration -> 
-            let registration = 
-                { new IStateValidatorRegistration<_,_> with 
-                    member x.Register stateBuilder validator = 
-                        let runValidation unitValueMap : seq<ValidationFailure> = 
-                            let state = stateBuilder.GetState unitValueMap
-                            validator state
-
-                        (stateBuilder.GetBlockBuilders, runValidation)
-                }
-
-            let (unitBuilders, _) = validatorRegistration registration
-            
-            unitBuilders
-        | CombinedValidator validatorRegistration -> 
-            let registration = 
-                { new ICombinedValidatorRegistration<_,_> with 
-                    member x.Register stateBuilder validator = 
-                        let runValidation cmd unitValueMap : seq<ValidationFailure> = 
-                            let state = stateBuilder.GetState unitValueMap
-                            validator cmd state
-
-                        (stateBuilder.GetBlockBuilders, runValidation)
-                }
-
-            let (unitBuilders, _) = validatorRegistration registration
-            
-            unitBuilders
-
-    let getValidatorsUnitBuilders (validators : Validator<'TCmd,'TCommandState,'TMetadata,'TId> list) = 
-        List.fold (fun s b -> List.append s (getValidatorUnitBuilders b)) [] validators
-
     let mapValidationFailureToCommandFailure (x : CommandRunFailure<_>) =
         match x with
         | HandlerError x -> 
@@ -368,44 +260,29 @@ module AggregateActionBuilder =
     }
 
     let handleCommand
-        (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TValidatedState, 'TBaseEvent>) 
-        (aggregateConfiguration : AggregateCommandConfiguration<_,_,_>) 
+        (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) 
+        (aggregateConfiguration : AggregateConfiguration<'TCommandContext,_,_>) 
         (commandContext : 'TCommandContext) 
         (cmd : obj)
         : EventStreamProgram<CommandResult<'TBaseEvent,'TMetadata>,'TMetadata> =
         let processCommand cmd (unitStates : Map<string,obj>) commandState = async {
-            let validatedChoice = runValidation commandHandler.Validators cmd unitStates
-            match validatedChoice with
-            | Choice1Of2 validated ->
-                let validatedStateChoice = commandHandler.StateValidation commandState
-                match validatedStateChoice with
-                | Choice1Of2 validatedState ->
-                    return! commandHandler.Handler validatedState commandContext validated
-                | Choice2Of2 errors ->
-                    return Choice2Of2 errors
-            | Choice2Of2 errors ->
-                return Choice2Of2 errors
+            return! commandHandler.Handler commandState commandContext cmd
         }
-
-        let systemConfiguration = commandHandler.SystemConfiguration
 
         match cmd with
         | :? 'TCmd as cmd -> 
             let getId = FSharpx.Choice.protect (commandHandler.GetId commandContext) cmd
             match getId with
             | Choice1Of2 aggregateId ->
-                let stream = aggregateConfiguration.GetCommandStreamName commandContext aggregateId
+                let stream = aggregateConfiguration.GetStreamName commandContext aggregateId
 
                 let getResult = eventStream {
                     let! (eventsConsumed, combinedState) = 
                         aggregateConfiguration.StateBuilder
-                        |> AggregateStateBuilder.combineHandlers (getValidatorsUnitBuilders commandHandler.Validators)
-                        |> AggregateStateBuilder.combineHandlers ((uniqueIdBuilder systemConfiguration).GetBlockBuilders)
-                        |> AggregateStateBuilder.ofStateBuilderList
-                        |> AggregateStateBuilder.toStreamProgram stream aggregateId
+                        |> AggregateStateBuilder.toStreamProgram stream ()
                     let! result = 
                         runCommand 
-                            systemConfiguration 
+                            aggregateConfiguration 
                             stream 
                             (eventsConsumed, combinedState) 
                             commandHandler.StateBuilder 
@@ -436,12 +313,12 @@ module AggregateActionBuilder =
                     |> Choice2Of2
             }
         
-    let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata,'TValidatedState, 'TBaseEvent2>) = {
+    let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata,'TBaseEvent2>) = {
         new ICommandHandler<'TAggregateId,'TCommandContext,'TMetadata, 'TBaseEvent2> with 
              member this.GetId context cmd = untypedGetId sb context cmd
              member this.CmdType = typeof<'TCmd>
              member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers sb.StateBuilder.GetBlockBuilders builders
-             member this.Handler (aggregateConfig : AggregateCommandConfiguration<'TCommandContext, 'TAggregateId, 'TMetadata>) commandContext cmd = 
+             member this.Handler (aggregateConfig : AggregateConfiguration<'TCommandContext, 'TAggregateId, 'TMetadata>) commandContext cmd = 
                 handleCommand sb aggregateConfig commandContext cmd
              member this.Visitable = {
                 new IRegistrationVisitable with
@@ -449,16 +326,11 @@ module AggregateActionBuilder =
              }
         }
 
-    let withCmdId (getId : 'TCmd -> 'TId) (builder : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TValidatedState, 'TBaseEvent>) = 
+    let withCmdId (getId : 'TCmd -> 'TId) (builder : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) = 
         { builder with GetId = (fun _ cmd -> getId cmd )}
 
-    let buildCmd (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TValidatedState, 'TBaseEvent>) : ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent> = 
+    let buildCmd (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) : ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent> = 
         ToInterface sb
-
-    let addValidator 
-        (validator : Validator<'TCmd,'TState, 'TMetadata, 'TId>) 
-        (handler: CommandHandler<'TCmd,'TCommandContext, 'TState, 'TId, 'TMetadata, 'TValidatedState, 'TBaseEvent>) = 
-        { handler with Validators = validator::handler.Validators }
 
     let getEventInterfaceForLink<'TLinkEvent,'TAggregateId,'TMetadata, 'TCommandContext, 'TEventContext when 'TAggregateId : equality> (fId : 'TLinkEvent -> 'TAggregateId) (metadataBuilder : metadataBuilder<'TAggregateId,'TMetadata>) = {
         new IEventHandler<'TAggregateId,'TMetadata, 'TEventContext > with 
@@ -470,7 +342,7 @@ module AggregateActionBuilder =
                     let metadata =  
                         metadataBuilder aggregateId (Guid.NewGuid()) (Guid.NewGuid().ToString()) 
 
-                    let resultingStream = aggregateConfig.GetEventStreamName eventContext aggregateId
+                    let resultingStream = aggregateConfig.GetStreamName eventContext aggregateId
 
                     let! result = EventStream.writeLink resultingStream Any sourceStream sourceEventNumber metadata
 
@@ -486,7 +358,7 @@ module AggregateActionBuilder =
     } 
 
     let writeEvents aggregateConfig eventsConsumed eventContext aggregateId evts  = eventStream {
-        let resultingStream = aggregateConfig.GetEventStreamName eventContext aggregateId
+        let resultingStream = aggregateConfig.GetStreamName eventContext aggregateId
 
         let! resultingEvents = 
             evts
@@ -513,7 +385,7 @@ module AggregateActionBuilder =
     }
 
     let processSequence
-        (aggregateConfig : AggregateEventConfiguration<'TEventContext,'TId,'TMetadata>)
+        (aggregateConfig : AggregateConfiguration<'TEventContext,'TId,'TMetadata>)
         (stateBuilder : IStateBuilder<'TState,_,_>)
         (eventContext : 'TEventContext)  
         (handlers : AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState>>) 
@@ -521,11 +393,10 @@ module AggregateActionBuilder =
         handlers
         |> AsyncSeq.map (fun (id, handler) ->
             eventStream {
-                let resultingStream = aggregateConfig.GetEventStreamName eventContext id
+                let resultingStream = aggregateConfig.GetStreamName eventContext id
                 let! (eventsConsumed, combinedState) = 
                     aggregateConfig.StateBuilder 
-                    |> AggregateStateBuilder.ofStateBuilderList
-                    |> AggregateStateBuilder.toStreamProgram resultingStream id
+                    |> AggregateStateBuilder.toStreamProgram resultingStream ()
                 let state = stateBuilder.GetState combinedState
                 let evts = handler state
                 return! writeEvents aggregateConfig eventsConsumed eventContext id evts
@@ -567,7 +438,7 @@ module AggregateActionBuilder =
 
     let onEvent<'TOnEvent,'TEventState,'TId,'TMetadata,'TEventContext when 'TId : equality> 
         (fId : 'TOnEvent -> 'TEventContext -> 'TId) 
-        (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TId>) 
+        (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, unit>) 
         (runEvent : 'TEventState -> 'TOnEvent -> seq<obj * metadataBuilder<'TId,'TMetadata>>) = 
         
         let runEvent' = fun evt state ->
@@ -581,41 +452,27 @@ module AggregateActionBuilder =
             )
         onEventMulti stateBuilder handler
 
-type AggregateDefinition<'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TId : equality and 'TAggregateType : comparison> = {
-    CommandConfiguration : AggregateCommandConfiguration<'TCommandContext,'TId, 'TMetadata>
-    EventConfiguration : AggregateEventConfiguration<'TEventContext, 'TId, 'TMetadata>
-    Handlers : AggregateHandlers<'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>
+type AggregateDefinition<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TAggregateId : equality and 'TAggregateType : comparison> = {
+    GetUniqueId : 'TMetadata -> string option
+    GetAggregateId : 'TMetadata -> 'TAggregateId
+    GetCommandStreamName : 'TCommandContext -> 'TAggregateId -> string
+    GetEventStreamName : 'TEventContext -> 'TAggregateId -> string
+    Handlers : AggregateHandlers<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>
     AggregateType : 'TAggregateType
     Wakeup : IWakeupHandler<'TMetadata> option
 }
 
 module Aggregate = 
-    let toAggregateDefinition<'TEvents, 'TId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TId : equality and 'TAggregateType : comparison>
+    let toAggregateDefinition<'TEvents, 'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TAggregateId : equality and 'TAggregateType : comparison>
         (aggregateType : 'TAggregateType)
-        (getCommandStreamName : 'TCommandContext -> 'TId -> string)
-        (getEventStreamName : 'TEventContext -> 'TId -> string) 
-        (commandHandlers : AggregateCommandHandlers<'TId,'TCommandContext, 'TMetadata,'TBaseEvent>)
-        (eventHandlers : AggregateEventHandlers<'TId,'TMetadata, 'TEventContext >) = 
+        (getUniqueId : 'TMetadata -> string option)
+        (getAggregateId : 'TMetadata -> 'TAggregateId)
+        (getCommandStreamName : 'TCommandContext -> 'TAggregateId -> string)
+        (getEventStreamName : 'TEventContext -> 'TAggregateId -> string) 
+        (commandHandlers : AggregateCommandHandlers<'TAggregateId,'TCommandContext, 'TMetadata,'TBaseEvent>)
+        (eventHandlers : AggregateEventHandlers<'TAggregateId,'TMetadata, 'TEventContext >)
+        = 
 
-            let commandStateBuilders = 
-                commandHandlers |> Seq.map (fun x -> x.AddStateBuilder)
-            let eventStateBuilders =
-                eventHandlers |> Seq.map (fun x -> x.AddStateBuilder)
-
-            let combinedAggregateStateBuilder = 
-                commandStateBuilders
-                |> Seq.append eventStateBuilders
-                |> Seq.fold (|>) []
-
-            let commandConfig = {
-                AggregateCommandConfiguration.StateBuilder = combinedAggregateStateBuilder
-                GetCommandStreamName = getCommandStreamName
-            }
-
-            let eventConfig = {
-                AggregateEventConfiguration.StateBuilder = combinedAggregateStateBuilder
-                GetEventStreamName = getEventStreamName
-            }
             let handlers =
                 commandHandlers |> Seq.fold (fun (x:AggregateHandlers<_,_,_,_,_>) h -> x.AddCommandHandler h) AggregateHandlers.Empty
 
@@ -624,8 +481,10 @@ module Aggregate =
 
             {
                 AggregateType = aggregateType
-                CommandConfiguration = commandConfig
-                EventConfiguration = eventConfig
+                GetUniqueId = getUniqueId
+                GetAggregateId = getAggregateId
+                GetCommandStreamName = getCommandStreamName
+                GetEventStreamName = getEventStreamName
                 Handlers = handlers
                 Wakeup = None
             }

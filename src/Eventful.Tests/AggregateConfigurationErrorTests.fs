@@ -32,18 +32,13 @@ type TestEvent = {
 }
 
 module TestAggregate = 
-    let getStreamName () (testId : TestId) =
+    let getStreamName<'TContext> (_:'TContext) (testId : TestId) =
         sprintf "Test-%s" <| testId.Id.ToString("N")
 
     type TestEvents =
     | Test of TestEvent
 
-    let systemConfiguration = {
-        GetUniqueId = (fun _ -> None)
-        GetAggregateId = (fun (x : TestMetadata) -> { TestId.Id = x.AggregateId})
-    }
-
-    let stateBuilder = StateBuilder.nullStateBuilder<TestMetadata, TestId>
+    let stateBuilder = StateBuilder.nullStateBuilder<TestMetadata, unit>
 
     let inline buildMetadata (aggregateId : TestId) messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
@@ -55,7 +50,7 @@ module TestAggregate =
         (Guid.NewGuid().ToString(), cmdResult, buildMetadata)
 
     let inline simpleHandler f = 
-        Eventful.AggregateActionBuilder.simpleHandler systemConfiguration stateBuilder (withMetadata f)
+        Eventful.AggregateActionBuilder.simpleHandler stateBuilder (withMetadata f)
     
     let inline buildCmdHandler f =
         f
@@ -75,7 +70,7 @@ module TestAggregate =
                     Events = evts'
                 }
             )
-        Eventful.AggregateActionBuilder.fullHandler systemConfiguration s withMetadata
+        Eventful.AggregateActionBuilder.fullHandler s withMetadata
 
     let cmdHandlers = 
         seq {
@@ -88,7 +83,14 @@ module TestAggregate =
         }
 
     let handlers =
-        toAggregateDefinition "testaggregate" getStreamName getStreamName cmdHandlers Seq.empty
+        toAggregateDefinition 
+            "testaggregate" 
+            TestMetadata.GetUniqueId
+            (fun x -> { TestId.Id = x.AggregateId })
+            getStreamName<_> 
+            getStreamName<_>
+            cmdHandlers 
+            Seq.empty
 
 module AggregateConfigurationErrorTests = 
 
