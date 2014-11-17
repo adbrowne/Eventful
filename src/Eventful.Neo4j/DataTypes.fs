@@ -12,4 +12,5 @@ type Relationship =
 type GraphAction =
     | AddRelationship of Relationship
     | RemoveRelationship of Relationship
-    | UpdateNode of NodeId * obj
+    | RemoveAllIncomingRelationships of NodeId * relationshipType : string
+    | UpdateNode of NodeId * data : obj

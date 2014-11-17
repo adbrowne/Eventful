@@ -154,6 +154,13 @@ module Operations =
             |> matchQ (sprintf "(%s)-[r:`%s`]->(%s)" fromSelector relationshipType toSelector)
             |> deleteQ "r"
 
+        | RemoveAllIncomingRelationships (node, relationshipType) ->
+            let query, selector = query |> withNodeSelectorQ "" node
+            
+            query
+            |> matchQ (sprintf "()-[r:`%s`]->(%s)" relationshipType selector)
+            |> deleteQ "r"
+
         | UpdateNode (node, data) ->
             query
             |> mergeNodeIdQ "node" node
