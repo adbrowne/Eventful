@@ -11,16 +11,13 @@ type CommandSuccess<'TBaseEvent, 'TMetadata> = {
     Events : (string * 'TBaseEvent * 'TMetadata) list
     Position : EventPosition option
 }
+with 
+    static member Empty = {
+        Events = List.empty
+        Position = None
+    }
 
 type CommandResult<'TBaseEvent,'TMetadata> = Choice<CommandSuccess<'TBaseEvent,'TMetadata>,NonEmptyList<CommandFailure>> 
-
-type CommandRunFailure<'a> =
-| HandlerError of 'a
-| WrongExpectedVersion
-| WriteCancelled
-| AlreadyProcessed // idempotency check failed
-| WriteError of System.Exception
-| Exception of exn
 
 type StreamNameBuilder<'TId> = ('TId -> string)
 
@@ -57,7 +54,8 @@ type IEventHandler<'TId,'TMetadata, 'TEventContext when 'TId : equality> =
 
 type IWakeupHandler<'TMetadata> =
     abstract member WakeupFold : WakeupFold<'TMetadata>
-    abstract member Handler : EventStreamProgram<EventResult,'TMetadata>
+                            //streamId -> getUniqueId                   -> aggregateId -> time     -> program
+    abstract member Handler : string   -> ('TMetadata -> string option) -> obj         -> DateTime -> EventStreamProgram<EventResult,'TMetadata>
 
 type AggregateCommandHandlers<'TId,'TCommandContext,'TMetadata, 'TBaseEvent> = seq<ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent>>
 type AggregateEventHandlers<'TId,'TMetadata, 'TEventContext  when 'TId : equality> = seq<IEventHandler<'TId,'TMetadata, 'TEventContext >>
@@ -157,8 +155,9 @@ module AggregateActionBuilder =
                 | None -> s)
         |> StateBuilder.toInterface
 
-    let inline runCommand 
-        (aggregateConfiguration: AggregateConfiguration<'TCommandContext,'TAggregateId,'TMetadata>) 
+    let inline runHandler 
+        getUniqueId
+        //(aggregateConfiguration: AggregateConfiguration<'TCommandContext,'TAggregateId,'TMetadata>) 
         stream 
         (eventsConsumed, combinedState) 
         (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, unit>) 
@@ -173,9 +172,9 @@ module AggregateActionBuilder =
                 match result with
                 | Choice1Of2 (r : CommandHandlerOutput<'TBaseEvent,'TAggregateId,'TMetadata>) -> 
                     eventStream {
-                        let uniqueIds = (uniqueIdBuilder aggregateConfiguration.GetUniqueId).GetState combinedState
+                        let uniqueIds = (uniqueIdBuilder getUniqueId).GetState combinedState
                         if uniqueIds |> Set.contains r.UniqueId then
-                            return Choice2Of2 CommandRunFailure<_>.AlreadyProcessed
+                            return Choice2Of2 RunFailure<_>.AlreadyProcessed
                         else
                             let events = 
                                 r.Events
@@ -204,11 +203,11 @@ module AggregateActionBuilder =
                                         Position = Some pos
                                     }
                                 | WriteResult.WrongExpectedVersion -> 
-                                    Choice2Of2 CommandRunFailure<_>.WrongExpectedVersion
+                                    Choice2Of2 RunFailure<_>.WrongExpectedVersion
                                 | WriteResult.WriteError ex -> 
-                                    Choice2Of2 <| CommandRunFailure<_>.WriteError ex
+                                    Choice2Of2 <| RunFailure<_>.WriteError ex
                                 | WriteResult.WriteCancelled -> 
-                                    Choice2Of2 CommandRunFailure<_>.WriteCancelled
+                                    Choice2Of2 RunFailure<_>.WriteCancelled
                     }
                 | Choice2Of2 x ->
                     eventStream { 
@@ -218,46 +217,33 @@ module AggregateActionBuilder =
                     }
         }
 
-    let mapValidationFailureToCommandFailure (x : CommandRunFailure<_>) =
+    let mapValidationFailureToCommandFailure (x : RunFailure<_>) =
         match x with
         | HandlerError x -> 
             (NonEmptyList.map CommandFailure.ofValidationFailure) x
-        | WrongExpectedVersion ->
+        | RunFailure.WrongExpectedVersion ->
             CommandFailure.CommandError "WrongExpectedVersion"
             |> NonEmptyList.singleton 
         | AlreadyProcessed ->
             CommandFailure.CommandError "AlreadyProcessed"
             |> NonEmptyList.singleton 
-        | WriteCancelled ->
+        | RunFailure.WriteCancelled ->
             CommandFailure.CommandError "WriteCancelled"
             |> NonEmptyList.singleton 
-        | WriteError ex 
+        | RunFailure.WriteError ex 
         | Exception ex ->
             CommandFailure.CommandException (None, ex)
             |> NonEmptyList.singleton 
 
-    let retryOnWrongVersion f = eventStream {
-        let maxTries = 100
-        let retry = ref true
-        let count = ref 0
-        // WriteCancelled whould never be used
-        let finalResult = ref (Choice2Of2 CommandRunFailure.WriteCancelled)
-        while !retry do
-            let! result = f
-            match result with
-            | Choice2Of2 WrongExpectedVersion ->
-                count := !count + 1
-                if !count < maxTries then
-                    retry := true
-                else
-                    retry := false
-                    finalResult := (Choice2Of2 WrongExpectedVersion)
-            | x -> 
-                retry := false
-                finalResult := x
+    let retryOnWrongVersion streamId stateBuilder handler = 
+        let program = eventStream {
+            let! streamState = 
+                    stateBuilder
+                    |> AggregateStateBuilder.toStreamProgram streamId ()
 
-        return !finalResult
-    }
+            return! handler streamState
+        }
+        EventStream.retryOnWrongVersion program
 
     let handleCommand
         (commandHandler:CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) 
@@ -276,23 +262,17 @@ module AggregateActionBuilder =
             | Choice1Of2 aggregateId ->
                 let stream = aggregateConfiguration.GetStreamName commandContext aggregateId
 
-                let getResult = eventStream {
-                    let! (eventsConsumed, combinedState) = 
-                        aggregateConfiguration.StateBuilder
-                        |> AggregateStateBuilder.toStreamProgram stream ()
-                    let! result = 
-                        runCommand 
-                            aggregateConfiguration 
-                            stream 
-                            (eventsConsumed, combinedState) 
-                            commandHandler.StateBuilder 
-                            aggregateId 
-                            (processCommand cmd combinedState)
-                    return result
-                }
+                let f (eventsConsumed, combinedState) = 
+                   runHandler 
+                        aggregateConfiguration.GetUniqueId 
+                        stream 
+                        (eventsConsumed, combinedState) 
+                        commandHandler.StateBuilder 
+                        aggregateId 
+                        (processCommand cmd combinedState) 
 
                 eventStream {
-                    let! result = retryOnWrongVersion getResult
+                    let! result = retryOnWrongVersion stream aggregateConfiguration.StateBuilder f
                     return
                         result |> Choice.mapSecond mapValidationFailureToCommandFailure
                 }
@@ -489,10 +469,30 @@ module Aggregate =
                 Wakeup = None
             }
 
-    let withWakeup (wakeupFold : WakeupFold<'TMetadata>) (stateBuilder : StateBuilder<'T,'TMetadata, 'TAggregateId>) (wakeupHandler : 'T -> DateTime ->  seq<'TBaseEvent * metadataBuilder<'TId,'TMetadata>>) (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent,'TAggregateType>) =
+    let withWakeup 
+        (wakeupFold : WakeupFold<'TMetadata>) 
+        (stateBuilder : StateBuilder<'T,'TMetadata, unit>) 
+        (wakeupHandler : DateTime -> 'T ->  seq<'TBaseEvent * metadataBuilder<'TAggregateId,'TMetadata>>)
+        (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent,'TAggregateType>) =
+
+        let handler time t : Async<Choice<CommandHandlerOutput<_,'TAggregateId,_>,_>> = async {
+            let result = wakeupHandler time t
+            return 
+                {
+                    CommandHandlerOutput.UniqueId = Guid.NewGuid().ToString()
+                    Events = result
+                }
+                |> Choice1Of2
+        }
+
         let wakeup = {
             new IWakeupHandler<'TMetadata> with
                 member x.WakeupFold = wakeupFold
-                member x.Handler = EventStream.empty
+                member x.Handler streamId getUniqueId aggregateId (time : DateTime) =
+                    eventStream {
+                        let run streamState = AggregateActionBuilder.runHandler getUniqueId streamId streamState stateBuilder (aggregateId :?> 'TAggregateId) (handler time)
+                        let! result = AggregateActionBuilder.retryOnWrongVersion streamId stateBuilder run
+                        return ()
+                    }
         }
         { aggregateDefinition with Wakeup = Some wakeup }

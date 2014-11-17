@@ -61,7 +61,7 @@ module WakeupTests =
 
         let evtHandlers = Seq.empty
 
-        let onWakeup () (time : DateTime) =
+        let onWakeup (time : DateTime) () =
             Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid() } :> IEvent, EventSystemTestCommon.metadataBuilder)
 
         Eventful.Aggregate.toAggregateDefinition 
@@ -92,7 +92,7 @@ module WakeupTests =
         StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> e.Id)
         |> StateBuilder.toInterface
 
-    [<Fact(Skip = "Not yet implemented")>]
+    [<Fact>]
     [<Trait("category", "unit")>]
     let ``Wakeup event is run one time`` () : unit =
         let thisId = Guid.NewGuid()

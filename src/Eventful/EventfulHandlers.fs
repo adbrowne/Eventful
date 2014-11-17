@@ -11,6 +11,7 @@ type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandH
 type EventfulStreamConfig<'TMetadata> = {
     Wakeup : IWakeupHandler<'TMetadata> option
     StateBuilder : IStateBuilder<Map<string,obj>, 'TMetadata, unit>
+    GetUniqueId : 'TMetadata -> Option<string>
 }
 
 type MyEventResult = unit
@@ -29,6 +30,7 @@ type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,
     member x.EventStoreTypeToClassMap = eventStoreTypeToClassMap
     member x.ClassToEventStoreTypeMap = classToEventStoreTypeMap
     member x.AggregateTypes = aggregateTypes
+    member x.GetAggregateType = getAggregateType
 
     member x.AddCommandHandler = function
         | EventfulCommandHandler(cmdType,_,_) as handler -> 
@@ -128,6 +130,7 @@ module EventfulHandlers =
         let aggregateConfig = {
             EventfulStreamConfig.Wakeup = aggregateDefinition.Wakeup
             StateBuilder = combinedAggregateStateBuilder
+            GetUniqueId = aggregateDefinition.GetUniqueId
         }
 
         eventfulHandlers 

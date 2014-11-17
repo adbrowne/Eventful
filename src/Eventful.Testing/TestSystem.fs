@@ -57,7 +57,14 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType when 
         cmds
         |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TBaseEvent, 'TAggregateType>) (cmd, context) -> s.RunCommand cmd context) x
 
-    member x.RunToEnd () = x
+    member x.RunToEnd () = 
+        let (time', allEvents') = TestEventStore.runToEnd time interpret handlers allEvents 
+        let result' = 
+            {
+                CommandSuccess.Events = List.empty
+                Position = None } 
+            |> Choice1Of2
+        new TestSystem<_,_,_,_>(time', handlers, result', allEvents')
 
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 

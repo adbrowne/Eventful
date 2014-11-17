@@ -1,6 +1,8 @@
 ﻿namespace Eventful.Testing
 
 open FSharpx.Collections
+open FSharpx.Option
+open FSharpx
 open Eventful
 open System
 
@@ -65,25 +67,93 @@ module TestEventStore =
             handlers |> Seq.fold (runHandlerForEvent context interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
         | _ -> testEventStore
 
+    let getCurrentState streamId aggregateType testEventStore =
+        let snapshotKey = (streamId, aggregateType)
+
+        testEventStore.AggregateStateSnapShots
+        |> Map.tryFind snapshotKey
+        |> Option.getOrElse Map.empty
+        
     let updateStateSnapShot 
         (streamId, streamNumber, evt : EventStreamEvent<'TMetadata>) 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>)
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         match evt with
         | Event { Body = body; EventType = eventType; Metadata = metadata } ->
-            testEventStore
+            let aggregateType = handlers.GetAggregateType metadata
+            match handlers.AggregateTypes |> Map.tryFind aggregateType with
+            | Some aggregateConfig ->
+                let snapshotKey = (streamId, aggregateType)
+
+                let initialState = 
+                    getCurrentState streamId aggregateType testEventStore
+
+                let state' = 
+                    initialState
+                    |> AggregateStateBuilder.dynamicRun aggregateConfig.StateBuilder.GetBlockBuilders () body metadata 
+
+                let snapshots' = testEventStore.AggregateStateSnapShots |> Map.add snapshotKey state'
+
+                let wakeupQueue' =
+                    FSharpx.Option.maybe {
+                        let! handler = aggregateConfig.Wakeup
+                        let! newTime = handler.WakeupFold.GetState state'
+
+                        let newWakeupRecord = {
+                            Time = newTime
+                            Stream = streamId
+                            Type = aggregateType
+                        }
+                        return 
+                            testEventStore.WakeupQueue |> PriorityQueue.insert newWakeupRecord }
+                    |> FSharpx.Option.getOrElse testEventStore.WakeupQueue
+
+                { testEventStore with
+                    AggregateStateSnapShots = snapshots'
+                    WakeupQueue = wakeupQueue' }
+            | None -> 
+                testEventStore
         | EventLink _ ->
             // todo work out what to do here
             testEventStore
 
-    let rec processPendingEvents (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
+    let rec processPendingEvents 
+        (context: 'TEventContext) 
+        interpreter 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
+        (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         match testEventStore.AllEventsStream with
         | Queue.Nil -> testEventStore
         | Queue.Cons (x, xs) ->
             let next = 
                 runEventHandlers context interpreter handlers { testEventStore with AllEventsStream = xs } x
-                |> updateStateSnapShot x
+                |> updateStateSnapShot x handlers
             processPendingEvents context interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =
         let program = handler cmd 
         interpreter program testEventStore
+
+    let rec runToEnd 
+        now 
+        interpreter 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
+        (testEventStore :  TestEventStore<'TMetadata, 'TAggregateType>)
+        : (DateTime * TestEventStore<'TMetadata, 'TAggregateType>) =
+        maybe {
+            let! (w,ws) =  testEventStore.WakeupQueue |> PriorityQueue.tryPop 
+            let! aggregate = handlers.AggregateTypes |> Map.tryFind w.Type
+            let! wakeupHandler = aggregate.Wakeup
+
+            let initialState = 
+                getCurrentState w.Stream w.Type testEventStore
+
+            let! expectedTime = wakeupHandler.WakeupFold.GetState initialState
+            if expectedTime = w.Time then
+                let fakeAggregateId = "todo"
+                let (testEventStore', _) = interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId fakeAggregateId now) testEventStore
+                return runToEnd now interpreter handlers { testEventStore' with WakeupQueue = ws }
+            else
+                return runToEnd now interpreter handlers { testEventStore with WakeupQueue = ws }
+        } 
+        |> FSharpx.Option.getOrElse (now, testEventStore)

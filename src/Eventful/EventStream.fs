@@ -8,6 +8,14 @@ type ExpectedAggregateVersion =
 | NewStream
 | AggregateVersion of int
 
+type RunFailure<'a> =
+| HandlerError of 'a
+| WrongExpectedVersion
+| WriteCancelled
+| AlreadyProcessed // idempotency check failed
+| WriteError of System.Exception
+| Exception of exn
+
 type WriteResult =
 | WriteSuccess of EventPosition
 | WrongExpectedVersion
@@ -166,4 +174,27 @@ module EventStream =
                     return! foldStream stream (start + 1) acc newValue
                 }
             | None -> eventStream { return init } 
+    }
+
+    let retryOnWrongVersion f = eventStream {
+        let maxTries = 100
+        let retry = ref true
+        let count = ref 0
+        // WriteCancelled whould never be used
+        let finalResult = ref (Choice2Of2 RunFailure.WriteCancelled)
+        while !retry do
+            let! result = f
+            match result with
+            | Choice2Of2 RunFailure.WrongExpectedVersion ->
+                count := !count + 1
+                if !count < maxTries then
+                    retry := true
+                else
+                    retry := false
+                    finalResult := (Choice2Of2 RunFailure.WrongExpectedVersion)
+            | x -> 
+                retry := false
+                finalResult := x
+
+        return !finalResult
     }
