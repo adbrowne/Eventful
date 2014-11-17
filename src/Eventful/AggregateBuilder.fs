@@ -451,7 +451,7 @@ module Aggregate =
 
     let withWakeup 
         (wakeupFold : WakeupFold<'TMetadata>) 
-        (stateBuilder : StateBuilder<'T,'TMetadata, unit>) 
+        (stateBuilder : IStateBuilder<'T,'TMetadata, unit>) 
         (wakeupHandler : DateTime -> 'T ->  seq<'TBaseEvent * metadataBuilder<'TMetadata>>)
         (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent,'TAggregateType>) =
 
