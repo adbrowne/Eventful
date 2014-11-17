@@ -55,7 +55,7 @@ module TestEventStore =
         |> fst
 
     let runEventHandlers 
-        (context: 'TEventContext) 
+        buildEventContext 
         interpreter 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent, 'TAggregateType>) 
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) 
@@ -68,7 +68,7 @@ module TestEventStore =
                 |> function
                 | Some handlers -> handlers
                 | None -> []
-
+            let context = buildEventContext metadata
             handlers |> Seq.fold (runHandlerForEvent context interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
         | _ -> testEventStore
 
@@ -123,7 +123,7 @@ module TestEventStore =
             testEventStore
 
     let rec processPendingEvents 
-        (context: 'TEventContext) 
+        buildEventContext
         interpreter 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
@@ -131,9 +131,9 @@ module TestEventStore =
         | Queue.Nil -> testEventStore
         | Queue.Cons (x, xs) ->
             let next = 
-                runEventHandlers context interpreter handlers { testEventStore with AllEventsStream = xs } x
+                runEventHandlers buildEventContext interpreter handlers { testEventStore with AllEventsStream = xs } x
                 |> updateStateSnapShot x handlers
-            processPendingEvents context interpreter handlers next
+            processPendingEvents buildEventContext interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =
         let program = handler cmd 

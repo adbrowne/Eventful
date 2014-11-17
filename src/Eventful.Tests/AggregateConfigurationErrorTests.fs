@@ -96,7 +96,7 @@ module AggregateConfigurationErrorTests =
     let emptyTestSystem =
         EventfulHandlers.empty (konst "testaggregate")
         |> EventfulHandlers.addAggregate TestAggregate.handlers
-        |> TestSystem.Empty
+        |> TestSystem.Empty (konst ())
 
     [<Fact>]
     [<Trait("category", "unit")>]

@@ -3,6 +3,7 @@
 open System
 open Eventful
 open Eventful.Testing
+open FSharpx
 
 open Xunit
 open FsUnit.Xunit
@@ -57,7 +58,7 @@ module OnEventTests =
         |> EventfulHandlers.addAggregate (fooHandlers ())
         |> addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty handlers
+    let emptyTestSystem = TestSystem.Empty (konst ()) handlers
 
     [<Fact>]
     [<Trait("category", "unit")>]
@@ -136,7 +137,7 @@ module OnEventMuliAggregateTests =
         |> EventfulHandlers.addAggregate (fooHandlers ())
         |> addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty handlers
+    let emptyTestSystem = TestSystem.Empty (konst ()) handlers
 
     [<Fact>]
     [<Trait("category", "unit")>]

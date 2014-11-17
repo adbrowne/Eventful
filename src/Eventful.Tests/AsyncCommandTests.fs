@@ -96,7 +96,7 @@ module AsyncCommandTests =
         |> EventfulHandlers.addAggregate fooHandlers
         |> addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty handlers
+    let emptyTestSystem = TestSystem.Empty (konst ()) handlers
 
     let fooEventCounter : IStateBuilder<int, TestMetadata, Guid> =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
