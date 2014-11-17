@@ -154,9 +154,20 @@ module AggregateActionBuilder =
                 | None -> s)
         |> StateBuilder.toInterface
 
+    let writeEvents stream eventsConsumed events =  eventStream {
+        let rawEventToEventStreamEvent (event, metadata) = getEventStreamEvent event metadata
+        let! eventStreamEvents = EventStream.mapM rawEventToEventStreamEvent events
+
+        let expectedVersion = 
+            match eventsConsumed with
+            | 0 -> NewStream
+            | x -> AggregateVersion (x - 1)
+
+        return! writeToStream stream expectedVersion eventStreamEvents
+    }
+       
     let inline runHandler 
         getUniqueId
-        //(aggregateConfiguration: AggregateConfiguration<'TCommandContext,'TAggregateId,'TMetadata>) 
         stream 
         (eventsConsumed, combinedState) 
         (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, unit>) 
@@ -179,25 +190,18 @@ module AggregateActionBuilder =
                                 |> Seq.map (fun (evt, metadata) -> 
                                                 let metadata = 
                                                     metadata (Guid.NewGuid()) r.UniqueId
-                                                (stream, evt, metadata))
+                                                (evt, metadata))
                                 |> List.ofSeq
 
-                            let rawEventToEventStreamEvent (_, event, metadata) = getEventStreamEvent event metadata
-                            let! eventStreamEvents = EventStream.mapM rawEventToEventStreamEvent events
+                            let! writeResult = writeEvents stream eventsConsumed events
 
-                            let expectedVersion = 
-                                match eventsConsumed with
-                                | 0 -> NewStream
-                                | x -> AggregateVersion (x - 1)
-
-                            let! writeResult = writeToStream stream expectedVersion eventStreamEvents
                             log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
                             
                             return 
                                 match writeResult with
                                 | WriteResult.WriteSuccess pos ->
                                     Choice1Of2 {
-                                        Events = events
+                                        Events = events |> List.map (fun (a,b) -> (stream, a, b))
                                         Position = Some pos
                                     }
                                 | WriteResult.WrongExpectedVersion -> 
@@ -249,7 +253,7 @@ module AggregateActionBuilder =
         (commandContext : 'TCommandContext) 
         (cmd : obj)
         : EventStreamProgram<CommandResult<'TBaseEvent,'TMetadata>,'TMetadata> =
-        let processCommand cmd (unitStates : Map<string,obj>) commandState = async {
+        let processCommand cmd commandState = async {
             return! commandHandler.Handler commandState commandContext cmd
         }
 
@@ -266,7 +270,7 @@ module AggregateActionBuilder =
                         stream 
                         (eventsConsumed, combinedState) 
                         commandHandler.StateBuilder 
-                        (processCommand cmd combinedState) 
+                        (processCommand cmd) 
 
                 eventStream {
                     let! result = retryOnWrongVersion stream aggregateConfiguration.StateBuilder f
@@ -334,33 +338,6 @@ module AggregateActionBuilder =
                 |> Async.returnM
     } 
 
-    let writeEvents aggregateConfig eventsConsumed eventContext aggregateId evts  = eventStream {
-        let resultingStream = aggregateConfig.GetStreamName eventContext aggregateId
-
-        let! resultingEvents = 
-            evts
-            |> Seq.toList
-            |> EventStream.mapM (fun (event,metadata) -> 
-                let metadata =  
-                    metadata (Guid.NewGuid()) (Guid.NewGuid().ToString())
-
-                getEventStreamEvent event metadata)
-
-        let expectedVersion = 
-            match eventsConsumed with
-            | 0 -> NewStream
-            | x -> AggregateVersion (x - 1)
-
-        let! result = EventStream.writeToStream resultingStream expectedVersion resultingEvents
-
-        return 
-            match result with
-            | WriteResult.WriteSuccess _ -> ()
-            | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
-            | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
-            | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"
-    }
-
     let processSequence
         (aggregateConfig : AggregateConfiguration<'TEventContext,'TId,'TMetadata>)
         (stateBuilder : IStateBuilder<'TState,_,_>)
@@ -376,7 +353,24 @@ module AggregateActionBuilder =
                     |> AggregateStateBuilder.toStreamProgram resultingStream ()
                 let state = stateBuilder.GetState combinedState
                 let evts = handler state
-                return! writeEvents aggregateConfig eventsConsumed eventContext id evts
+
+                let resultingEvents = 
+                    evts
+                    |> Seq.map (fun (event, metadata) ->
+                        let metadata =  
+                            metadata (Guid.NewGuid()) (Guid.NewGuid().ToString())
+                        (event, metadata)
+                    )
+                    |> Seq.toList
+
+                let! result = writeEvents resultingStream eventsConsumed resultingEvents
+
+                return 
+                    match result with
+                    | WriteResult.WriteSuccess _ -> ()
+                    | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
+                    | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
+                    | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"
             }
         )
 
@@ -387,17 +381,9 @@ module AggregateActionBuilder =
             member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber evt = 
                 let typedEvent = evt.Body :?> 'TOnEvent
 
-                let asyncSeq = fId (typedEvent, eventContext)
-
-                let handlerSequence = processSequence aggregateConfig stateBuilder eventContext asyncSeq
-
-                let acc existingP p =
-                    eventStream {
-                        do! existingP
-                        do! p 
-                    }
-
-                handlerSequence |> AsyncSeq.fold acc EventStream.empty
+                fId (typedEvent, eventContext) 
+                |> processSequence aggregateConfig stateBuilder eventContext
+                |> AsyncSeq.fold EventStream.combine EventStream.empty
     }
 
     let linkEvent<'TLinkEvent,'TId,'TCommandContext,'TEventContext,'TMetadata when 'TId : equality> fId (metadata : metadataBuilder<'TMetadata>) = 
