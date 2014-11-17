@@ -10,8 +10,7 @@ open FsUnit.Xunit
 module WakeupTests =
     open EventSystemTestCommon
 
-    let metadataBuilder aggregateId messageId sourceMessageId = { 
-        TestMetadata.AggregateId = aggregateId
+    let metadataBuilder messageId sourceMessageId = { 
         MessageId = messageId 
         SourceMessageId = sourceMessageId 
         AggregateType =  "TestAggregate" }
@@ -40,6 +39,7 @@ module WakeupTests =
 
     let eventTypes = seq {
         yield typeof<FooEvent>
+        yield typeof<WakeupRunEvent>
     }
 
     let fooHandlers =    
@@ -67,7 +67,6 @@ module WakeupTests =
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate"
             TestMetadata.GetUniqueId
-            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers
@@ -88,8 +87,8 @@ module WakeupTests =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
         |> StateBuilder.toInterface
 
-    let wakeupRunEventCounter : IStateBuilder<int, TestMetadata, Guid> =
-        StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> e.Id)
+    let wakeupRunEventCounter : IStateBuilder<int, TestMetadata, unit> =
+        StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> ())
         |> StateBuilder.toInterface
 
     [<Fact>]
@@ -105,6 +104,6 @@ module WakeupTests =
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd
 
-        let wakeupRunCount = afterRun.EvaluateState streamName thisId wakeupRunEventCounter
+        let wakeupRunCount = afterRun.EvaluateState streamName () wakeupRunEventCounter
 
         wakeupRunCount |> should equal 1

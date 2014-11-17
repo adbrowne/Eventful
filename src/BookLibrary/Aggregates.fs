@@ -26,7 +26,6 @@ type AggregateType =
 
 type BookLibraryEventMetadata = {
     MessageId: Guid
-    AggregateId : Guid
     SourceMessageId: string
     EventTime : DateTime
     AggregateType : AggregateType
@@ -39,12 +38,12 @@ module Aggregates =
 
     let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<BookLibraryEventMetadata, 'TId>
 
-    let emptyMetadata aggregateId aggregateType messageId sourceMessageId = { 
+    let emptyMetadata aggregateType messageId sourceMessageId = { 
         SourceMessageId = sourceMessageId 
         MessageId = messageId 
         EventTime = DateTime.UtcNow 
         AggregateType = aggregateType
-        AggregateId = aggregateId }
+    }
 
     let cmdHandlerS stateBuilder f buildMetadata =
         AggregateActionBuilder.fullHandler

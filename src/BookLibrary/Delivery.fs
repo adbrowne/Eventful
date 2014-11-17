@@ -19,10 +19,8 @@ module Delivery =
     let inline getDeliveryId (a: ^a) _ = 
         (^a : (member DeliveryId: DeliveryId) (a))
 
-    let getDeliveryIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { DeliveryId.Id = x.AggregateId })
-
-    let inline buildDeliveryMetadata (deliveryId : DeliveryId) = 
-        Aggregates.emptyMetadata deliveryId.Id AggregateType.Delivery
+    let buildDeliveryMetadata = 
+        Aggregates.emptyMetadata AggregateType.Delivery
 
     let inline deliveryCmdHandler f = 
         cmdHandler f buildDeliveryMetadata
@@ -42,7 +40,6 @@ module Delivery =
         Eventful.Aggregate.toAggregateDefinition 
             AggregateType.Delivery 
             BookLibraryEventMetadata.GetUniqueId
-            getDeliveryIdFromMetadata
             getStreamName 
             getEventStreamName 
             cmdHandlers 

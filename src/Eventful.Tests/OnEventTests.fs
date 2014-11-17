@@ -47,7 +47,6 @@ module OnEventTests =
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate" 
             TestMetadata.GetUniqueId
-            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers 
@@ -127,7 +126,6 @@ module OnEventMuliAggregateTests =
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate" 
             TestMetadata.GetUniqueId
-            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers 

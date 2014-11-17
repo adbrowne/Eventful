@@ -61,16 +61,14 @@ module Book =
         else
             Choice1Of2 value
 
-    let getBookIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { BookId.Id = x.AggregateId })
-
-    let inline buildBookMetadata (bookId : BookId) = 
-        Aggregates.emptyMetadata bookId.Id AggregateType.Book
+    let buildBookMetadata = 
+        Aggregates.emptyMetadata AggregateType.Book
 
     let inline bookCmdHandlerS stateBuilder f = 
-        cmdHandlerS stateBuilder f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id AggregateType.Book )
+        cmdHandlerS stateBuilder f buildBookMetadata
 
     let inline bookCmdHandler f =
-        cmdHandler f (fun (bookId : BookId) -> Aggregates.emptyMetadata bookId.Id AggregateType.Book)
+        cmdHandler f buildBookMetadata
 
     let cmdHandlers = 
         seq {
@@ -121,7 +119,6 @@ module Book =
         Eventful.Aggregate.toAggregateDefinition 
             AggregateType.Book 
             BookLibraryEventMetadata.GetUniqueId
-            getBookIdFromMetadata
             getStreamName 
             getEventStreamName 
             cmdHandlers 

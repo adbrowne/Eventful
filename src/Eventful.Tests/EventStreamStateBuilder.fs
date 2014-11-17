@@ -30,7 +30,6 @@ module EventStreamStateBuilder =
             { 
                 MessageId = (Guid.NewGuid()) 
                 SourceMessageId = (Guid.NewGuid().ToString())
-                AggregateId = (Guid.NewGuid()) 
                 AggregateType =  "TestAggregate" 
             }
 
@@ -55,7 +54,6 @@ module EventStreamStateBuilder =
             { 
                 MessageId = (Guid.NewGuid()) 
                 SourceMessageId = (Guid.NewGuid().ToString())
-                AggregateId = (Guid.NewGuid()) 
                 AggregateType =  "TestAggregate" 
             }
 

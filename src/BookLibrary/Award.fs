@@ -20,10 +20,8 @@ module Award =
     let inline getAwardId (a: ^a) _ = 
         (^a : (member AwardId: AwardId) (a))
 
-    let getBookAwardIdFromMetadata = (fun (x : BookLibraryEventMetadata) -> { AwardId.Id = x.AggregateId })
-
-    let inline buildAwardMetadata (awardId : AwardId) = 
-        Aggregates.emptyMetadata awardId.Id AggregateType.Award 
+    let buildAwardMetadata = 
+        Aggregates.emptyMetadata AggregateType.Award 
 
     let inline awardCmdHandler f = 
         cmdHandler f buildAwardMetadata
@@ -43,7 +41,6 @@ module Award =
         Eventful.Aggregate.toAggregateDefinition 
             AggregateType.Award 
             BookLibraryEventMetadata.GetUniqueId
-            getBookAwardIdFromMetadata
             getStreamName 
             getEventStreamName 
             cmdHandlers 

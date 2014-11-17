@@ -54,7 +54,12 @@ module TestEventStore =
         interpreter program testEventStore
         |> fst
 
-    let runEventHandlers (context: 'TEventContext) interpreter (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent, 'TAggregateType>) (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) (eventStream, eventNumber, eventStreamEvent) =
+    let runEventHandlers 
+        (context: 'TEventContext) 
+        interpreter 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent, 'TAggregateType>) 
+        (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) 
+        (eventStream, eventNumber, eventStreamEvent) =
         match eventStreamEvent with
         | Event { Body = evt; EventType = eventType; Metadata = metadata } ->
             let handlers = 
@@ -150,8 +155,7 @@ module TestEventStore =
 
             let! expectedTime = wakeupHandler.WakeupFold.GetState initialState
             if expectedTime = w.Time then
-                let fakeAggregateId = "todo"
-                let (testEventStore', _) = interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId fakeAggregateId now) testEventStore
+                let (testEventStore', _) = interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId now) testEventStore
                 return runToEnd now interpreter handlers { testEventStore' with WakeupQueue = ws }
             else
                 return runToEnd now interpreter handlers { testEventStore with WakeupQueue = ws }

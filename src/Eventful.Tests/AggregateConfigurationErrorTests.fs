@@ -40,10 +40,9 @@ module TestAggregate =
 
     let stateBuilder = StateBuilder.nullStateBuilder<TestMetadata, unit>
 
-    let inline buildMetadata (aggregateId : TestId) messageId sourceMessageId = { 
+    let inline buildMetadata messageId sourceMessageId = { 
             SourceMessageId = sourceMessageId 
             MessageId = messageId 
-            AggregateId = aggregateId.Id
             AggregateType =  "testaggregate" }
 
     let inline withMetadata f cmd = 
@@ -87,7 +86,6 @@ module TestAggregate =
         toAggregateDefinition 
             "testaggregate" 
             TestMetadata.GetUniqueId
-            (fun x -> { TestId.Id = x.AggregateId })
             getStreamName<_> 
             getStreamName<_>
             cmdHandlers 

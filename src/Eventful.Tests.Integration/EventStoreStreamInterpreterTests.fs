@@ -29,7 +29,6 @@ type EventStoreStreamInterpreterTests () =
     let metadata = { 
         TestMetadata.SourceMessageId = Guid.NewGuid().ToString() 
         MessageId = Guid.NewGuid() 
-        AggregateId = Guid.NewGuid() 
         AggregateType = "TestAggregate" }
 
     let classToEventTypeName =

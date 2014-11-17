@@ -23,13 +23,11 @@ module TestEventStoreSystemHelpers =
     let emptyMetadata : Eventful.Tests.TestMetadata = { 
         SourceMessageId = String.Empty
         MessageId = Guid.Empty
-        AggregateId = Guid.Empty   
         AggregateType = "AggregateType" }
 
-    let inline buildMetadata (aggregateId : WidgetId) messageId sourceMessageId = { 
+    let inline buildMetadata messageId sourceMessageId = { 
             TestMetadata.SourceMessageId = sourceMessageId 
             MessageId = messageId 
-            AggregateId = aggregateId.Id 
             AggregateType = "AggregateType" }
 
     let inline withMetadata f cmd = 
@@ -109,7 +107,6 @@ type TestEventStoreSystemFixture () =
         toAggregateDefinition 
             "Widget" 
             TestMetadata.GetUniqueId
-            (fun (x : TestMetadata) -> { WidgetId.Id = x.AggregateId })
             (getStreamName "Widget") 
             (getEventStreamName "Widget") 
             widgetCmdHandlers 
@@ -125,7 +122,6 @@ type TestEventStoreSystemFixture () =
         toAggregateDefinition 
             "WidgetCounter" 
             TestMetadata.GetUniqueId
-            (fun (x : TestMetadata) -> { WidgetId.Id = x.AggregateId })
             (getStreamName "WidgetCounter") 
             (getEventStreamName "WidgetCounter") 
             Seq.empty 

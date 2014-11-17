@@ -10,8 +10,7 @@ open FsUnit.Xunit
 module CommandTests =
     open EventSystemTestCommon
 
-    let metadataBuilder aggregateId messageId sourceMessageId = { 
-        TestMetadata.AggregateId = aggregateId
+    let metadataBuilder messageId sourceMessageId = { 
         MessageId = messageId 
         SourceMessageId = sourceMessageId
         AggregateType =  "TestAggregate" }
@@ -51,7 +50,6 @@ module CommandTests =
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate" 
             TestMetadata.GetUniqueId
-            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers 

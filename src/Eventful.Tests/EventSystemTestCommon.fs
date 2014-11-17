@@ -12,8 +12,7 @@ module EventSystemTestCommon =
         Id : Guid
     }
 
-    let metadataBuilder aggregateId messageId sourceMessageId = { 
-        TestMetadata.AggregateId = aggregateId
+    let metadataBuilder messageId sourceMessageId = { 
         MessageId = messageId 
         SourceMessageId = sourceMessageId 
         AggregateType =  "TestAggregate" }

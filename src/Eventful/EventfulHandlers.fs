@@ -115,14 +115,12 @@ module EventfulHandlers =
 
         let commandConfig = {
             AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder 
-            GetAggregateId = aggregateDefinition.GetAggregateId
             GetUniqueId = aggregateDefinition.GetUniqueId
             GetStreamName = aggregateDefinition.GetCommandStreamName
         }
 
         let eventConfig = {
             AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder
-            GetAggregateId = aggregateDefinition.GetAggregateId
             GetUniqueId = aggregateDefinition.GetUniqueId
             GetStreamName = aggregateDefinition.GetEventStreamName
         }

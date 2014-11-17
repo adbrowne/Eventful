@@ -17,8 +17,7 @@ module AsyncCommandTests =
         GetAsyncValue : Async<int>
     }
 
-    let metadataBuilder aggregateId messageId sourceMessageId = { 
-        TestMetadata.AggregateId = aggregateId
+    let metadataBuilder messageId sourceMessageId = { 
         MessageId = messageId 
         SourceMessageId = sourceMessageId 
         AggregateType =  "TestAggregate" }
@@ -87,7 +86,6 @@ module AsyncCommandTests =
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate"
             TestMetadata.GetUniqueId
-            TestMetadata.GetAggregateId
             getCommandStreamName 
             getStreamName 
             cmdHandlers 
