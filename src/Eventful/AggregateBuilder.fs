@@ -486,8 +486,11 @@ module Aggregate =
                     eventStream {
                         let run streamState = AggregateActionBuilder.runHandler getUniqueId streamId streamState stateBuilder (handler time)
                         let! result = AggregateActionBuilder.retryOnWrongVersion streamId stateBuilder run
-                        // todo report error
-                        return ()
+                        match result with
+                        | Choice2Of2 failure ->
+                            failwith "WakeupHandler failed %A" failure
+                        | _ -> 
+                            ()
                     }
         }
         { aggregateDefinition with Wakeup = Some wakeup }
