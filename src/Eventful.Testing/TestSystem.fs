@@ -71,7 +71,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         new TestSystem<_,_,_,_,_>(handlers, lastResult, allEvents',buildEventContext)
 
     member x.RunToEnd () = 
-        let allEvents' = TestEventStore.runToEnd interpret handlers allEvents 
+        let allEvents' = TestEventStore.runToEnd buildEventContext interpret handlers allEvents 
         let result' = 
             {
                 CommandSuccess.Events = List.empty

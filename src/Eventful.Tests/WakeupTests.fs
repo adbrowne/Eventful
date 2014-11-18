@@ -55,13 +55,20 @@ module WakeupTests =
                 |> AggregateActionBuilder.buildCmd
         }
 
-        let wakeupBuilder = 
-            StateBuilder.Empty "WakeupTime" None
-            |> StateBuilder.aggregateStateHandler
-                (fun (s, (e:FooEvent), m) -> Some wakeupTime)
-            |> StateBuilder.aggregateStateHandler 
-                (fun (s, (e:WakeupRunEvent), m) -> None)
-            |> StateBuilder.toInterface
+        let wakeupCount =
+            StateBuilder.eventTypeCountBuilder (fun (evt:WakeupRunEvent) _ -> ())
+
+        let fooCount =
+            StateBuilder.eventTypeCountBuilder (fun (evt:FooEvent) _ -> ())
+
+        let wakeupBuilder =
+            AggregateStateBuilder.tuple2 fooCount wakeupCount
+            |> AggregateStateBuilder.map (function
+                | (1, 0) ->
+                    Some wakeupTime
+                | (1, 1) ->
+                    Some wakeupTime
+                | _ -> None)
 
         let evtHandlers = Seq.empty
 
@@ -98,7 +105,7 @@ module WakeupTests =
 
     [<Fact>]
     [<Trait("category", "unit")>]
-    let ``Wakeup event is run one time`` () : unit =
+    let ``Wakeup event is run on time`` () : unit =
         let thisId = Guid.NewGuid()
         let streamName = getStreamName () thisId
 
@@ -112,3 +119,20 @@ module WakeupTests =
         let actualTimeRun = afterRun.EvaluateState streamName () wakeupTimeBuilder
 
         actualTimeRun |> should equal (Some wakeupTime)
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Can chain wakeup events`` () : unit =
+        let thisId = Guid.NewGuid()
+        let streamName = getStreamName () thisId
+
+        let commandId = Guid.NewGuid() 
+
+        let afterRun = 
+            emptyTestSystem  
+            |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
+            |> TestSystem.runToEnd
+
+        let wakeupCount = afterRun.EvaluateState streamName () (StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> ()))
+
+        wakeupCount |> should equal 2

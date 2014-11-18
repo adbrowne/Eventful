@@ -15,7 +15,7 @@ type WakeupRecord<'TAggregateType> = {
 type TestEventStore<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> = {
     Position : EventPosition
     Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>
-    AllEventsStream : Queue<string * int * EventStreamEvent<'TMetadata>>
+    PendingEvents : Queue<string * int * EventStreamEvent<'TMetadata>>
     AggregateStateSnapShots : Map<(string * 'TAggregateType), Map<string,obj>>
     WakeupQueue : IPriorityQueue<WakeupRecord<'TAggregateType>>
 }
@@ -31,7 +31,7 @@ module TestEventStore =
     let empty<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> : TestEventStore<'TMetadata, 'TAggregateType> = { 
         Position = EventPosition.Start
         Events = Map.empty
-        AllEventsStream = Queue.empty 
+        PendingEvents = Queue.empty 
         AggregateStateSnapShots = Map.empty
         WakeupQueue = PriorityQueue.empty false }
 
@@ -47,7 +47,7 @@ module TestEventStore =
         { store with 
             Events = store.Events |> Map.add stream streamEvents'; 
             Position = eventPosition 
-            AllEventsStream = store.AllEventsStream |> Queue.conj (stream, eventNumber, streamEvent)}
+            PendingEvents = store.PendingEvents |> Queue.conj (stream, eventNumber, streamEvent)}
 
     let runHandlerForEvent (context: 'TEventContext) interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
         let program = evtHandler context eventStream eventNumber evt |> Async.RunSynchronously
@@ -126,16 +126,18 @@ module TestEventStore =
         runEventHandlers buildEventContext interpreter handlers testEventStore x
         |> updateStateSnapShot x handlers
 
+    /// run all event handlers for produced events
+    /// that have not been run yet
     let rec processPendingEvents 
         buildEventContext
         interpreter 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
-        match testEventStore.AllEventsStream with
+        match testEventStore.PendingEvents with
         | Queue.Nil -> testEventStore
         | Queue.Cons (x, xs) ->
             let next = 
-                runEvent buildEventContext interpreter handlers { testEventStore with AllEventsStream = xs } x
+                runEvent buildEventContext interpreter handlers { testEventStore with PendingEvents = xs } x
             processPendingEvents buildEventContext interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =
@@ -143,23 +145,31 @@ module TestEventStore =
         interpreter program testEventStore
 
     let rec runToEnd 
+        buildEventContext
         interpreter 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
         (testEventStore :  TestEventStore<'TMetadata, 'TAggregateType>)
         : TestEventStore<'TMetadata, 'TAggregateType> =
-        maybe {
-            let! (w,ws) =  testEventStore.WakeupQueue |> PriorityQueue.tryPop 
-            let! aggregate = handlers.AggregateTypes |> Map.tryFind w.Type
-            let! wakeupHandler = aggregate.Wakeup
 
-            let initialState = 
-                getCurrentState w.Stream w.Type testEventStore
+        let rec loop testEventStore =
+            maybe {
+                let! (w,ws) =  testEventStore.WakeupQueue |> PriorityQueue.tryPop 
+                let! aggregate = handlers.AggregateTypes |> Map.tryFind w.Type
+                let! wakeupHandler = aggregate.Wakeup
 
-            let! expectedTime = wakeupHandler.WakeupFold.GetState initialState
-            if expectedTime = w.Time then
-                let (testEventStore', _) = interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId expectedTime) testEventStore
-                return runToEnd interpreter handlers { testEventStore' with WakeupQueue = ws }
-            else
-                return runToEnd interpreter handlers { testEventStore with WakeupQueue = ws }
-        } 
-        |> FSharpx.Option.getOrElse testEventStore
+                let initialState = 
+                    getCurrentState w.Stream w.Type testEventStore
+
+                let! expectedTime = wakeupHandler.WakeupFold.GetState initialState
+                return 
+                    if expectedTime = w.Time then
+                        interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId expectedTime) { testEventStore with WakeupQueue = ws }
+                        |> fst
+                        |> processPendingEvents buildEventContext interpreter handlers
+                        |> loop
+                    else
+                        loop { testEventStore with WakeupQueue = ws }
+            } 
+            |> FSharpx.Option.getOrElse testEventStore
+
+        loop testEventStore
