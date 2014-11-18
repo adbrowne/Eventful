@@ -65,7 +65,9 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
             EventType = handlers.ClassToEventStoreTypeMap.Item (evt.GetType())
         } 
         
-        let allEvents' = TestEventStore.runEvent buildEventContext interpret handlers allEvents (stream, eventNumber, fakeEvent)
+        let allEvents' = 
+            TestEventStore.runEvent buildEventContext interpret handlers allEvents (stream, eventNumber, fakeEvent)
+            |> TestEventStore.processPendingEvents buildEventContext interpret handlers 
         new TestSystem<_,_,_,_,_>(time, handlers, lastResult, allEvents',buildEventContext)
 
     member x.RunToEnd () = 
