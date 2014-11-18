@@ -58,6 +58,16 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         cmds
         |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) (cmd, context) -> s.RunCommand cmd context) x
 
+    member x.InjectEvent (stream) (eventNumber) (evt : 'TBaseEvent) (metadata : 'TMetadata) =
+        let fakeEvent = Event {
+            Body = evt :> obj
+            Metadata = metadata
+            EventType = handlers.ClassToEventStoreTypeMap.Item (evt.GetType())
+        } 
+        
+        let allEvents' = TestEventStore.runEvent buildEventContext interpret handlers allEvents (stream, eventNumber, fakeEvent)
+        new TestSystem<_,_,_,_,_>(time, handlers, lastResult, allEvents',buildEventContext)
+
     member x.RunToEnd () = 
         let (time', allEvents') = TestEventStore.runToEnd time interpret handlers allEvents 
         let result' = 
@@ -105,3 +115,5 @@ module TestSystem =
     let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommand x c
     let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommandNoThrow x c
     let runToEnd (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunToEnd()
+    let injectEvent stream eventNumber event metadata (testSystem : TestSystem<_,_,_,_,_>) =
+        testSystem.InjectEvent stream eventNumber event metadata

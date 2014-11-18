@@ -122,6 +122,10 @@ module TestEventStore =
             // todo work out what to do here
             testEventStore
 
+    let runEvent buildEventContext interpreter handlers testEventStore x =
+        runEventHandlers buildEventContext interpreter handlers testEventStore x
+        |> updateStateSnapShot x handlers
+
     let rec processPendingEvents 
         buildEventContext
         interpreter 
@@ -131,8 +135,7 @@ module TestEventStore =
         | Queue.Nil -> testEventStore
         | Queue.Cons (x, xs) ->
             let next = 
-                runEventHandlers buildEventContext interpreter handlers { testEventStore with AllEventsStream = xs } x
-                |> updateStateSnapShot x handlers
+                runEvent buildEventContext interpreter handlers { testEventStore with AllEventsStream = xs } x
             processPendingEvents buildEventContext interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =

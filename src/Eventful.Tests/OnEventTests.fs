@@ -12,10 +12,6 @@ open FSharp.Control
 module OnEventTests =
     open EventSystemTestCommon
 
-    type FooCmd = {
-        Id : Guid
-    }
-
     type FooEvent = {
         Id : Guid
     }
@@ -27,12 +23,7 @@ module OnEventTests =
     }
 
     let fooHandlers () =    
-        let cmdHandlers = seq {
-            yield 
-                cmdHandler
-                    (fun (cmd : FooCmd) -> { FooEvent.Id = cmd.Id })
-                |> AggregateActionBuilder.buildCmd
-        }
+        let cmdHandlers = Seq.empty
 
         let evtHandlers : seq<IEventHandler<_,_,_>> = seq {
             yield 
@@ -53,7 +44,7 @@ module OnEventTests =
             cmdHandlers 
             evtHandlers
 
-    let handlers =
+    let handlers : Eventful.EventfulHandlers<unit,_,_,IEvent,_> =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (fooHandlers ())
         |> addEventTypes eventTypes
@@ -69,7 +60,14 @@ module OnEventTests =
 
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.runCommand { FooCmd.Id = thisId } commandUniqueId
+            |> TestSystem.injectEvent 
+                "fake stream" 
+                0 
+                ({ FooEvent.Id = thisId } :> IEvent)
+                { 
+                    TestMetadata.AggregateType = "TestAggregate" 
+                    MessageId = Guid.NewGuid() 
+                    SourceMessageId = ""}
 
         let barCount = afterRun.EvaluateState streamName thisId barEventCounter
 
@@ -77,7 +75,7 @@ module OnEventTests =
 
 /// Test delivering an OnEvent to multiple
 /// aggregate instances
-module OnEventMuliAggregateTests =
+module OnEventMultiAggregateTests =
     open EventSystemTestCommon
 
     type FooCmd = {
