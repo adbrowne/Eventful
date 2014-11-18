@@ -145,6 +145,7 @@ module TestEventStore =
         interpreter program testEventStore
 
     let rec runToEnd 
+        onTimeChange
         buildEventContext
         interpreter 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
@@ -163,6 +164,7 @@ module TestEventStore =
                 let! expectedTime = wakeupHandler.WakeupFold.GetState initialState
                 return 
                     if expectedTime = w.Time then
+                        onTimeChange w.Time
                         interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId expectedTime) { testEventStore with WakeupQueue = ws }
                         |> fst
                         |> processPendingEvents buildEventContext interpreter handlers

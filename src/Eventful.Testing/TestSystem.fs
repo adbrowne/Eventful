@@ -12,7 +12,8 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         handlers : EventfulHandlers<'TCommandContext,'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>, 
         lastResult : CommandResult<'TBaseEvent,'TMetadata>, 
         allEvents : TestEventStore<'TMetadata, 'TAggregateType>,
-        buildEventContext: 'TMetadata -> 'TEventContext
+        buildEventContext: 'TMetadata -> 'TEventContext,
+        onTimeChange: DateTime -> unit
     ) =
 
     let interpret prog (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
@@ -38,7 +39,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
 
         let allEvents = TestEventStore.processPendingEvents buildEventContext interpret handlers allEvents
 
-        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(handlers, result, allEvents, buildEventContext)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(handlers, result, allEvents, buildEventContext, onTimeChange)
 
     // runs the command. throws on failure
     member x.RunCommand (cmd : obj) (context : 'TCommandContext) =    
@@ -68,16 +69,16 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         let allEvents' =
             TestEventStore.runEvent buildEventContext interpret handlers allEvents (stream, eventNumber, fakeEvent)
             |> TestEventStore.processPendingEvents buildEventContext interpret handlers 
-        new TestSystem<_,_,_,_,_>(handlers, lastResult, allEvents',buildEventContext)
+        new TestSystem<_,_,_,_,_>(handlers, lastResult, allEvents',buildEventContext, onTimeChange)
 
     member x.RunToEnd () = 
-        let allEvents' = TestEventStore.runToEnd buildEventContext interpret handlers allEvents 
+        let allEvents' = TestEventStore.runToEnd onTimeChange buildEventContext interpret handlers allEvents 
         let result' = 
             {
                 CommandSuccess.Events = List.empty
                 Position = None } 
             |> Choice1Of2
-        new TestSystem<_,_,_,_,_>(handlers, result', allEvents',buildEventContext)
+        new TestSystem<_,_,_,_,_>(handlers, result', allEvents',buildEventContext, onTimeChange)
 
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 
@@ -105,12 +106,15 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         |> Vector.fold run Map.empty
         |> stateBuilder.GetState
 
+    member x.OnTimeChange onTimeChange =
+        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(handlers, lastResult, allEvents, buildEventContext, onTimeChange)
+
     static member Empty (buildEventContext : 'TMetadata -> 'TEventContext) (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent, 'TAggregateType>) =
         let emptySuccess = {
             CommandSuccess.Events = List.empty
             Position = None
         }
-        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty, buildEventContext)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(handlers, Choice1Of2 emptySuccess, TestEventStore.empty, buildEventContext, (fun _ -> ()))
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
