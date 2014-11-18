@@ -143,11 +143,10 @@ module TestEventStore =
         interpreter program testEventStore
 
     let rec runToEnd 
-        now 
         interpreter 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
         (testEventStore :  TestEventStore<'TMetadata, 'TAggregateType>)
-        : (DateTime * TestEventStore<'TMetadata, 'TAggregateType>) =
+        : TestEventStore<'TMetadata, 'TAggregateType> =
         maybe {
             let! (w,ws) =  testEventStore.WakeupQueue |> PriorityQueue.tryPop 
             let! aggregate = handlers.AggregateTypes |> Map.tryFind w.Type
@@ -158,9 +157,9 @@ module TestEventStore =
 
             let! expectedTime = wakeupHandler.WakeupFold.GetState initialState
             if expectedTime = w.Time then
-                let (testEventStore', _) = interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId now) testEventStore
-                return runToEnd now interpreter handlers { testEventStore' with WakeupQueue = ws }
+                let (testEventStore', _) = interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId expectedTime) testEventStore
+                return runToEnd interpreter handlers { testEventStore' with WakeupQueue = ws }
             else
-                return runToEnd now interpreter handlers { testEventStore with WakeupQueue = ws }
+                return runToEnd interpreter handlers { testEventStore with WakeupQueue = ws }
         } 
-        |> FSharpx.Option.getOrElse (now, testEventStore)
+        |> FSharpx.Option.getOrElse testEventStore

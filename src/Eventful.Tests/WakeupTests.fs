@@ -30,6 +30,7 @@ module WakeupTests =
 
     type WakeupRunEvent = {
         Id : Guid
+        TimeRun : DateTime
     }
     with interface IEvent
 
@@ -43,6 +44,8 @@ module WakeupTests =
         yield typeof<WakeupRunEvent>
     }
 
+    let wakeupTime = DateTime.UtcNow.AddDays(1.0)
+
     let fooHandlers =    
         let cmdHandlers = seq {
             yield 
@@ -55,7 +58,7 @@ module WakeupTests =
         let wakeupBuilder = 
             StateBuilder.Empty "WakeupTime" None
             |> StateBuilder.aggregateStateHandler
-                (fun (s, (e:FooEvent), m) -> Some DateTime.UtcNow)
+                (fun (s, (e:FooEvent), m) -> Some wakeupTime)
             |> StateBuilder.aggregateStateHandler 
                 (fun (s, (e:WakeupRunEvent), m) -> None)
             |> StateBuilder.toInterface
@@ -63,7 +66,7 @@ module WakeupTests =
         let evtHandlers = Seq.empty
 
         let onWakeup (time : DateTime) () =
-            Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid() } :> IEvent, EventSystemTestCommon.metadataBuilder)
+            Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid(); TimeRun = time } :> IEvent, EventSystemTestCommon.metadataBuilder)
 
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate"
@@ -88,8 +91,9 @@ module WakeupTests =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
         |> StateBuilder.toInterface
 
-    let wakeupRunEventCounter : IStateBuilder<int, TestMetadata, unit> =
-        StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> ())
+    let wakeupTimeBuilder : IStateBuilder<DateTime option, TestMetadata, unit> =
+        StateBuilder.Empty "RunTime" None
+        |> StateBuilder.handler (fun _ _ -> ()) (fun (_,e:WakeupRunEvent,_) -> Some e.TimeRun)
         |> StateBuilder.toInterface
 
     [<Fact>]
@@ -105,6 +109,6 @@ module WakeupTests =
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd
 
-        let wakeupRunCount = afterRun.EvaluateState streamName () wakeupRunEventCounter
+        let actualTimeRun = afterRun.EvaluateState streamName () wakeupTimeBuilder
 
-        wakeupRunCount |> should equal 1
+        actualTimeRun |> should equal (Some wakeupTime)
