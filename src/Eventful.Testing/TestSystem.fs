@@ -26,16 +26,8 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
             Vector.empty
 
     member x.RunCommandNoThrow (cmd : obj) (context : 'TCommandContext) =    
-        let cmdType = cmd.GetType()
-        let cmdTypeFullName = cmd.GetType().FullName
-        let handler = 
-            handlers.CommandHandlers
-            |> Map.tryFind cmdTypeFullName
-            |> function
-            | Some (EventfulCommandHandler(_, handler,_)) -> handler context
-            | None -> failwith <| sprintf "Could not find handler for %A" cmdType
-
-        let (allEvents, result) = TestEventStore.runCommand interpret cmd handler allEvents
+        let program = EventfulHandlers.getCommandProgram context cmd handlers
+        let (allEvents, result) = interpret program allEvents
 
         let allEvents = TestEventStore.processPendingEvents buildEventContext interpret handlers allEvents
 

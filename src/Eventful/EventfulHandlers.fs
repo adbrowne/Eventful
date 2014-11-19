@@ -99,18 +99,18 @@ module EventfulHandlers =
         let uniqueIdBuilder = 
             AggregateActionBuilder.uniqueIdBuilder aggregateDefinition.GetUniqueId
 
-        let (wakeupBuilders, extractWakeup) =
+        let wakeupBlockBuilders =
             match aggregateDefinition.Wakeup with
             | Some wakeup ->
-                (wakeup.WakeupFold.GetBlockBuilders, (fun map -> wakeup.WakeupFold.GetState map))
-            | None -> ([], konst None)
+                (wakeup.WakeupFold.GetBlockBuilders)
+            | None -> []
 
         let combinedAggregateStateBuilder = 
             commandStateBuilders
             |> List.append eventStateBuilders
             |> List.fold (|>) []
             |> List.append uniqueIdBuilder.GetBlockBuilders
-            |> List.append wakeupBuilders
+            |> List.append wakeupBlockBuilders
             |> AggregateStateBuilder.ofStateBuilderList
 
         let commandConfig = {
