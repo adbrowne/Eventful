@@ -24,6 +24,9 @@ module Operations =
           GraphName = graphName
           NextParameterIndex = 0 }
 
+    let createConstraintQ (label : string) (propertyName : string) (query : CypherQuery) =
+        { query with Query = query.Query.CreateUniqueConstraint("node:" + label, "node." + propertyName) }
+
     let matchQ (clause : string) (query : CypherQuery) =
         { query with Query = query.Query.Match(clause) }
     
@@ -70,13 +73,24 @@ module Operations =
         { query with Query = query.Query.With("1 as dummy") }
 
 
+    let graphLabel (query : CypherQuery) =
+        sprintf "`Graph-%s`" query.GraphName
+
+    [<Literal>]
+    let IdPropertyName = "eventful_id"
+
+    // This should be run once for each graph
+    let createIdConstraintQ (query : CypherQuery) =
+        query
+        |> createConstraintQ (graphLabel query) IdPropertyName
+
     let withNodeSelectorQ (name : string) (nodeId : NodeId) (query : CypherQuery) =
-        let query, idParameter = query |> withParamQ "eventful_id" nodeId.Id
-        (query, sprintf "(%s:`Graph-%s`:`%s` {eventful_id: %s})" name query.GraphName nodeId.Label idParameter)
+        let query, idParameter = query |> withParamQ IdPropertyName nodeId.Id
+        (query, sprintf "(%s:%s:`%s` {%s: %s})" name (graphLabel query) nodeId.Label IdPropertyName idParameter)
 
     let withNodeWhereClauseQ (name : string) (nodeId : NodeId) (query : CypherQuery) =
-        let query, idParameter = query |> withParamQ "eventful_id" nodeId.Id
-        (query, sprintf "%s:`Graph-%s`:`%s` AND %s.eventful_id = %s" name query.GraphName nodeId.Label name idParameter)
+        let query, idParameter = query |> withParamQ IdPropertyName nodeId.Id
+        (query, sprintf "%s:%s:`%s` AND %s.%s = %s" name (graphLabel query) nodeId.Label name IdPropertyName idParameter)
 
     let matchOrMergeNodeIdQ matchOrMerge (name : string) (nodeId : NodeId) (query : CypherQuery) =
         let query, selector = query |> withNodeSelectorQ name nodeId
@@ -91,10 +105,10 @@ module Operations =
     
     let updateNodeQ (name : string) (nodeId : NodeId) (data : obj) (query : CypherQuery) =
         let query, dataParameter = query |> withParamQ "data" data
-        let query, idParameter = query |> withParamQ "eventful_id" nodeId.Id  // TODO: This parameter is probably already in the query, would be nice to reuse it instead of duplicating it.
+        let query, idParameter = query |> withParamQ IdPropertyName nodeId.Id  // TODO: This parameter is probably already in the query, would be nice to reuse it instead of duplicating it.
 
         query
-        |> setQ (sprintf "%s = %s, %s.eventful_id = %s" name dataParameter name idParameter)  // Because we're replacing all the parameters, we have to make sure to set eventful_id again.
+        |> setQ (sprintf "%s = %s, %s.%s = %s" name dataParameter name IdPropertyName idParameter)  // Because we're replacing all the parameters, we have to make sure to set the id property again.
 
 
     let getNode (graphClient : ICypherGraphClient) (graphName : string) (nodeId : NodeId) =
