@@ -1,5 +1,6 @@
 ﻿namespace Eventful
 
+[<CLIMutable>]
 type EventPosition = {
     Commit: int64
     Prepare : int64
