@@ -22,12 +22,10 @@ type WidgetId = {
 module TestEventStoreSystemHelpers =
     let emptyMetadata : Eventful.Tests.TestMetadata = { 
         SourceMessageId = String.Empty
-        MessageId = Guid.Empty
         AggregateType = "AggregateType" }
 
-    let inline buildMetadata messageId sourceMessageId = { 
+    let inline buildMetadata sourceMessageId = { 
             TestMetadata.SourceMessageId = sourceMessageId 
-            MessageId = messageId 
             AggregateType = "AggregateType" }
 
     let inline withMetadata f cmd = 

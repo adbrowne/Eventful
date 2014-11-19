@@ -40,9 +40,8 @@ module TestAggregate =
 
     let stateBuilder = StateBuilder.nullStateBuilder<TestMetadata, unit>
 
-    let inline buildMetadata messageId sourceMessageId = { 
+    let inline buildMetadata sourceMessageId = { 
             SourceMessageId = sourceMessageId 
-            MessageId = messageId 
             AggregateType =  "testaggregate" }
 
     let inline withMetadata f cmd = 

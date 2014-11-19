@@ -83,7 +83,7 @@ type IHandler<'TEvent,'TId,'TCommandContext,'TEventContext when 'TId : equality>
 open FSharpx
 open Eventful.Validation
 
-type metadataBuilder<'TMetadata> = Guid -> string -> 'TMetadata
+type metadataBuilder<'TMetadata> = string -> 'TMetadata
 
 type CommandHandlerOutput<'TBaseEvent,'TMetadata> = {
     UniqueId : string // used to make commands idempotent
@@ -187,9 +187,9 @@ module AggregateActionBuilder =
                         else
                             let events = 
                                 r.Events
-                                |> Seq.map (fun (evt, metadata) -> 
+                                |> Seq.map (fun (evt, buildMetadata) -> 
                                                 let metadata = 
-                                                    metadata (Guid.NewGuid()) r.UniqueId
+                                                    buildMetadata r.UniqueId
                                                 (evt, metadata))
                                 |> List.ofSeq
 
@@ -320,8 +320,9 @@ module AggregateActionBuilder =
              member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData<'TMetadata>) = 
                 eventStream {
                     let aggregateId = fId (evt.Body :?> 'TLinkEvent)
+                    // todo get this from handler
                     let metadata =  
-                        metadataBuilder (Guid.NewGuid()) (Guid.NewGuid().ToString()) 
+                        metadataBuilder (Guid.NewGuid().ToString()) 
 
                     let resultingStream = aggregateConfig.GetStreamName eventContext aggregateId
 
@@ -356,9 +357,10 @@ module AggregateActionBuilder =
 
                 let resultingEvents = 
                     evts
-                    |> Seq.map (fun (event, metadata) ->
+                    |> Seq.map (fun (event, buildMetadata) ->
+                        // todo get this from system
                         let metadata =  
-                            metadata (Guid.NewGuid()) (Guid.NewGuid().ToString())
+                            buildMetadata (Guid.NewGuid().ToString())
                         (event, metadata)
                     )
                     |> Seq.toList

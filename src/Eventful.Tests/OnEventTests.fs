@@ -66,7 +66,6 @@ module OnEventTests =
                 ({ FooEvent.Id = thisId } :> IEvent)
                 { 
                     TestMetadata.AggregateType = "TestAggregate" 
-                    MessageId = Guid.NewGuid() 
                     SourceMessageId = ""}
 
         let barCount = afterRun.EvaluateState streamName thisId barEventCounter

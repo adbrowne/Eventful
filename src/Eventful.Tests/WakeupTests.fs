@@ -11,8 +11,7 @@ open FsUnit.Xunit
 module WakeupTests =
     open EventSystemTestCommon
 
-    let metadataBuilder messageId sourceMessageId = { 
-        MessageId = messageId 
+    let metadataBuilder sourceMessageId = { 
         SourceMessageId = sourceMessageId 
         AggregateType =  "TestAggregate" }
 

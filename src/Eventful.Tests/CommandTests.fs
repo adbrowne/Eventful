@@ -11,8 +11,7 @@ open FsUnit.Xunit
 module CommandTests =
     open EventSystemTestCommon
 
-    let metadataBuilder messageId sourceMessageId = { 
-        MessageId = messageId 
+    let metadataBuilder sourceMessageId = { 
         SourceMessageId = sourceMessageId
         AggregateType =  "TestAggregate" }
 

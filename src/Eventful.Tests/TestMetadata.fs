@@ -4,7 +4,6 @@ open System
 open Eventful
 
 type TestMetadata = {
-    MessageId : Guid
     SourceMessageId : String
     AggregateType : string
 }
