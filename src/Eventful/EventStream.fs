@@ -38,7 +38,7 @@ type EventStreamEvent<'TMetadata> =
 type PersistedEventLink<'TMetadata> = {
     StreamId : string
     EventNumber : int
-    MessageId : Guid
+    EventId : Guid
     LinkedStreamId : string
     LinkedEventNumber : int
     LinkedBody : obj
@@ -49,7 +49,7 @@ type PersistedEventLink<'TMetadata> = {
 type PersistedEvent<'TMetadata> = {
     StreamId : string
     EventNumber : int
-    MessageId : Guid
+    EventId : Guid
     Body : obj
     EventType : string
     Metadata : 'TMetadata

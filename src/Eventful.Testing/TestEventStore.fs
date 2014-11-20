@@ -50,7 +50,7 @@ module TestEventStore =
             | Some events -> events
             | None -> Vector.empty
 
-        let messageId = Guid.NewGuid()
+        let eventId = Guid.NewGuid()
 
         let eventPosition = nextPosition store.Position
         let eventNumber = streamEvents.Length
@@ -62,7 +62,7 @@ module TestEventStore =
                 PersistedStreamEvent {
                     StreamId = stream
                     EventNumber = eventNumber
-                    MessageId = messageId
+                    EventId = eventId
                     Body = evt.Body
                     EventType = evt.EventType
                     Metadata = evt.Metadata
@@ -73,7 +73,7 @@ module TestEventStore =
                     PersistedStreamLink {
                         StreamId = stream
                         EventNumber = eventNumber
-                        MessageId = messageId
+                        EventId = eventId
                         LinkedStreamId = linkedStreamId
                         LinkedEventNumber = linkedEventNumber
                         LinkedBody = linkedEvent.Body

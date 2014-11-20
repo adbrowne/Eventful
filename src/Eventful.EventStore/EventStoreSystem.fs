@@ -94,7 +94,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
                 let eventStreamEvent = {
                     PersistedEvent.StreamId = event.Event.EventStreamId
                     EventNumber = event.Event.EventNumber
-                    MessageId = eventId
+                    EventId = eventId
                     Body = evt
                     Metadata = metadata
                     EventType = event.Event.EventType

@@ -53,7 +53,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
     member x.InjectEvent (streamId) (eventNumber) (evt : 'TBaseEvent) (metadata : 'TMetadata) =
         let eventType = handlers.ClassToEventStoreTypeMap.Item (evt.GetType())
         let fakeEvent = PersistedStreamEvent {
-            MessageId = Guid.NewGuid()
+            EventId = Guid.NewGuid()
             StreamId = streamId
             EventNumber = eventNumber
             Body = evt :> obj
