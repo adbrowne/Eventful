@@ -35,21 +35,18 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
 
     let interpreter program = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventStoreTypeToClassMap handlers.ClassToEventStoreTypeMap program
 
-    let runHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>, eventContext) (EventfulEventHandler (t, evtHandler)) =
+    let runHandlerForEvent program =
         async {
-            let! program = evtHandler eventContext persistedEvent
+            let! program = program
             return! interpreter program
         }
 
     let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>) (persistedEvent : PersistedEvent<'TMetadata>) =
         async {
             do! 
-                handlers.EventHandlers
-                |> Map.tryFind (persistedEvent.Body.GetType().Name)
-                |> Option.getOrElse []
-                |> Seq.map (fun h -> 
-                    use eventContext = getEventContextFromMetadata persistedEvent
-                    runHandlerForEvent (persistedEvent, eventContext) h)
+                handlers
+                |> EventfulHandlers.getHandlerPrograms getEventContextFromMetadata persistedEvent
+                |> List.map runHandlerForEvent
                 |> Async.Parallel
                 |> Async.Ignore
         }
