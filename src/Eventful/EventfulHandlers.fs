@@ -8,18 +8,18 @@ open FSharpx.Collections
                                             // Source StreamId, Source Event Number, Event -> Program
 type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
 type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T, 'TMetadata>) * IRegistrationVisitable
+
+type EventfulWakeupHandler<'TMetadata> = EventfulWakeupHandler of WakeupFold<'TMetadata> * (string -> DateTime -> EventStreamProgram<EventResult, 'TMetadata>)
 type EventfulStreamConfig<'TMetadata> = {
-    Wakeup : IWakeupHandler<'TMetadata> option
+    Wakeup : EventfulWakeupHandler<'TMetadata> option
     StateBuilder : IStateBuilder<Map<string,obj>, 'TMetadata, unit>
     GetUniqueId : 'TMetadata -> Option<string>
 }
 
-type MyEventResult = unit
-
 type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,'TAggregateType when 'TAggregateType : comparison>
     (
         commandHandlers : Map<string, EventfulCommandHandler<CommandResult<'TBaseEvent, 'TMetadata>, 'TCommandContext, 'TMetadata>>, 
-        eventHandlers : Map<string, EventfulEventHandler<MyEventResult, 'TEventContext, 'TMetadata> list>,
+        eventHandlers : Map<string, EventfulEventHandler<EventResult, 'TEventContext, 'TMetadata> list>,
         aggregateTypes : Map<'TAggregateType,EventfulStreamConfig<'TMetadata>>,
         eventStoreTypeToClassMap : EventStoreTypeToClassMap,
         classToEventStoreTypeMap : ClassToEventStoreTypeMap,
@@ -96,6 +96,10 @@ module EventfulHandlers =
             aggregateDefinition.Handlers.EventHandlers 
             |> List.map (fun x -> x.AddStateBuilder)
 
+        let stateChangeStateBuilders =
+            aggregateDefinition.Handlers.StateChangeHandlers
+            |> List.map (fun x -> x.AddStateBuilder)
+
         let uniqueIdBuilder = 
             AggregateActionBuilder.uniqueIdBuilder aggregateDefinition.GetUniqueId
 
@@ -108,25 +112,35 @@ module EventfulHandlers =
         let combinedAggregateStateBuilder = 
             commandStateBuilders
             |> List.append eventStateBuilders
+            |> List.append stateChangeStateBuilders
             |> List.fold (|>) []
             |> List.append uniqueIdBuilder.GetBlockBuilders
             |> List.append wakeupBlockBuilders
             |> AggregateStateBuilder.ofStateBuilderList
 
+        let stateChangeHandlers = 
+            aggregateDefinition.Handlers.StateChangeHandlers |> LazyList.ofList
+
         let commandConfig = {
             AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder 
             GetUniqueId = aggregateDefinition.GetUniqueId
             GetStreamName = aggregateDefinition.GetCommandStreamName
+            StateChangeHandlers = stateChangeHandlers
         }
 
         let eventConfig = {
             AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder
             GetUniqueId = aggregateDefinition.GetUniqueId
             GetStreamName = aggregateDefinition.GetEventStreamName
+            StateChangeHandlers = stateChangeHandlers
         }
 
         let aggregateConfig = {
-            EventfulStreamConfig.Wakeup = aggregateDefinition.Wakeup
+            EventfulStreamConfig.Wakeup =
+                aggregateDefinition.Wakeup
+                |> Option.map (fun wakeup ->
+                   EventfulWakeupHandler (wakeup.WakeupFold, wakeup.Handler eventConfig)
+                ) 
             StateBuilder = combinedAggregateStateBuilder
             GetUniqueId = aggregateDefinition.GetUniqueId
         }

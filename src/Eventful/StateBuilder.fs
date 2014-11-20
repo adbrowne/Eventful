@@ -86,6 +86,9 @@ module StateBuilder =
     let handler (getKey : GetEventKey<'TMetadata, 'TEvent, 'TKey>) (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| SingleEvent (typeof<'TEvent>, EventFold.untypedGetKey getKey, EventFold.untypedHandler f)
 
+    let unitIdHandler (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, unit>) =
+        handler (fun _ _ -> ()) f b
+
     // aggregate state has no id, it is scoped to the stream
     let aggregateStateHandler (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, unit>) =
         SingleEvent (typeof<'TEvent>, EventFold.untypedGetKey (fun _ _ -> ()), EventFold.untypedHandler f)

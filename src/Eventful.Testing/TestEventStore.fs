@@ -131,8 +131,8 @@ module TestEventStore =
 
             let wakeupQueue' =
                 FSharpx.Option.maybe {
-                    let! handler = aggregateConfig.Wakeup
-                    let! newTime = handler.WakeupFold.GetState state'
+                    let! EventfulWakeupHandler(wakeupFold, _) = aggregateConfig.Wakeup
+                    let! newTime = wakeupFold.GetState state'
 
                     let newWakeupRecord = {
                         Time = newTime
@@ -202,16 +202,16 @@ module TestEventStore =
             maybe {
                 let! (w,ws) =  testEventStore.WakeupQueue |> PriorityQueue.tryPop 
                 let! aggregate = handlers.AggregateTypes |> Map.tryFind w.Type
-                let! wakeupHandler = aggregate.Wakeup
+                let! EventfulWakeupHandler(wakeupFold, wakeupHandler) = aggregate.Wakeup
 
                 let initialState = 
                     getCurrentState w.Stream w.Type testEventStore
 
-                let! expectedTime = wakeupHandler.WakeupFold.GetState initialState
+                let! expectedTime = wakeupFold.GetState initialState
                 return 
                     if expectedTime = w.Time then
                         onTimeChange w.Time
-                        interpreter (wakeupHandler.Handler w.Stream aggregate.GetUniqueId expectedTime) { testEventStore with WakeupQueue = ws }
+                        interpreter (wakeupHandler w.Stream expectedTime) { testEventStore with WakeupQueue = ws }
                         |> fst
                         |> processPendingEvents buildEventContext interpreter handlers
                         |> loop

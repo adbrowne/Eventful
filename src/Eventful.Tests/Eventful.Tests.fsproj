@@ -121,6 +121,7 @@
     <Compile Include="DocumentBuilderTests.fs" />
     <Compile Include="CommandTests.fs" />
     <Compile Include="WakeupTests.fs" />
+    <Compile Include="StateChangeTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">

@@ -26,14 +26,13 @@ module EventSystemTestCommon =
         StateBuilder.eventTypeCountBuilder (fun (e:BarEvent) _ -> e.Id)
         |> StateBuilder.toInterface
 
-    let cmdHandler f =
+    let multiEventCmdHandler f =
         AggregateActionBuilder.fullHandler
             StateBuilder.nullStateBuilder
             (fun _ (cmdContext : Guid) cmd -> 
                 let events = 
                     f cmd 
-                    |> (fun evt -> (evt :> IEvent, metadataBuilder))
-                    |> Seq.singleton
+                    |> Seq.map (fun evt -> (evt :> IEvent, metadataBuilder))
 
                 let uniqueId = cmdContext.ToString()
 
@@ -43,3 +42,6 @@ module EventSystemTestCommon =
                 }
                 |> Choice1Of2
             )
+
+    let cmdHandler f =
+        multiEventCmdHandler (f >> Seq.singleton)
