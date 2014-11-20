@@ -25,7 +25,7 @@ module OnEventTests =
     let fooHandlers () =    
         let cmdHandlers = Seq.empty
 
-        let evtHandlers : seq<IEventHandler<_,_,_>> = seq {
+        let evtHandlers : seq<IEventHandler<_,_,UnitEventContext>> = seq {
             yield 
                 AggregateActionBuilder.onEvent 
                     (fun (e : FooEvent) _ -> e.Id) 
@@ -44,18 +44,18 @@ module OnEventTests =
             cmdHandlers 
             evtHandlers
 
-    let handlers : Eventful.EventfulHandlers<unit,_,_,IEvent,_> =
+    let handlers : Eventful.EventfulHandlers<unit,UnitEventContext,_,IEvent,_> =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (fooHandlers ())
         |> addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty (konst ()) handlers
+    let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
 
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``FooEvent produces BarEvent`` () : unit =
         let thisId = Guid.NewGuid()
-        let streamName = getStreamName () thisId
+        let streamName = getStreamName UnitEventContext thisId
         let commandUniqueId = Guid.NewGuid()
 
         let afterRun = 
@@ -134,7 +134,7 @@ module OnEventMultiAggregateTests =
         |> EventfulHandlers.addAggregate (fooHandlers ())
         |> addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty (konst ()) handlers
+    let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
 
     [<Fact>]
     [<Trait("category", "unit")>]
@@ -148,7 +148,7 @@ module OnEventMultiAggregateTests =
             |> TestSystem.runCommand { FooCmd.Id = thisId; SecondId = secondId } commandUniqueId
 
         let barStateIs1 guid =
-            afterRun.EvaluateState (getStreamName () guid) guid barEventCounter |> should equal 1
+            afterRun.EvaluateState (getStreamName UnitEventContext guid) guid barEventCounter |> should equal 1
 
         barStateIs1 thisId
         barStateIs1 secondId

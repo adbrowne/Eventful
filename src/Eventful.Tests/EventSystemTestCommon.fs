@@ -27,7 +27,7 @@ module EventSystemTestCommon =
     let getCommandStreamName _ (id : Guid) = 
         sprintf "Foo-%s" <| id.ToString("N")
 
-    let getStreamName () (id : Guid) =
+    let getStreamName UnitEventContext (id : Guid) =
         sprintf "Foo-%s" <| id.ToString("N")
 
     let barEventCounter : IStateBuilder<int, TestMetadata, Guid> =

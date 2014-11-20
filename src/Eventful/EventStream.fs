@@ -35,6 +35,30 @@ type EventStreamEvent<'TMetadata> =
 | Event of (EventStreamEventData<'TMetadata>)
 | EventLink of (string * int * 'TMetadata)
 
+type PersistedEventLink<'TMetadata> = {
+    StreamId : string
+    EventNumber : int
+    MessageId : Guid
+    LinkedStreamId : string
+    LinkedEventNumber : int
+    LinkedBody : obj
+    LinkedEventType : string
+    LinkedMetadata : 'TMetadata
+}
+
+type PersistedEvent<'TMetadata> = {
+    StreamId : string
+    EventNumber : int
+    MessageId : Guid
+    Body : obj
+    EventType : string
+    Metadata : 'TMetadata
+}
+
+type PersistedStreamEntry<'TMetadata> = 
+    | PersistedStreamEvent of PersistedEvent<'TMetadata>
+    | PersistedStreamLink of PersistedEventLink<'TMetadata>
+
 module EventStream =
     open FSharpx.Operators
     open FSharpx.Collections

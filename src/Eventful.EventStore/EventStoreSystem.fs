@@ -12,7 +12,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>,
         client : Client,
         serializer: ISerializer,
-        getEventContextFromMetadata : 'TMetadata -> 'TEventContext
+        getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext
     ) =
 
     let log = createLogger "Eventful.EventStoreSystem"
@@ -35,27 +35,24 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
 
     let interpreter program = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventStoreTypeToClassMap handlers.ClassToEventStoreTypeMap program
 
-    let runHandlerForEvent (eventStream, eventNumber, evt) (EventfulEventHandler (t, evtHandler)) =
+    let runHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>, eventContext) (EventfulEventHandler (t, evtHandler)) =
         async {
-            use eventContext = getEventContextFromMetadata evt.Metadata
-            let! program = evtHandler eventContext eventStream eventNumber evt
+            let! program = evtHandler eventContext persistedEvent
             return! interpreter program
         }
 
-    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>) (eventStream, eventNumber, eventStreamEvent) =
-        match eventStreamEvent with
-        | EventStreamEvent.Event { Body = evt; EventType = eventType; Metadata = metadata } ->
-            async {
-                do! 
-                    handlers.EventHandlers
-                    |> Map.tryFind (evt.GetType().Name)
-                    |> Option.getOrElse []
-                    |> Seq.map (fun h -> runHandlerForEvent (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata }) h)
-                    |> Async.Parallel
-                    |> Async.Ignore
-            }
-        | _ ->
-            async { () }
+    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>) (persistedEvent : PersistedEvent<'TMetadata>) =
+        async {
+            do! 
+                handlers.EventHandlers
+                |> Map.tryFind (persistedEvent.Body.GetType().Name)
+                |> Option.getOrElse []
+                |> Seq.map (fun h -> 
+                    use eventContext = getEventContextFromMetadata persistedEvent
+                    runHandlerForEvent (persistedEvent, eventContext) h)
+                |> Async.Parallel
+                |> Async.Ignore
+        }
 
     member x.AddOnCompleteEvent callback = 
         onCompleteCallbacks <- callback::onCompleteCallbacks
@@ -93,9 +90,17 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
 
                 let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>) :?> 'TMetadata
                 let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
-                let eventStreamEvent = EventStreamEvent.Event eventData
 
-                do! runEventHandlers handlers (event.Event.EventStreamId, event.Event.EventNumber, eventStreamEvent)
+                let eventStreamEvent = {
+                    PersistedEvent.StreamId = event.Event.EventStreamId
+                    EventNumber = event.Event.EventNumber
+                    MessageId = eventId
+                    Body = evt
+                    Metadata = metadata
+                    EventType = event.Event.EventType
+                }
+
+                do! runEventHandlers handlers eventStreamEvent
 
                 completeTracker.Complete position
 

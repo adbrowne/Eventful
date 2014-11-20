@@ -6,7 +6,7 @@ open FSharpx
 open FSharpx.Collections
 
                                             // Source StreamId, Source Event Number, Event -> Program
-type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
+type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
 type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T, 'TMetadata>) * IRegistrationVisitable
 type EventfulStreamConfig<'TMetadata> = {
     Wakeup : IWakeupHandler<'TMetadata> option
@@ -135,6 +135,16 @@ module EventfulHandlers =
         |> addCommandHandlers commandConfig aggregateDefinition.Handlers.CommandHandlers
         |> addEventHandlers eventConfig aggregateDefinition.Handlers.EventHandlers
         |> addAggregateType aggregateDefinition.AggregateType aggregateConfig
+
+    let getHandlerPrograms buildEventContext (persistedEvent : PersistedEvent<'TMetadata>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>) =
+        let toProgram (EventfulEventHandler (_, handler)) = 
+            use context = buildEventContext persistedEvent
+            handler context persistedEvent
+
+        eventfulHandlers.EventHandlers
+        |> Map.tryFind (persistedEvent.Body.GetType().Name)
+        |> Option.map (List.map toProgram)
+        |> Option.getOrElse []
 
     let getCommandProgram (context:'TCommandContext) (cmd:obj) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>) =
         let cmdType = cmd.GetType()

@@ -95,7 +95,7 @@ module AsyncCommandTests =
         |> EventfulHandlers.addAggregate fooHandlers
         |> addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty (konst ()) handlers
+    let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
 
     let fooEventCounter : IStateBuilder<int, TestMetadata, Guid> =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
@@ -105,7 +105,7 @@ module AsyncCommandTests =
     [<Trait("category", "unit")>]
     let ``Can get async value in command`` () : unit =
         let thisId = Guid.NewGuid()
-        let streamName = getStreamName () thisId
+        let streamName = getStreamName UnitEventContext  thisId
 
         // some unique id that can make the command processing idempotent
         let commandId = Guid.NewGuid() 

@@ -91,7 +91,7 @@ module WakeupTests =
         |> EventfulHandlers.addAggregate fooHandlers
         |> addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty (konst ()) handlers
+    let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
 
     let fooEventCounter : IStateBuilder<int, TestMetadata, Guid> =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
@@ -106,7 +106,7 @@ module WakeupTests =
     [<Trait("category", "unit")>]
     let ``Wakeup event is run on time`` () : unit =
         let thisId = Guid.NewGuid()
-        let streamName = getStreamName () thisId
+        let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 
@@ -123,7 +123,7 @@ module WakeupTests =
     [<Trait("category", "unit")>]
     let ``Can chain wakeup events`` () : unit =
         let thisId = Guid.NewGuid()
-        let streamName = getStreamName () thisId
+        let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 

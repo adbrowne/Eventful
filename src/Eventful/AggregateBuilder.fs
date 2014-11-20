@@ -49,7 +49,7 @@ type IEventHandler<'TId,'TMetadata, 'TEventContext when 'TId : equality> =
     abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, unit> list -> IStateBlockBuilder<'TMetadata, unit> list
     abstract member EventType : Type
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
-    abstract member Handler : AggregateConfiguration<'TEventContext, 'TId, 'TMetadata> -> 'TEventContext -> string -> int -> EventStreamEventData<'TMetadata> -> Async<EventStreamProgram<EventResult,'TMetadata>>
+    abstract member Handler : AggregateConfiguration<'TEventContext, 'TId, 'TMetadata> -> 'TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<EventResult,'TMetadata>>
 
 type IWakeupHandler<'TMetadata> =
     abstract member WakeupFold : WakeupFold<'TMetadata>
@@ -317,7 +317,7 @@ module AggregateActionBuilder =
         new IEventHandler<'TAggregateId,'TMetadata, 'TEventContext > with 
              member this.EventType = typeof<'TLinkEvent>
              member this.AddStateBuilder builders = builders
-             member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber (evt : EventStreamEventData<'TMetadata>) = 
+             member this.Handler aggregateConfig eventContext (evt : PersistedEvent<'TMetadata>) = 
                 eventStream {
                     let aggregateId = fId (evt.Body :?> 'TLinkEvent)
                     // todo get this from handler
@@ -326,12 +326,12 @@ module AggregateActionBuilder =
 
                     let resultingStream = aggregateConfig.GetStreamName eventContext aggregateId
 
-                    let! result = EventStream.writeLink resultingStream Any sourceStream sourceEventNumber metadata
+                    let! result = EventStream.writeLink resultingStream Any evt.StreamId evt.EventNumber metadata
 
                     return 
                         match result with
                         | WriteResult.WriteSuccess _ -> 
-                            log.Debug <| lazy (sprintf "Wrote Link To %A %A %A" DateTime.Now.Ticks sourceStream sourceEventNumber)
+                            log.Debug <| lazy (sprintf "Wrote Link To %A %A %A" DateTime.Now.Ticks evt.StreamId evt.EventNumber)
                             ()
                         | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
                         | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
@@ -380,7 +380,7 @@ module AggregateActionBuilder =
         new IEventHandler<'TId,'TMetadata, 'TEventContext> with 
             member this.EventType = typeof<'TOnEvent>
             member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
-            member this.Handler aggregateConfig eventContext sourceStream sourceEventNumber evt = 
+            member this.Handler aggregateConfig eventContext evt = 
                 let typedEvent = evt.Body :?> 'TOnEvent
 
                 fId (typedEvent, eventContext) 

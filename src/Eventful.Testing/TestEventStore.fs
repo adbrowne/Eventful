@@ -15,7 +15,7 @@ type WakeupRecord<'TAggregateType> = {
 type TestEventStore<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> = {
     Position : EventPosition
     Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>
-    PendingEvents : Queue<string * int * EventStreamEvent<'TMetadata>>
+    PendingEvents : Queue<PersistedStreamEntry<'TMetadata>>
     AggregateStateSnapShots : Map<(string * 'TAggregateType), Map<string,obj>>
     WakeupQueue : IPriorityQueue<WakeupRecord<'TAggregateType>>
 }
@@ -35,22 +35,60 @@ module TestEventStore =
         AggregateStateSnapShots = Map.empty
         WakeupQueue = PriorityQueue.empty false }
 
+    let tryGetEvent (store : TestEventStore<'TMetadata, 'TAggregateType>) streamId eventNumber =
+        maybe {
+            let! stream = store.Events |> Map.tryFind streamId
+            let! (_, entry) = stream |> Vector.tryNth eventNumber
+            return! match entry with 
+                    | Event evt -> Some evt 
+                    | _ -> None
+        }
+
     let addEvent stream (streamEvent: EventStreamEvent<'TMetadata>) (store : TestEventStore<'TMetadata, 'TAggregateType>) =
         let streamEvents = 
             match store.Events |> Map.tryFind stream with
             | Some events -> events
             | None -> Vector.empty
 
+        let messageId = Guid.NewGuid()
+
         let eventPosition = nextPosition store.Position
         let eventNumber = streamEvents.Length
         let streamEvents' = streamEvents |> Vector.conj (eventPosition, streamEvent)
+
+        let persistedStreamEntry = 
+            match streamEvent with
+            | Event evt ->
+                PersistedStreamEvent {
+                    StreamId = stream
+                    EventNumber = eventNumber
+                    MessageId = messageId
+                    Body = evt.Body
+                    EventType = evt.EventType
+                    Metadata = evt.Metadata
+                }
+            | EventLink (linkedStreamId, linkedEventNumber, metadata) ->
+                match tryGetEvent store linkedStreamId linkedEventNumber with
+                | Some linkedEvent -> 
+                    PersistedStreamLink {
+                        StreamId = stream
+                        EventNumber = eventNumber
+                        MessageId = messageId
+                        LinkedStreamId = linkedStreamId
+                        LinkedEventNumber = linkedEventNumber
+                        LinkedBody = linkedEvent.Body
+                        LinkedEventType = linkedEvent.EventType
+                        LinkedMetadata = linkedEvent.Metadata
+                    }
+                | None ->
+                    failwith "Could not find linked event"
         { store with 
             Events = store.Events |> Map.add stream streamEvents'; 
             Position = eventPosition 
-            PendingEvents = store.PendingEvents |> Queue.conj (stream, eventNumber, streamEvent)}
+            PendingEvents = store.PendingEvents |> Queue.conj persistedStreamEntry}
 
-    let runHandlerForEvent (context: 'TEventContext) interpreter (eventStream, eventNumber, evt) testEventStore (EventfulEventHandler (t, evtHandler)) =
-        let program = evtHandler context eventStream eventNumber evt |> Async.RunSynchronously
+    let runHandlerForEvent interpreter testEventStore program  =
+        let program = program |> Async.RunSynchronously
         interpreter program testEventStore
         |> fst
 
@@ -59,18 +97,10 @@ module TestEventStore =
         interpreter 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent, 'TAggregateType>) 
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) 
-        (eventStream, eventNumber, eventStreamEvent) =
-        match eventStreamEvent with
-        | Event { Body = evt; EventType = eventType; Metadata = metadata } ->
-            let handlers = 
-                handlers.EventHandlers
-                |> Map.tryFind (evt.GetType().Name)
-                |> function
-                | Some handlers -> handlers
-                | None -> []
-            let context = buildEventContext metadata
-            handlers |> Seq.fold (runHandlerForEvent context interpreter (eventStream, eventNumber, { Body = evt; EventType = eventType; Metadata = metadata })) testEventStore
-        | _ -> testEventStore
+        (persistedEvent : PersistedEvent<'TMetadata>) =
+            let handlerPrograms = 
+                EventfulHandlers.getHandlerPrograms buildEventContext persistedEvent handlers
+            handlerPrograms |> Seq.fold (runHandlerForEvent interpreter) testEventStore
 
     let getCurrentState streamId aggregateType testEventStore =
         let snapshotKey = (streamId, aggregateType)
@@ -79,52 +109,67 @@ module TestEventStore =
         |> Map.tryFind snapshotKey
         |> Option.getOrElse Map.empty
         
-    let updateStateSnapShot 
-        (streamId, streamNumber, evt : EventStreamEvent<'TMetadata>) 
+    let applyEventDataToSnapshot 
+        streamId
+        body
+        metadata
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>)
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
-        match evt with
-        | Event { Body = body; EventType = eventType; Metadata = metadata } ->
-            let aggregateType = handlers.GetAggregateType metadata
-            match handlers.AggregateTypes |> Map.tryFind aggregateType with
-            | Some aggregateConfig ->
-                let snapshotKey = (streamId, aggregateType)
+        let aggregateType = handlers.GetAggregateType metadata
+        match handlers.AggregateTypes |> Map.tryFind aggregateType with
+        | Some aggregateConfig ->
+            let snapshotKey = (streamId, aggregateType)
 
-                let initialState = 
-                    getCurrentState streamId aggregateType testEventStore
+            let initialState = 
+                getCurrentState streamId aggregateType testEventStore
 
-                let state' = 
-                    initialState
-                    |> AggregateStateBuilder.dynamicRun aggregateConfig.StateBuilder.GetBlockBuilders () body metadata 
+            let state' = 
+                initialState
+                |> AggregateStateBuilder.dynamicRun aggregateConfig.StateBuilder.GetBlockBuilders () body metadata 
 
-                let snapshots' = testEventStore.AggregateStateSnapShots |> Map.add snapshotKey state'
+            let snapshots' = testEventStore.AggregateStateSnapShots |> Map.add snapshotKey state'
 
-                let wakeupQueue' =
-                    FSharpx.Option.maybe {
-                        let! handler = aggregateConfig.Wakeup
-                        let! newTime = handler.WakeupFold.GetState state'
+            let wakeupQueue' =
+                FSharpx.Option.maybe {
+                    let! handler = aggregateConfig.Wakeup
+                    let! newTime = handler.WakeupFold.GetState state'
 
-                        let newWakeupRecord = {
-                            Time = newTime
-                            Stream = streamId
-                            Type = aggregateType
-                        }
-                        return 
-                            testEventStore.WakeupQueue |> PriorityQueue.insert newWakeupRecord }
-                    |> FSharpx.Option.getOrElse testEventStore.WakeupQueue
+                    let newWakeupRecord = {
+                        Time = newTime
+                        Stream = streamId
+                        Type = aggregateType
+                    }
+                    return 
+                        testEventStore.WakeupQueue |> PriorityQueue.insert newWakeupRecord }
+                |> FSharpx.Option.getOrElse testEventStore.WakeupQueue
 
-                { testEventStore with
-                    AggregateStateSnapShots = snapshots'
-                    WakeupQueue = wakeupQueue' }
-            | None -> 
-                testEventStore
-        | EventLink _ ->
-            // todo work out what to do here
+            { testEventStore with
+                AggregateStateSnapShots = snapshots'
+                WakeupQueue = wakeupQueue' }
+        | None -> 
             testEventStore
+        
+    let updateStateSnapShot 
+        (persistedStreamEntry : PersistedStreamEntry<'TMetadata>) 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>)
+        (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
+        match persistedStreamEntry with
+        | PersistedStreamEvent { Body = body; Metadata = metadata; StreamId = streamId } ->
+            applyEventDataToSnapshot streamId body metadata handlers testEventStore
+        | PersistedStreamLink  { LinkedBody = body; LinkedMetadata = metadata; LinkedStreamId = streamId } ->
+            applyEventDataToSnapshot streamId body metadata handlers testEventStore
 
-    let runEvent buildEventContext interpreter handlers testEventStore x =
-        runEventHandlers buildEventContext interpreter handlers testEventStore x
-        |> updateStateSnapShot x handlers
+    let runEvent buildEventContext interpreter handlers testEventStore streamEntry =
+        match streamEntry with
+        | PersistedStreamEvent persistedEvent ->
+            runEventHandlers 
+                buildEventContext 
+                interpreter 
+                handlers 
+                testEventStore 
+                persistedEvent
+        | PersistedStreamLink _ -> 
+           testEventStore
 
     /// run all event handlers for produced events
     /// that have not been run yet
@@ -135,9 +180,10 @@ module TestEventStore =
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         match testEventStore.PendingEvents with
         | Queue.Nil -> testEventStore
-        | Queue.Cons (x, xs) ->
+        | Queue.Cons (streamEntry, xs) ->
             let next = 
-                runEvent buildEventContext interpreter handlers { testEventStore with PendingEvents = xs } x
+                runEvent buildEventContext interpreter handlers { testEventStore with PendingEvents = xs } streamEntry
+                |> updateStateSnapShot streamEntry handlers
             processPendingEvents buildEventContext interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =

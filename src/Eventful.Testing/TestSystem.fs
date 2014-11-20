@@ -7,12 +7,12 @@ open FSharpx.Choice
 open FSharpx.Option
 open Eventful.EventStream
 
-type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison>
+type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison and 'TEventContext :> IDisposable>
     (
         handlers : EventfulHandlers<'TCommandContext,'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>, 
         lastResult : CommandResult<'TBaseEvent,'TMetadata>, 
         allEvents : TestEventStore<'TMetadata, 'TAggregateType>,
-        buildEventContext: 'TMetadata -> 'TEventContext,
+        buildEventContext: PersistedEvent<'TMetadata> -> 'TEventContext,
         onTimeChange: DateTime -> unit
     ) =
 
@@ -50,16 +50,19 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         cmds
         |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) (cmd, context) -> s.RunCommand cmd context) x
 
-    member x.InjectEvent (stream) (eventNumber) (evt : 'TBaseEvent) (metadata : 'TMetadata) =
+    member x.InjectEvent (streamId) (eventNumber) (evt : 'TBaseEvent) (metadata : 'TMetadata) =
         let eventType = handlers.ClassToEventStoreTypeMap.Item (evt.GetType())
-        let fakeEvent = Event {
+        let fakeEvent = PersistedStreamEvent {
+            MessageId = Guid.NewGuid()
+            StreamId = streamId
+            EventNumber = eventNumber
             Body = evt :> obj
             Metadata = metadata
             EventType = eventType
-        } 
+        }
         
         let allEvents' =
-            TestEventStore.runEvent buildEventContext interpret handlers allEvents (stream, eventNumber, fakeEvent)
+            TestEventStore.runEvent buildEventContext interpret handlers allEvents fakeEvent
             |> TestEventStore.processPendingEvents buildEventContext interpret handlers 
         new TestSystem<_,_,_,_,_>(handlers, lastResult, allEvents',buildEventContext, onTimeChange)
 
@@ -101,7 +104,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
     member x.OnTimeChange onTimeChange =
         new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(handlers, lastResult, allEvents, buildEventContext, onTimeChange)
 
-    static member Empty (buildEventContext : 'TMetadata -> 'TEventContext) (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent, 'TAggregateType>) =
+    static member Empty buildEventContext (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent, 'TAggregateType>) =
         let emptySuccess = {
             CommandSuccess.Events = List.empty
             Position = None
