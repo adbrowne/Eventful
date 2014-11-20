@@ -86,6 +86,7 @@
     <Compile Include="EventfulHandlers.fs" />
     <Compile Include="DocumentBuilder.fs" />
     <Compile Include="BulkProjector.fs" />
+    <Compile Include="StandardConventions.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />
   </ItemGroup>

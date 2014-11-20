@@ -47,7 +47,7 @@ module OnEventTests =
     let handlers : Eventful.EventfulHandlers<unit,UnitEventContext,_,IEvent,_> =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (fooHandlers ())
-        |> addEventTypes eventTypes
+        |> StandardConventions.addEventTypes eventTypes
 
     let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
 
@@ -132,7 +132,7 @@ module OnEventMultiAggregateTests =
     let handlers =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (fooHandlers ())
-        |> addEventTypes eventTypes
+        |> StandardConventions.addEventTypes eventTypes
 
     let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
 

@@ -54,13 +54,8 @@ module ApplicationConfig =
             return! connection.ConnectAsync().ContinueWith(fun t -> connection) |> Async.AwaitTask
         }
 
-    let addEventType evtType handlers =
-        handlers
-        |> EventfulHandlers.addClassToEventStoreType evtType evtType.Name
-        |> EventfulHandlers.addEventStoreType evtType.Name evtType 
-
     let addEventTypes evtTypes handlers =
-        Array.fold (fun h x -> addEventType x h) handlers evtTypes
+        Array.fold (fun h x -> StandardConventions.addEventType x h) handlers evtTypes
 
     let eventTypes =
         System.Reflection.Assembly.GetExecutingAssembly()

@@ -16,14 +16,6 @@ module EventSystemTestCommon =
         SourceMessageId = sourceMessageId 
         AggregateType =  "TestAggregate" }
 
-    let addEventType evtType handlers =
-        handlers
-        |> EventfulHandlers.addClassToEventStoreType evtType evtType.Name
-        |> EventfulHandlers.addEventStoreType evtType.Name evtType 
-
-    let addEventTypes evtTypes handlers =
-        Seq.fold (fun h x -> addEventType x h) handlers evtTypes
-
     let getCommandStreamName _ (id : Guid) = 
         sprintf "Foo-%s" <| id.ToString("N")
 

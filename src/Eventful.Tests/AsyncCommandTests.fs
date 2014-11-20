@@ -21,14 +21,6 @@ module AsyncCommandTests =
         SourceMessageId = sourceMessageId 
         AggregateType =  "TestAggregate" }
 
-    let addEventType evtType handlers =
-        handlers
-        |> EventfulHandlers.addClassToEventStoreType evtType evtType.Name
-        |> EventfulHandlers.addEventStoreType evtType.Name evtType 
-
-    let addEventTypes evtTypes handlers =
-        Seq.fold (fun h x -> addEventType x h) handlers evtTypes
-
     type FooCmd = {
         Id : Guid
     }
@@ -93,7 +85,7 @@ module AsyncCommandTests =
     let handlers =
         EventfulHandlers.empty (konst "TestAggregate")
         |> EventfulHandlers.addAggregate fooHandlers
-        |> addEventTypes eventTypes
+        |> StandardConventions.addEventTypes eventTypes
 
     let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
 

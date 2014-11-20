@@ -125,16 +125,11 @@ type TestEventStoreSystemFixture () =
             Seq.empty 
             widgetCounterEventHandlers
 
-    let addEventType evtType handlers =
-        handlers
-        |> EventfulHandlers.addClassToEventStoreType evtType evtType.Name
-        |> EventfulHandlers.addEventStoreType evtType.Name evtType 
-
     let handlers =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate widgetHandlers
         |> EventfulHandlers.addAggregate widgetCounterAggregate
-        |> addEventType typeof<WidgetCreatedEvent>
+        |> StandardConventions.addEventType typeof<WidgetCreatedEvent>
 
     let eventContexts = new System.Collections.Concurrent.ConcurrentQueue<MockDisposable>()
 
