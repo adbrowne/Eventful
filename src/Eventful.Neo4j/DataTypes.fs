@@ -1,8 +1,7 @@
 ﻿namespace Eventful.Neo4j
 
-type NodeId =
-    { Label : string
-      Id : string }
+/// Unique within a graph.
+type NodeId = string
 
 type Relationship =
     { From : NodeId
@@ -13,4 +12,5 @@ type GraphAction =
     | AddRelationship of Relationship
     | RemoveRelationship of Relationship
     | RemoveAllIncomingRelationships of NodeId * relationshipType : string
+    | AddLabels of NodeId * Set<string>
     | UpdateNode of NodeId * data : obj

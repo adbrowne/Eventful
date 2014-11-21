@@ -85,12 +85,12 @@ module Operations =
         |> createConstraintQ (graphLabel query) IdPropertyName
 
     let withNodeSelectorQ (name : string) (nodeId : NodeId) (query : CypherQuery) =
-        let query, idParameter = query |> withParamQ IdPropertyName nodeId.Id
-        (query, sprintf "(%s:%s:`%s` {%s: %s})" name (graphLabel query) nodeId.Label IdPropertyName idParameter)
+        let query, idParameter = query |> withParamQ IdPropertyName nodeId
+        (query, sprintf "(%s:%s {%s: %s})" name (graphLabel query) IdPropertyName idParameter)
 
     let withNodeWhereClauseQ (name : string) (nodeId : NodeId) (query : CypherQuery) =
-        let query, idParameter = query |> withParamQ IdPropertyName nodeId.Id
-        (query, sprintf "%s:%s:`%s` AND %s.%s = %s" name (graphLabel query) nodeId.Label name IdPropertyName idParameter)
+        let query, idParameter = query |> withParamQ IdPropertyName nodeId
+        (query, sprintf "%s:%s AND %s.%s = %s" name (graphLabel query) name IdPropertyName idParameter)
 
     let matchOrMergeNodeIdQ matchOrMerge (name : string) (nodeId : NodeId) (query : CypherQuery) =
         let query, selector = query |> withNodeSelectorQ name nodeId
@@ -105,7 +105,7 @@ module Operations =
     
     let updateNodeQ (name : string) (nodeId : NodeId) (data : obj) (query : CypherQuery) =
         let query, dataParameter = query |> withParamQ "data" data
-        let query, idParameter = query |> withParamQ IdPropertyName nodeId.Id  // TODO: This parameter is probably already in the query, would be nice to reuse it instead of duplicating it.
+        let query, idParameter = query |> withParamQ IdPropertyName nodeId // TODO: This parameter is probably already in the query, would be nice to reuse it instead of duplicating it.
 
         query
         |> setQ (sprintf "%s = %s, %s.%s = %s" name dataParameter name IdPropertyName idParameter)  // Because we're replacing all the parameters, we have to make sure to set the id property again.
@@ -174,6 +174,15 @@ module Operations =
             query
             |> matchQ (sprintf "()-[r:`%s`]->(%s)" relationshipType selector)
             |> deleteQ "r"
+
+        | AddLabels (node, labels) ->
+            let setLabels =
+                Seq.append (Seq.singleton "node") labels
+                |> String.concat ":"
+            
+            query
+            |> mergeNodeIdQ "node" node
+            |> setQ setLabels
 
         | UpdateNode (node, data) ->
             query

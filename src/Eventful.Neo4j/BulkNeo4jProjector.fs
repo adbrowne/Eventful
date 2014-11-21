@@ -25,9 +25,7 @@ module BulkNeo4jProjector =
         let executor actions =
             writeQueue.Work graphName actions
 
-        let positionNodeId =
-            { Label = Neo4jConstants.PositionNodeLabel
-              Id = Neo4jConstants.PositionNodeId }
+        let positionNodeId = Neo4jConstants.PositionNodeId
 
         let getPersistedPosition =
             Operations.getNode graphClient graphName positionNodeId  // TODO: Use read queue
