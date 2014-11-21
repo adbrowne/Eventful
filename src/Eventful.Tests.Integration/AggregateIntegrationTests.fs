@@ -73,9 +73,9 @@ type AggregateIntegrationTests () =
                 let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
 
                 let countsEventProgram = eventCounterStateBuilder |> AggregateStateBuilder.toStreamProgram counterStream widgetId
-                let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
+                let! snapshot = system.RunStreamProgram countsEventProgram
 
-                eventCounterStateBuilder.GetState count |> should equal 1
+                eventCounterStateBuilder.GetState snapshot.State |> should equal 1
                 return ()
             | x ->
                 Assert.True(false, sprintf "Expected one success event instead of %A" x)
@@ -120,7 +120,7 @@ type AggregateIntegrationTests () =
             let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
 
             let countsEventProgram = eventCounterStateBuilder |> AggregateStateBuilder.toStreamProgram counterStream widgetId
-            let! (eventsConsumed, count) = system.RunStreamProgram countsEventProgram
+            let! { State = count } = system.RunStreamProgram countsEventProgram
             eventCounterStateBuilder.GetState count |> should equal 10
 
         } |> Async.RunSynchronously

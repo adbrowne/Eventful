@@ -169,11 +169,11 @@ module AggregateActionBuilder =
     let inline runHandler 
         getUniqueId
         stream 
-        (eventsConsumed, combinedState) 
+        (snapshot : StateSnapshot)
         (commandStateBuilder : IStateBuilder<'TChildState, 'TMetadata, unit>) 
         f = 
         eventStream {
-            let commandState = commandStateBuilder.GetState combinedState
+            let commandState = commandStateBuilder.GetState snapshot.State
 
             let! result = runAsync <| f commandState
 
@@ -181,7 +181,7 @@ module AggregateActionBuilder =
                 match result with
                 | Choice1Of2 (r : CommandHandlerOutput<'TBaseEvent,'TMetadata>) -> 
                     eventStream {
-                        let uniqueIds = (uniqueIdBuilder getUniqueId).GetState combinedState
+                        let uniqueIds = (uniqueIdBuilder getUniqueId).GetState snapshot.State
                         if uniqueIds |> Set.contains r.UniqueId then
                             return Choice2Of2 RunFailure<_>.AlreadyProcessed
                         else
@@ -193,7 +193,7 @@ module AggregateActionBuilder =
                                                 (evt, metadata))
                                 |> List.ofSeq
 
-                            let! writeResult = writeEvents stream eventsConsumed events
+                            let! writeResult = writeEvents stream snapshot.EventsApplied events
 
                             log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
                             
@@ -264,11 +264,11 @@ module AggregateActionBuilder =
             | Choice1Of2 aggregateId ->
                 let stream = aggregateConfiguration.GetStreamName commandContext aggregateId
 
-                let f (eventsConsumed, combinedState) = 
+                let f snapshot = 
                    runHandler 
                         aggregateConfiguration.GetUniqueId 
                         stream 
-                        (eventsConsumed, combinedState) 
+                        snapshot
                         commandHandler.StateBuilder 
                         (processCommand cmd) 
 
@@ -349,10 +349,10 @@ module AggregateActionBuilder =
         |> AsyncSeq.map (fun (id, handler) ->
             eventStream {
                 let resultingStream = aggregateConfig.GetStreamName eventContext id
-                let! (eventsConsumed, combinedState) = 
+                let! stateSnapshot = 
                     aggregateConfig.StateBuilder 
                     |> AggregateStateBuilder.toStreamProgram resultingStream ()
-                let state = stateBuilder.GetState combinedState
+                let state = stateBuilder.GetState stateSnapshot.State
                 let evts = handler state
 
                 let resultingEvents = 
@@ -365,7 +365,7 @@ module AggregateActionBuilder =
                     )
                     |> Seq.toList
 
-                let! result = writeEvents resultingStream eventsConsumed resultingEvents
+                let! result = writeEvents resultingStream stateSnapshot.EventsApplied resultingEvents
 
                 return 
                     match result with

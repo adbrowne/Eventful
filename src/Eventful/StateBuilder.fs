@@ -6,6 +6,12 @@ open Eventful
 
 type StateRunner<'TMetadata, 'TState, 'TEvent> = 'TEvent -> 'TMetadata -> 'TState -> 'TState
 
+type StateSnapshot = {
+    EventsApplied : int
+    State : Map<string, obj>
+}
+with static member Empty = { EventsApplied = 0; State = Map.empty }
+
 type IStateBlockBuilder<'TMetadata, 'TKey> = 
     abstract Type : Type
     abstract Name : string
@@ -191,18 +197,21 @@ module AggregateStateBuilder =
         let extract unitStates = stateBuilder.GetState unitStates |> f
         new AggregateStateBuilder<'T2, 'TMetadata, 'TKey>(stateBuilder.GetBlockBuilders, extract) :> IStateBuilder<'T2, 'TMetadata, 'TKey>
 
+    let applyToSnapshot blockBuilders key value metadata snapshot = 
+        let state' = dynamicRun blockBuilders key value metadata snapshot.State 
+        { snapshot with EventsApplied = snapshot.EventsApplied + 1; State = state' }
+
     let toStreamProgram streamName (key : 'TKey) (stateBuilder:IStateBuilder<'TState, 'TMetadata, 'TKey>) = EventStream.eventStream {
-        let rec loop eventsConsumed currentState = EventStream.eventStream {
-            let! token = EventStream.readFromStream streamName eventsConsumed
+        let rec loop (snapshot : StateSnapshot) = EventStream.eventStream {
+            let! token = EventStream.readFromStream streamName snapshot.EventsApplied
             match token with
             | Some token -> 
                 let! (value, metadata : 'TMetadata) = EventStream.readValue token
-                let state' = dynamicRun stateBuilder.GetBlockBuilders key value metadata currentState
-                return! loop (eventsConsumed + 1) state'
+                return! loop <| applyToSnapshot stateBuilder.GetBlockBuilders key value metadata snapshot
             | None -> 
-                return (eventsConsumed, currentState) }
+                return snapshot }
             
-        return! loop 0 Map.empty
+        return! loop StateSnapshot.Empty
     }
 
     let tuple2 b1 b2 =
