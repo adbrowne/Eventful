@@ -28,9 +28,6 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
-    let mutable itemIndex = 0L
-    let mutable lastIndex = -1L
-
     member x.GetGroupItemsCount () =
         let g = groupItems
         g.Count
@@ -49,8 +46,6 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>
         let value' = { value with Items = item::value.Items }
         groupItems.[group] <- value'
         ()
-
-    member x.LastIndex () = lastIndex
 
     member x.GroupComplete group =
         let values = groupItems.Item group
@@ -105,7 +100,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem>
                     if(itemIndex = 0L) then
                         reply.Reply()
                     else 
-                        lastCompleteTracker.NotifyWhenComplete(state.LastIndex(), Some "NotifyWhenComplete empty", async { reply.Reply() } )
+                        lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, Some "NotifyWhenComplete empty", async { reply.Reply() } )
                     Some(empty itemIndex)
                 | GroupComplete group -> Some(groupComplete group itemIndex)
                 | _ -> None)
@@ -154,6 +149,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem>
                         match onComplete with
                         | Some a -> do! a
                         | None -> ()
+
 
                     return! (nextMessage nextIndex) 
                 with | e -> 

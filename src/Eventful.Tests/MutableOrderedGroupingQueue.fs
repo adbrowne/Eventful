@@ -338,3 +338,36 @@ module MutableOrderedGroupingBoundedQueueTests =
         } |> Async.Start
 
         (fun () -> !received = 2) |> Eventful.Testing.TestHelpers.assertTrueWithin 200 "Callback should be called once for each item"
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``CurrentItemsComplete waits for all events`` () : unit =
+        let groupingQueue = new MutableOrderedGroupingBoundedQueue<string,string>(1000)
+        let received = ref 0
+
+        let monitor = new obj()
+
+        let consumer (group, items) = async {
+            do! Async.Sleep 100
+            lock monitor (fun () ->
+                received := !received + 1
+                ()
+            )
+        }
+
+        async {
+            while(true) do
+                    let! work = groupingQueue.Consume((fun (g, items) -> 
+                        consumer(g, items)
+                    ))
+                    do! work
+            return ()
+        } |> Async.StartAsTask |> ignore
+
+        async {
+            do! groupingQueue.Add("item1",(fun _ -> Seq.singleton ("item1", "group")))
+            do! groupingQueue.Add("item1",(fun _ -> Seq.singleton ("item1", "group")))
+            do! groupingQueue.CurrentItemsComplete()
+        } |> Async.RunSynchronously
+
+        !received |> should equal 2
