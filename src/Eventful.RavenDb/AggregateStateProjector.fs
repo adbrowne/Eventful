@@ -29,13 +29,31 @@ module AggregateStateProjector =
         |> Seq.fold addKey Map.empty
 
     let getDocumentKey streamId = 
-        "Snapshot/" + streamId
+        "AggregateState/" + streamId
+
+    let emptyMetadata () =
+        let metadata = new RavenJObject(StringComparer.OrdinalIgnoreCase)
+        metadata.Add("Raven-Entity-Name", new RavenJValue("AggregateStates"))
+        metadata
 
     let mapToRavenJObject (serializer : ISerializer) (stateMap : Map<string,obj>) =
         let jObject = new RavenJObject()
         for keyValuePair in stateMap do
             jObject.Add(keyValuePair.Key, RavenJToken.Parse(System.Text.Encoding.UTF8.GetString <| serializer.Serialize keyValuePair.Value))
         jObject
+
+    let lastEventHeader = "LastEventNumber"
+
+    let getLastEventNumber (metadata : RavenJObject) =
+        if(metadata.ContainsKey lastEventHeader) then
+            (metadata.Item lastEventHeader).Value<int>()
+        else
+            -1
+
+    let setLastEventNumber (metadata : RavenJObject) (value : int) =
+        if(metadata.ContainsKey lastEventHeader) then
+            metadata.Remove lastEventHeader |> ignore
+        metadata.Add(lastEventHeader, new RavenJValue(value))
 
     let buildProjector 
         (getStreamId : 'TMessage -> string) 
@@ -57,7 +75,6 @@ module AggregateStateProjector =
                     fetcher.GetDocument documentKey
                     |> Async.AwaitTask
 
-                // assumption we will never get empty message list
                 let aggregateType = 
                     messages 
                     |> Seq.map getMetadata
@@ -66,37 +83,41 @@ module AggregateStateProjector =
                     |> Seq.toList
                     |> function
                         | [aggregateType] -> aggregateType
-                        | x -> failwith <| sprintf "Got messages for mixed aggreate type. Stream: %s, AggregateTypes %A" streamId x
-
-                // todo check event has not been applied
+                        | x -> failwith <| sprintf "Got messages for mixed aggreate type. Stream: %s, AggregateTypes: %A" streamId x
 
                 return
                     match handlers.AggregateTypes |> Map.tryFind aggregateType with
                     | Some aggregateConfig ->
                         let (snapshot : RavenJObject, metadata : RavenJObject, etag) = 
                             doc
-                            |> Option.getOrElseF (fun () -> (new RavenJObject(), fetcher.GetEmptyMetadata(), Raven.Abstractions.Data.Etag.Empty))
+                            |> Option.getOrElseF (fun () -> (new RavenJObject(), emptyMetadata(), Raven.Abstractions.Data.Etag.Empty))
 
                         let snapshot = 
                             deserialize serializer snapshot aggregateConfig.StateBuilder.GetBlockBuilders
 
-                        let applyToSnapshot snapshot message =
-                            let event = getEvent message
-                            let metadata = getMetadata message
-                            snapshot
-                            |> AggregateStateBuilder.dynamicRun aggregateConfig.StateBuilder.GetBlockBuilders () event metadata 
+                        let applyToSnapshot (lastEventNumber, snapshot) message =
+                            let eventNumber = getEventNumber message
+                            if eventNumber > lastEventNumber then
+                                let event = getEvent message
+                                let metadata = getMetadata message
+                                let snapshot' = 
+                                    snapshot
+                                    |> AggregateStateBuilder.dynamicRun aggregateConfig.StateBuilder.GetBlockBuilders () event metadata 
+                                (eventNumber, snapshot')
+                            else
+                                (lastEventNumber, snapshot)
 
-                        let updatedSnapshot =
+                        let (lastEventNumber,updatedSnapshot) =
                             messages
-                            |> Seq.fold applyToSnapshot snapshot
-                            |> mapToRavenJObject serializer
-                            // todo write max event number to metadata
+                            |> Seq.fold applyToSnapshot (getLastEventNumber metadata, snapshot)
+
+                        setLastEventNumber metadata lastEventNumber
 
                         let writeDoc = 
                             ProcessAction.Write (
                                 {
                                     DocumentKey = documentKey
-                                    Document = updatedSnapshot
+                                    Document = mapToRavenJObject serializer updatedSnapshot
                                     Metadata = lazy(metadata)
                                     Etag = etag
                                 } , Guid.NewGuid())

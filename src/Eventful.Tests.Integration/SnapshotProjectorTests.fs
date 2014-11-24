@@ -115,23 +115,24 @@ module SnapshotProjectorTests =
         let blockBuilders = (handlers.AggregateTypes.Item "Widget").StateBuilder.GetBlockBuilders
         return AggregateStateProjector.deserialize serializer snapshotDoc blockBuilders
     }
+
+    let event = {
+        StreamId = streamId
+        EventNumber = 0
+        Event = 
+            {
+                WidgetCreatedEvent.WidgetId = widgetId
+                Name = "Widget 1"
+            }
+        Metadata = testMetadata
+    }
         
     [<Fact>]
     [<Trait("category", "ravendb")>]
     let ``Given no events When first event happens Then snapshot is created`` () =
         async {
             let events = 
-                {
-                    StreamId = streamId
-                    EventNumber = 0
-                    Event = 
-                        {
-                            WidgetCreatedEvent.WidgetId = widgetId
-                            Name = "Widget 1"
-                        }
-                    Metadata = testMetadata
-                }
-                |> Seq.singleton
+                event |> Seq.singleton
 
             do! runEvents events
 
@@ -146,33 +147,31 @@ module SnapshotProjectorTests =
     let ``Given existing events When event happens Then snapshot is updated`` () =
         async {
             let events =  seq {
-                yield {
-                    StreamId = streamId
-                    EventNumber = 0
-                    Event = 
-                        {
-                            WidgetCreatedEvent.WidgetId = widgetId
-                            Name = "Widget 1"
-                        }
-                    Metadata = testMetadata
-                }
-
-                yield {
-                    StreamId = streamId
-                    EventNumber = 1
-                    Event = 
-                        {
-                            WidgetCreatedEvent.WidgetId = widgetId
-                            Name = "Widget 2"
-                        }
-                    Metadata = testMetadata
-                }
+                yield { event with EventNumber = 0 }
+                yield { event with EventNumber = 1 }
             }
 
             do! runEvents events
 
             let! snapshotData = getSnapshotData
             widgetCountStateBuilder.GetState snapshotData |> should equal 2
+        }
+        |> Async.RunSynchronously
+        ()
+
+    [<Fact>]
+    [<Trait("category", "ravendb")>]
+    let ``Given two identical events Then second one is ignored`` () =
+        async {
+            let events =  seq {
+                yield event
+                yield event
+            }
+
+            do! runEvents events
+
+            let! snapshotData = getSnapshotData
+            widgetCountStateBuilder.GetState snapshotData |> should equal 1
         }
         |> Async.RunSynchronously
         ()
