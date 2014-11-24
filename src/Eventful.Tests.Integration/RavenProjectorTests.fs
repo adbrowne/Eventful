@@ -258,18 +258,7 @@ module RavenProjectorTests =
 
     let testDatabase = "tenancy-blue"
 
-    let ``Get Raven Projector`` documentStore = 
-        let monitor = new System.Object()
-        let itemsComplete = ref 0
-
-        let writeComplete _ = async {
-            lock(monitor) (fun () -> 
-                itemsComplete := !itemsComplete + 1
-            )
-        }
-        
-        let rnd = new Random()
-        let myProjector = ``Get Projector`` documentStore
+    let buildRavenProjector documentStore documentProjectors onWriteComplete = 
         let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
 
         let cancellationToken = Async.DefaultCancellationToken
@@ -280,9 +269,9 @@ module RavenProjectorTests =
         let projector =
             BulkRavenProjector.create(
                 testDatabase,
-                myProjector,
+                documentProjectors,
                 cancellationToken,
-                writeComplete,
+                onWriteComplete,
                 documentStore,
                 writeQueue,
                 readQueue,
@@ -291,6 +280,20 @@ module RavenProjectorTests =
                 None)
 
         projector
+
+    let ``Get Raven Projector`` documentStore = 
+        let monitor = new System.Object()
+        let itemsComplete = ref 0
+
+        let writeComplete _ = async {
+            lock(monitor) (fun () -> 
+                itemsComplete := !itemsComplete + 1
+            )
+        }
+        
+        let myProjector = ``Get Projector`` documentStore
+
+        buildRavenProjector documentStore myProjector writeComplete
   
     [<Fact>]
     let ``Enqueue events into projector`` () : unit =   

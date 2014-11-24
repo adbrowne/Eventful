@@ -65,7 +65,6 @@
     <Compile Include="EventPosition.fs" />
     <Compile Include="Client.fs" />
     <Compile Include="ProcessingTracker.fs" />
-    <Compile Include="ISerializer.fs" />
     <Compile Include="EventStreamInterpreter.fs" />
     <Compile Include="EventStoreSystem.fs" />
     <Compile Include="MultiTenancyEventStoreSubscriber.fs" />

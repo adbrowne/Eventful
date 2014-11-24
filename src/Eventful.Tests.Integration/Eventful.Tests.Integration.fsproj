@@ -71,6 +71,7 @@
     <Compile Include="RavenOperationTests.fs" />
     <Compile Include="RavenProjectorTests.fs" />
     <Compile Include="RavenReplayProjectorTests.fs" />
+    <Compile Include="SnapshotProjectorTests.fs" />
     <None Include="app.config" />
     <Content Include="packages.config" />
   </ItemGroup>

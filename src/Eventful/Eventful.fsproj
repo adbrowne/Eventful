@@ -85,6 +85,7 @@
     <Compile Include="AggregateBuilder.fs" />
     <Compile Include="EventfulHandlers.fs" />
     <Compile Include="DocumentBuilder.fs" />
+    <Compile Include="ISerializer.fs" />
     <Compile Include="BulkProjector.fs" />
     <Compile Include="StandardConventions.fs" />
     <None Include="packages.config" />

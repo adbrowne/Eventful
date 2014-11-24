@@ -14,7 +14,9 @@ open Eventful.EventStore
 module RunningTests = 
     let log = createLogger "Eventful.Tests.Integration.RunningTests"
 
-    let serializer = JsonSerializer.Create()
+    let settings = new JsonSerializerSettings()
+    settings.TypeNameHandling <- TypeNameHandling.All
+    let serializer = JsonSerializer.Create(settings)
 
     let serialize<'T> (t : 'T) =
         use sw = new System.IO.StringWriter() :> System.IO.TextWriter

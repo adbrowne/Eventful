@@ -1,4 +1,4 @@
-﻿namespace Eventful.EventStore
+﻿namespace Eventful
 
 open System
 
