@@ -138,8 +138,10 @@ type TestEventStoreSystemFixture () =
         eventContexts.Enqueue disposable
         disposable
 
+    let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
+
     let client = new Client(eventStoreProcess.Connection)
-    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj,string>(handlers, client, RunningTests.esSerializer, buildContext)
+    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj,string>(handlers, client, RunningTests.esSerializer, buildContext, nullGetSnapshot)
 
     let system = newSystem client
 

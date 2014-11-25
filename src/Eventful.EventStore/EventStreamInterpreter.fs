@@ -19,6 +19,7 @@ module EventStreamInterpreter =
         (serializer : ISerializer)
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
+        (readSnapshot : string -> Async<StateSnapshot>)
         (prog : FreeEventStream<obj,'A,'TMetadata>) : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * 'TMetadata>) : Async<'A> =
             match prog with
@@ -31,6 +32,12 @@ module EventStreamInterpreter =
             | FreeEventStream (RunAsync asyncBlock) ->
                 async {
                     let! next = asyncBlock 
+                    return! loop next values writes
+                }
+            | FreeEventStream (ReadSnapshot (stream, f)) -> 
+                async {
+                    let! snapshot = readSnapshot stream
+                    let next = f snapshot
                     return! loop next values writes
                 }
             | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 

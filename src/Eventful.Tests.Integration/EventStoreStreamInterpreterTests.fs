@@ -9,6 +9,7 @@ open Eventful.EventStore
 open Eventful.Testing
 open FSharpx.Collections
 open Eventful.Tests
+open FSharpx
 
 type MyEvent = {
     Name : string
@@ -42,8 +43,17 @@ type EventStoreStreamInterpreterTests () =
 
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
 
+    let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
+
     let run client program =
-        EventStreamInterpreter.interpret client inMemoryCache RunningTests.esSerializer eventTypeToClassMap classToEventTypeName program
+        EventStreamInterpreter.interpret 
+            client 
+            inMemoryCache 
+            RunningTests.esSerializer 
+            eventTypeToClassMap 
+            classToEventTypeName 
+            nullGetSnapshot
+            program
 
     [<Fact>]
     [<Trait("category", "eventstore")>]

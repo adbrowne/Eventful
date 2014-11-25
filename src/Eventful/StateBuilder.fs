@@ -6,12 +6,6 @@ open Eventful
 
 type StateRunner<'TMetadata, 'TState, 'TEvent> = 'TEvent -> 'TMetadata -> 'TState -> 'TState
 
-type StateSnapshot = {
-    EventsApplied : int
-    State : Map<string, obj>
-}
-with static member Empty = { EventsApplied = 0; State = Map.empty }
-
 type IStateBlockBuilder<'TMetadata, 'TKey> = 
     abstract Type : Type
     abstract Name : string

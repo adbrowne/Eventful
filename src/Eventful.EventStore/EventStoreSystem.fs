@@ -12,7 +12,8 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>,
         client : Client,
         serializer: ISerializer,
-        getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext
+        getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext,
+        getSnapshot
     ) =
 
     let log = createLogger "Eventful.EventStoreSystem"
@@ -33,7 +34,15 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
 
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
 
-    let interpreter program = EventStreamInterpreter.interpret client inMemoryCache serializer handlers.EventStoreTypeToClassMap handlers.ClassToEventStoreTypeMap program
+    let interpreter program = 
+        EventStreamInterpreter.interpret 
+            client 
+            inMemoryCache 
+            serializer 
+            handlers.EventStoreTypeToClassMap 
+            handlers.ClassToEventStoreTypeMap
+            getSnapshot 
+            program
 
     let runHandlerForEvent program =
         async {
@@ -114,13 +123,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
     member x.RunCommand (context:'TCommandContext) (cmd : obj) = 
         let program = EventfulHandlers.getCommandProgram context cmd handlers
         let result = 
-            EventStreamInterpreter.interpret 
-                client 
-                inMemoryCache 
-                serializer 
-                handlers.EventStoreTypeToClassMap 
-                handlers.ClassToEventStoreTypeMap 
-                program
+            interpreter program
         result
 
     member x.LastEventProcessed = lastEventProcessed

@@ -6,6 +6,7 @@ open Newtonsoft.Json
 open EventStore.ClientAPI
 open Eventful
 open Eventful.EventStore
+open FSharpx
 
 type BookLibrarySystem (system : BookLibraryEventStoreSystem) = 
     interface IBookLibrarySystem with
@@ -68,8 +69,10 @@ module ApplicationConfig =
         |> EventfulHandlers.addAggregate (Award.handlers ())
         |> addEventTypes eventTypes
 
+    let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
+
     let buildEventStoreSystem client =
-        new BookLibraryEventStoreSystem(handlers, client, esSerializer, (fun _ -> UnitEventContext))
+        new BookLibraryEventStoreSystem(handlers, client, esSerializer, (fun _ -> UnitEventContext), nullGetSnapshot)
 
     let initializedSystem () = 
         async {
