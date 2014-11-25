@@ -56,14 +56,16 @@ module AggregateStateProjector =
         metadata.Add(lastEventHeader, new RavenJValue(value))
 
     let buildProjector 
-        (getStreamId : 'TMessage -> string) 
+        (getStreamId : 'TMessage -> string option)
         (getEventNumber : 'TMessage -> int)
         (getEvent : 'TMessage -> obj) 
         (getMetadata : 'TMessage -> 'TMetadata) 
         (serializer :  ISerializer)
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,'TAggregateType>) =
         let matchingKeys = 
-            getStreamId >> Seq.singleton
+            getStreamId
+            >> Option.map Seq.singleton 
+            >> Option.getOrElse Seq.empty
 
         let processEvents 
             (fetcher : IDocumentFetcher) 
