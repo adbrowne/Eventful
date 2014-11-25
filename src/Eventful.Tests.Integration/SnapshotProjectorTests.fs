@@ -71,7 +71,7 @@ module SnapshotProjectorTests =
 
     let projectors = 
         AggregateStateProjector.buildProjector 
-            ProjectorEvent.GetStreamId
+            (ProjectorEvent.GetStreamId >> Some)
             ProjectorEvent.GetEventNumber
             ProjectorEvent.GetEvent
             ProjectorEvent.GetMetadata
