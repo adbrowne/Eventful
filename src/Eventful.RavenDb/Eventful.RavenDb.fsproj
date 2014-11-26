@@ -69,7 +69,7 @@
     <Compile Include="DocumentFetcher.fs" />
     <Compile Include="RavenConstants.fs" />
     <Compile Include="BulkRavenProjector.fs" />
-    <Compile Include="AggregateStateProjector.fs" />
+    <Compile Include="AggregateStatePersistence.fs" />
     <Compile Include="RavenReplayProjector.fs" />
     <None Include="app.config" />
   </ItemGroup>

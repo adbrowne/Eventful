@@ -115,12 +115,20 @@ module SnapshotProjectorTests =
         |> StandardConventions.addEventType typeof<SnappyCreatedEvent>
         |> StandardConventions.addEventType typeof<SnappyNotificationSent>
 
+    let buildPersistedEvent projectorEvent =
+        {
+            PersistedEvent.StreamId = ProjectorEvent.GetStreamId projectorEvent
+            EventNumber = ProjectorEvent.GetEventNumber projectorEvent
+            EventId = (Guid.NewGuid())
+            Body = ProjectorEvent.GetEvent projectorEvent
+            EventType = "Ignored"
+            Metadata = ProjectorEvent.GetMetadata projectorEvent
+        }
+        |> Some
+
     let projectors = 
-        AggregateStateProjector.buildProjector 
-            (ProjectorEvent.GetStreamId >> Some)
-            ProjectorEvent.GetEventNumber
-            ProjectorEvent.GetEvent
-            ProjectorEvent.GetMetadata
+        AggregateStatePersistence.buildProjector 
+            buildPersistedEvent
             serializer
             handlers
         |> Seq.singleton
@@ -130,7 +138,7 @@ module SnapshotProjectorTests =
     let snappyId = { SnappyId.Id = Guid.NewGuid() }
 
     let streamId = sprintf "Snappy-%s" (snappyId.Id.ToString("N"))
-    let stateDocumentKey = AggregateStateProjector.getDocumentKey streamId
+    let stateDocumentKey = AggregateStatePersistence.getDocumentKey streamId
 
     let runEvents events = async {
         let ravenProjector = RavenProjectorTests.buildRavenProjector documentStore projectors (fun _ -> Async.returnM ())
@@ -157,7 +165,7 @@ module SnapshotProjectorTests =
         } 
 
     let getAggregateState = 
-        AggregateStateProjector.getAggregateState
+        AggregateStatePersistence.getAggregateState
             documentStore
             serializer
             RavenProjectorTests.testDatabase
@@ -193,7 +201,7 @@ module SnapshotProjectorTests =
             do! runEvents events
 
             let! snapshotData = getSnapshotData
-            snappyCountStateBuilder.GetState snapshotData |> should equal 1
+            snappyCountStateBuilder.GetState snapshotData.State |> should equal 1
         }
         |> Async.RunSynchronously
         ()
@@ -210,7 +218,7 @@ module SnapshotProjectorTests =
             do! runEvents events
 
             let! snapshotData = getSnapshotData
-            snappyCountStateBuilder.GetState snapshotData |> should equal 2
+            snappyCountStateBuilder.GetState snapshotData.State |> should equal 2
         }
         |> Async.RunSynchronously
         ()
@@ -227,7 +235,7 @@ module SnapshotProjectorTests =
             do! runEvents events
 
             let! snapshotData = getSnapshotData
-            snappyCountStateBuilder.GetState snapshotData |> should equal 1
+            snappyCountStateBuilder.GetState snapshotData.State |> should equal 1
         }
         |> Async.RunSynchronously
         ()
