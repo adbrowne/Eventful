@@ -350,7 +350,7 @@ module MutableOrderedGroupingBoundedQueueTests =
         let consumer (group, items) = async {
             do! Async.Sleep 10
             lock monitor (fun () ->
-                received := !received + 1
+                received := !received + (items |> Seq.length)
                 ()
             )
         }
