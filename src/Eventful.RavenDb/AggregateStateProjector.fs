@@ -2,9 +2,27 @@
 
 open System
 open FSharpx
+open FSharpx.Option
 
 open Raven.Json.Linq
+open Raven.Imports.Newtonsoft.Json.Linq
+open Raven.Client
 open Eventful
+
+type AggregateStateDocument = {
+    Snapshot : RavenJObject
+    NextWakeup : string
+}
+with 
+    static member Empty () = { 
+        Snapshot = new RavenJObject() 
+        NextWakeup = null 
+    }
+
+type AggregateState = {
+    Snapshot : Map<string,obj>
+    NextWakeup : DateTime option
+}
 
 module AggregateStateProjector =
     let deserialize (serializer :  ISerializer) (doc : RavenJObject) (blockBuilders : IStateBlockBuilder<'TMetadata, unit> list) =
@@ -55,6 +73,37 @@ module AggregateStateProjector =
             metadata.Remove lastEventHeader |> ignore
         metadata.Add(lastEventHeader, new RavenJValue(value))
 
+    let deserializeDateString (value : string) =
+        match value with
+        | null -> None
+        | value -> 
+            Some (DateTime.Parse value)
+
+    let serializeDateTimeOption = function
+        | None -> null
+        | Some (dateTime : DateTime) -> (new RavenJValue(dateTime)).ToString()
+
+    let getAggregateState   
+        (documentStore : Raven.Client.Document.DocumentStore) 
+        serializer 
+        (database : string) 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,'TAggregateType>)
+        streamId 
+        aggregateType
+        = 
+        async {
+        let stateDocumentKey = getDocumentKey streamId
+        use session = documentStore.OpenAsyncSession(database)
+        let! doc = session.LoadAsync<AggregateStateDocument> stateDocumentKey |> Async.AwaitTask
+
+        let blockBuilders = (handlers.AggregateTypes.Item aggregateType).StateBuilder.GetBlockBuilders
+        let snapshot = deserialize serializer doc.Snapshot blockBuilders
+        return {
+            AggregateState.Snapshot = snapshot
+            NextWakeup = deserializeDateString doc.NextWakeup
+        }
+    }
+
     let buildProjector 
         (getStreamId : 'TMessage -> string option)
         (getEventNumber : 'TMessage -> int)
@@ -90,12 +139,12 @@ module AggregateStateProjector =
                 return
                     match handlers.AggregateTypes |> Map.tryFind aggregateType with
                     | Some aggregateConfig ->
-                        let (snapshot : RavenJObject, metadata : RavenJObject, etag) = 
+                        let (stateDocument : AggregateStateDocument, metadata : RavenJObject, etag) = 
                             doc
-                            |> Option.getOrElseF (fun () -> (new RavenJObject(), emptyMetadata(), Raven.Abstractions.Data.Etag.Empty))
+                            |> Option.getOrElseF (fun () -> (AggregateStateDocument.Empty(), emptyMetadata(), Raven.Abstractions.Data.Etag.Empty))
 
                         let snapshot = 
-                            deserialize serializer snapshot aggregateConfig.StateBuilder.GetBlockBuilders
+                            deserialize serializer stateDocument.Snapshot aggregateConfig.StateBuilder.GetBlockBuilders
 
                         let applyToSnapshot (lastEventNumber, snapshot) message =
                             let eventNumber = getEventNumber message
@@ -115,11 +164,21 @@ module AggregateStateProjector =
 
                         setLastEventNumber metadata lastEventNumber
 
+                        let nextWakeup = maybe {
+                            let! EventfulWakeupHandler (nextWakeupStateBuilder,_) = aggregateConfig.Wakeup
+                            return! nextWakeupStateBuilder.GetState updatedSnapshot
+                        }
+
+                        let updatedDoc = {
+                            AggregateStateDocument.Snapshot = mapToRavenJObject serializer updatedSnapshot
+                            NextWakeup = serializeDateTimeOption nextWakeup
+                        }
+
                         let writeDoc = 
                             ProcessAction.Write (
                                 {
                                     DocumentKey = documentKey
-                                    Document = mapToRavenJObject serializer updatedSnapshot
+                                    Document = updatedDoc
                                     Metadata = lazy(metadata)
                                     Etag = etag
                                 } , Guid.NewGuid())
