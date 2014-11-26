@@ -42,7 +42,7 @@ module EventStreamStateBuilder =
         let program = stateBuilder |> AggregateStateBuilder.toStreamProgram streamName widgetId
         let snapshot = runProgram eventStoreState program
 
-        snapshot.EventsApplied |> should equal 1
+        snapshot.LastEventNumber |> should equal 0
         stateBuilder.GetState snapshot.State |> should equal (["Widget1"])
         ()
 
@@ -67,7 +67,7 @@ module EventStreamStateBuilder =
 
         let snapshot = runProgram eventStoreState program
 
-        snapshot.EventsApplied |> should equal 2
+        snapshot.LastEventNumber |> should equal 1
         stateBuilder.GetState snapshot.State |> should equal (["Widget2";"Widget1"])
 
         ()

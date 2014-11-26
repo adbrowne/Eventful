@@ -186,7 +186,7 @@ module AggregateStateBuilder =
         let name = "run"
         moduleInfo.GetMethod(name)
 
-    let dynamicRun (unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list) key evt metadata currentUnitStates =
+    let dynamicRun (unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list) (key : 'TKey) evt (metadata : 'TMetadata) (currentUnitStates:Map<string,obj>) =
         let specializedMethod = genericRunMethod.MakeGenericMethod(typeof<'TMetadata>, typeof<'TKey>, evt.GetType())
         specializedMethod.Invoke(null, [| unitBuilders; key; evt; metadata; currentUnitStates |]) :?> Map<string, obj>
 
@@ -194,17 +194,18 @@ module AggregateStateBuilder =
         let extract unitStates = stateBuilder.GetState unitStates |> f
         new AggregateStateBuilder<'T2, 'TMetadata, 'TKey>(stateBuilder.GetBlockBuilders, extract) :> IStateBuilder<'T2, 'TMetadata, 'TKey>
 
-    let applyToSnapshot blockBuilders key value metadata snapshot = 
-        let state' = dynamicRun blockBuilders key value metadata snapshot.State 
-        { snapshot with EventsApplied = snapshot.EventsApplied + 1; State = state' }
+    let applyToSnapshot blockBuilders key value eventNumber metadata (snapshot : StateSnapshot) = 
+        let state' = dynamicRun blockBuilders key value metadata snapshot.State
+        { snapshot with LastEventNumber = eventNumber; State = state' }
 
     let toStreamProgram streamName (key : 'TKey) (stateBuilder:IStateBuilder<'TState, 'TMetadata, 'TKey>) = EventStream.eventStream {
         let rec loop (snapshot : StateSnapshot) = EventStream.eventStream {
-            let! token = EventStream.readFromStream streamName snapshot.EventsApplied
+            let eventNumber = snapshot.LastEventNumber + 1
+            let! token = EventStream.readFromStream streamName eventNumber
             match token with
             | Some token -> 
                 let! (value, metadata : 'TMetadata) = EventStream.readValue token
-                return! loop <| applyToSnapshot stateBuilder.GetBlockBuilders key value metadata snapshot
+                return! loop <| applyToSnapshot stateBuilder.GetBlockBuilders key value eventNumber metadata snapshot
             | None -> 
                 return snapshot }
             

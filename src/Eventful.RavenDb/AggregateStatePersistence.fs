@@ -14,15 +14,9 @@ type AggregateState = {
 module AggregateStatePersistence =
     type AggregateStateDocument = {
         Snapshot : RavenJObject
-        EventsApplied : int
+        LastEventNumber : int
         NextWakeup : string
     }
-    with 
-        static member Empty () = { 
-            Snapshot = new RavenJObject() 
-            NextWakeup = null 
-            EventsApplied = -1
-        }
 
     let deserialize (serializer :  ISerializer) (doc : RavenJObject) (blockBuilders : IStateBlockBuilder<'TMetadata, unit> list) =
         let deserializeRavenJToken targetType jToken =
@@ -85,7 +79,7 @@ module AggregateStatePersistence =
         let blockBuilders = (handlers.AggregateTypes.Item aggregateType).StateBuilder.GetBlockBuilders
         let snapshot = deserialize serializer doc.Snapshot blockBuilders
         return {
-            AggregateState.Snapshot = { StateSnapshot.State =  snapshot; EventsApplied = doc.EventsApplied }
+            AggregateState.Snapshot = { StateSnapshot.State =  snapshot; LastEventNumber = doc.LastEventNumber }
             NextWakeup = deserializeDateString doc.NextWakeup
         }
     }
@@ -95,9 +89,9 @@ module AggregateStatePersistence =
             AggregateStateBuilder.dynamicRun streamConfig.StateBuilder.GetBlockBuilders ()
             
         let applyToSnapshot (stateSnapshot : StateSnapshot) (persistedEvent : PersistedEvent<_>) =
-             if persistedEvent.EventNumber > stateSnapshot.EventsApplied - 1 then
+             if persistedEvent.EventNumber > stateSnapshot.LastEventNumber then
                 { 
-                    StateSnapshot.EventsApplied = persistedEvent.EventNumber + 1; 
+                    StateSnapshot.LastEventNumber = persistedEvent.EventNumber; 
                     State = 
                         stateSnapshot.State
                         |> runEvent persistedEvent.Body persistedEvent.Metadata
@@ -152,7 +146,7 @@ module AggregateStatePersistence =
                 doc
                 |> Option.map (fun (stateDocument : AggregateStateDocument, metadata : RavenJObject, etag) ->
                     ({ 
-                        StateSnapshot.EventsApplied = stateDocument.EventsApplied
+                        StateSnapshot.LastEventNumber = stateDocument.LastEventNumber
                         State = deserialize serializer stateDocument.Snapshot aggregateConfig.StateBuilder.GetBlockBuilders
                     }, metadata, etag)
                 )
@@ -178,7 +172,7 @@ module AggregateStatePersistence =
         let createWriteRequest (_, _, (snapshot : StateSnapshot), (documentKey, metadata, etag), nextWakeup) =
             let updatedDoc = {
                 AggregateStateDocument.Snapshot = mapToRavenJObject serializer snapshot.State
-                EventsApplied = snapshot.EventsApplied
+                LastEventNumber = snapshot.LastEventNumber
                 NextWakeup = serializeDateTimeOption nextWakeup
             }
 

@@ -32,10 +32,10 @@ type EventStoreTypeToClassMap = FSharpx.Collections.PersistentHashMap<string, Ty
 type ClassToEventStoreTypeMap = FSharpx.Collections.PersistentHashMap<Type, string>
 
 type StateSnapshot = {
-    EventsApplied : int
+    LastEventNumber : int
     State : Map<string, obj>
 }
-with static member Empty = { EventsApplied = 0; State = Map.empty }
+with static member Empty = { LastEventNumber = -1; State = Map.empty }
 
 type EventStreamEvent<'TMetadata> = 
 | Event of (EventStreamEventData<'TMetadata>)

@@ -183,14 +183,14 @@ module AggregateActionBuilder =
                 | None -> s)
         |> StateBuilder.toInterface
 
-    let writeEvents stream eventsConsumed events =  eventStream {
+    let writeEvents stream lastEventNumber events =  eventStream {
         let rawEventToEventStreamEvent (event, metadata) = getEventStreamEvent event metadata
         let! eventStreamEvents = EventStream.mapM rawEventToEventStreamEvent events
 
         let expectedVersion = 
-            match eventsConsumed with
-            | 0 -> NewStream
-            | x -> AggregateVersion (x - 1)
+            match lastEventNumber with
+            | -1 -> NewStream
+            | x -> AggregateVersion x
 
         return! writeToStream stream expectedVersion eventStreamEvents
     }
@@ -203,7 +203,7 @@ module AggregateActionBuilder =
 
     let addStateChangeEvents blockBuilders uniqueId snapshot stateChangeHandlers events = 
         let applyEventToSnapshot (event, metadata) snapshot = 
-            AggregateStateBuilder.applyToSnapshot blockBuilders () event metadata snapshot
+            AggregateStateBuilder.applyToSnapshot blockBuilders () event (snapshot.LastEventNumber + 1) metadata snapshot
 
         let runStateChangeHandlers beforeSnapshot afterSnapshot =
             LazyList.map (fun (h:IStateChangeHandler<_, _>) -> h.Handler beforeSnapshot afterSnapshot |> LazyList.ofSeq)
@@ -252,7 +252,7 @@ module AggregateActionBuilder =
                                 |> addStateChangeEvents blockBuilders r.UniqueId snapshot stateChangeHandlers
                                 |> List.ofSeq
 
-                            let! writeResult = writeEvents streamId snapshot.EventsApplied events
+                            let! writeResult = writeEvents streamId snapshot.LastEventNumber events
 
                             log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
                             
@@ -437,7 +437,7 @@ module AggregateActionBuilder =
                     )
                     |> Seq.toList
 
-                let! result = writeEvents resultingStream stateSnapshot.EventsApplied resultingEvents
+                let! result = writeEvents resultingStream stateSnapshot.LastEventNumber resultingEvents
 
                 return 
                     match result with
