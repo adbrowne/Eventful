@@ -44,12 +44,12 @@ module MagicMapper =
             |> Seq.map (fun case -> (case, case.GetFields()))
             |> Seq.filter (fun (_, fields) -> fields |> Seq.length = 1)
             |> Seq.map (fun (case, fields) -> (case, fields |> Seq.head))
+            |> Seq.toList
         (fun (value:obj) -> 
             let fieldType = value.GetType()
             let findMatch = 
                 wrappableCases 
-                |> Seq.filter(fun (case, field) -> field.PropertyType = fieldType)
-                |> List.ofSeq
+                |> List.filter(fun (case, field) -> field.PropertyType = fieldType)
 
             match findMatch with
             | [(case, field)] -> 
