@@ -15,8 +15,8 @@ type WakeupRecord<'TAggregateType> = {
 type TestEventStore<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> = {
     Position : EventPosition
     Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>
-    PendingEvents : Queue<PersistedStreamEntry<'TMetadata>>
-    AggregateStateSnapShots : Map<(string * 'TAggregateType), Map<string,obj>>
+    PendingEvents : Queue<(int * PersistedStreamEntry<'TMetadata>)>
+    AggregateStateSnapShots : Map<string, StateSnapshot>
     WakeupQueue : IPriorityQueue<WakeupRecord<'TAggregateType>>
 }
 
@@ -85,7 +85,7 @@ module TestEventStore =
         { store with 
             Events = store.Events |> Map.add stream streamEvents'; 
             Position = eventPosition 
-            PendingEvents = store.PendingEvents |> Queue.conj persistedStreamEntry}
+            PendingEvents = store.PendingEvents |> Queue.conj (eventNumber, persistedStreamEntry)}
 
     let runHandlerForEvent interpreter testEventStore program  =
         let program = program |> Async.RunSynchronously
@@ -102,37 +102,35 @@ module TestEventStore =
                 EventfulHandlers.getHandlerPrograms buildEventContext persistedEvent handlers
             handlerPrograms |> Seq.fold (runHandlerForEvent interpreter) testEventStore
 
-    let getCurrentState streamId aggregateType testEventStore =
-        let snapshotKey = (streamId, aggregateType)
+    let getCurrentState streamId testEventStore =
 
         testEventStore.AggregateStateSnapShots
-        |> Map.tryFind snapshotKey
-        |> Option.getOrElse Map.empty
+        |> Map.tryFind streamId
+        |> Option.getOrElse StateSnapshot.Empty
         
     let applyEventDataToSnapshot 
         streamId
         body
+        eventNumber
         metadata
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>)
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         let aggregateType = handlers.GetAggregateType metadata
         match handlers.AggregateTypes |> Map.tryFind aggregateType with
         | Some aggregateConfig ->
-            let snapshotKey = (streamId, aggregateType)
-
             let initialState = 
-                getCurrentState streamId aggregateType testEventStore
+                getCurrentState streamId testEventStore
 
             let state' = 
                 initialState
-                |> AggregateStateBuilder.dynamicRun aggregateConfig.StateBuilder.GetBlockBuilders () body metadata 
+                |> AggregateStateBuilder.applyToSnapshot aggregateConfig.StateBuilder.GetBlockBuilders () body eventNumber metadata 
 
-            let snapshots' = testEventStore.AggregateStateSnapShots |> Map.add snapshotKey state'
+            let snapshots' = testEventStore.AggregateStateSnapShots |> Map.add streamId state'
 
             let wakeupQueue' =
                 FSharpx.Option.maybe {
                     let! EventfulWakeupHandler(wakeupFold, _) = aggregateConfig.Wakeup
-                    let! newTime = wakeupFold.GetState state'
+                    let! newTime = wakeupFold.GetState state'.State
 
                     let newWakeupRecord = {
                         Time = newTime
@@ -150,14 +148,15 @@ module TestEventStore =
             testEventStore
         
     let updateStateSnapShot 
+        eventNumber
         (persistedStreamEntry : PersistedStreamEntry<'TMetadata>) 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>)
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         match persistedStreamEntry with
         | PersistedStreamEvent { Body = body; Metadata = metadata; StreamId = streamId } ->
-            applyEventDataToSnapshot streamId body metadata handlers testEventStore
+            applyEventDataToSnapshot streamId body eventNumber metadata handlers testEventStore
         | PersistedStreamLink  { LinkedBody = body; LinkedMetadata = metadata; LinkedStreamId = streamId } ->
-            applyEventDataToSnapshot streamId body metadata handlers testEventStore
+            applyEventDataToSnapshot streamId body eventNumber metadata handlers testEventStore
 
     let runEvent buildEventContext interpreter handlers testEventStore streamEntry =
         match streamEntry with
@@ -180,10 +179,10 @@ module TestEventStore =
         (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
         match testEventStore.PendingEvents with
         | Queue.Nil -> testEventStore
-        | Queue.Cons (streamEntry, xs) ->
+        | Queue.Cons ((eventNumber, streamEntry), xs) ->
             let next = 
                 runEvent buildEventContext interpreter handlers { testEventStore with PendingEvents = xs } streamEntry
-                |> updateStateSnapShot streamEntry handlers
+                |> updateStateSnapShot eventNumber streamEntry handlers
             processPendingEvents buildEventContext interpreter handlers next
 
     let runCommand interpreter cmd handler testEventStore =
@@ -205,9 +204,9 @@ module TestEventStore =
                 let! EventfulWakeupHandler(wakeupFold, wakeupHandler) = aggregate.Wakeup
 
                 let initialState = 
-                    getCurrentState w.Stream w.Type testEventStore
+                    getCurrentState w.Stream testEventStore
 
-                let! expectedTime = wakeupFold.GetState initialState
+                let! expectedTime = wakeupFold.GetState initialState.State
                 return 
                     if expectedTime = w.Time then
                         onTimeChange w.Time

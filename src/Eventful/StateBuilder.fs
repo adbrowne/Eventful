@@ -209,7 +209,8 @@ module AggregateStateBuilder =
             | None -> 
                 return snapshot }
             
-        return! loop StateSnapshot.Empty
+        let! currentSnapshot = EventStream.readSnapshot streamName
+        return! loop currentSnapshot
     }
 
     let tuple2 b1 b2 =

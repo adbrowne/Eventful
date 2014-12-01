@@ -21,7 +21,7 @@ module EventStreamStateBuilder =
         |> (fun x -> x :> IStateBuilder<string list, TestMetadata, Guid>)
 
     let runProgram eventStoreState p = 
-        TestInterpreter.interpret p eventStoreState PersistentHashMap.empty PersistentHashMap.empty Map.empty Vector.empty |> snd
+        TestInterpreter.interpret p eventStoreState true PersistentHashMap.empty PersistentHashMap.empty Map.empty Vector.empty |> snd
 
     [<Fact>]
     [<Trait("category", "unit")>]
