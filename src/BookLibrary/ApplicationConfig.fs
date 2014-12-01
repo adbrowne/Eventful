@@ -71,18 +71,21 @@ module ApplicationConfig =
 
     let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
 
-    let buildEventStoreSystem client =
-        new BookLibraryEventStoreSystem(handlers, client, esSerializer, (fun _ -> UnitEventContext), nullGetSnapshot)
+    let dbName = "BookLibrary"
 
-    let initializedSystem () = 
+    let buildWakeupMonitor documentStore onWakeups = 
+        new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, dbName, esSerializer, onWakeups) :> Eventful.IWakeupMonitor
+
+    let buildEventStoreSystem documentStore client =
+        new BookLibraryEventStoreSystem(handlers, client, esSerializer, (fun _ -> UnitEventContext), nullGetSnapshot, buildWakeupMonitor documentStore)
+
+    let initializedSystem documentStore = 
         async {
             let! conn = getConnection ()
             let client = new Client(conn)
-            let system = buildEventStoreSystem client
+            let system = buildEventStoreSystem documentStore client
             return new BookLibrarySystem(system)
         } |> Async.StartAsTask
-
-    let dbName = "BookLibrary"
 
     let buildDocumentStore() =
         let documentStore = new Raven.Client.Document.DocumentStore(Url = "http://localhost:8080/")

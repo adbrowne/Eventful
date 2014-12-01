@@ -66,10 +66,10 @@ type TopShelfService () =
             let! connection = ApplicationConfig.getConnection()
             let c = new Client(connection)
 
-            let system : BookLibraryEventStoreSystem = ApplicationConfig.buildEventStoreSystem c
-            system.Start() |> Async.StartAsTask |> ignore
-
             let documentStore = ApplicationConfig.buildDocumentStore()
+
+            let system : BookLibraryEventStoreSystem = ApplicationConfig.buildEventStoreSystem documentStore c
+            system.Start() |> Async.StartAsTask |> ignore
 
             let projector = {
                 MatchingKeys = matchingKeys

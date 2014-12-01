@@ -12,11 +12,26 @@ type AggregateState = {
 }
 
 module AggregateStatePersistence =
-    type AggregateStateDocument = {
+    type AggregateStateDocument<'TAggregateType> = {
         Snapshot : RavenJObject
         LastEventNumber : int
         NextWakeup : string
+        AggregateType : 'TAggregateType
     }
+
+    let stateDocumentCollectionName = "AggregateStates"
+
+    let wakeupIndexName =  "EventfulWakeup"
+    let wakeupTimeFieldName = "WakeupTime"
+    let wakeupIndex () = 
+        let definition = new Raven.Abstractions.Indexing.IndexDefinition()
+
+        definition.Name <- wakeupIndexName
+        definition.Map <- sprintf "docs.%s.Where(state => state.NextWakeup != null).Select(state => new { %s = state.NextWakeup, AggregateType = state.AggregateType })" stateDocumentCollectionName wakeupTimeFieldName
+        definition.SortOptions.Add("WakeupTime", Raven.Abstractions.Indexing.SortOptions.String)
+        definition.Stores.Add("WakeupTime", Raven.Abstractions.Indexing.FieldStorage.Yes)
+        definition.Stores.Add("AggregateType", Raven.Abstractions.Indexing.FieldStorage.Yes)
+        definition
 
     let deserialize (serializer :  ISerializer) (doc : RavenJObject) (blockBuilders : IStateBlockBuilder<'TMetadata, unit> list) =
         let deserializeRavenJToken targetType jToken =
@@ -39,12 +54,13 @@ module AggregateStatePersistence =
         doc.Keys
         |> Seq.fold addKey Map.empty
 
+    let documentKeyPrefix = "AggregateState/"
     let getDocumentKey streamId = 
-        "AggregateState/" + streamId
+        documentKeyPrefix + streamId
 
     let emptyMetadata () =
         let metadata = new RavenJObject(StringComparer.OrdinalIgnoreCase)
-        metadata.Add("Raven-Entity-Name", new RavenJValue("AggregateStates"))
+        metadata.Add("Raven-Entity-Name", new RavenJValue(stateDocumentCollectionName))
         metadata
 
     let mapToRavenJObject (serializer : ISerializer) (stateMap : Map<string,obj>) =
@@ -61,7 +77,7 @@ module AggregateStatePersistence =
 
     let serializeDateTimeOption = function
         | None -> null
-        | Some (dateTime : DateTime) -> (new RavenJValue(dateTime)).ToString()
+        | Some (dateTime : DateTime) -> dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
     let getAggregateState   
         (documentStore : Raven.Client.Document.DocumentStore) 
@@ -74,7 +90,7 @@ module AggregateStatePersistence =
         async {
         let stateDocumentKey = getDocumentKey streamId
         use session = documentStore.OpenAsyncSession(database)
-        let! doc = session.LoadAsync<AggregateStateDocument> stateDocumentKey |> Async.AwaitTask
+        let! doc = session.LoadAsync<AggregateStateDocument<'TAggregateType>> stateDocumentKey |> Async.AwaitTask
 
         let blockBuilders = (handlers.AggregateTypes.Item aggregateType).StateBuilder.GetBlockBuilders
         let snapshot = deserialize serializer doc.Snapshot blockBuilders
@@ -132,19 +148,20 @@ module AggregateStatePersistence =
 
             match handlers.AggregateTypes |> Map.tryFind aggregateType with
             | Some aggregateConfig -> 
-                (persistedEvents, aggregateConfig)
+                (persistedEvents, aggregateType, aggregateConfig)
             | None -> 
                 failwith <| sprintf "Could not find configuration for aggregateType: %A" aggregateType
 
-        let loadCurrentState (fetcher : IDocumentFetcher) streamId (persistedEvents, (aggregateConfig : EventfulStreamConfig<_>)) = async {
+        let loadCurrentState (fetcher : IDocumentFetcher) streamId (persistedEvents, aggregateType, (aggregateConfig : EventfulStreamConfig<_>)) = async {
             let documentKey = getDocumentKey streamId
 
             let! doc = 
                 fetcher.GetDocument documentKey
                 |> Async.AwaitTask
+
             let (snapshot : StateSnapshot, metadata : RavenJObject, etag) = 
                 doc
-                |> Option.map (fun (stateDocument : AggregateStateDocument, metadata : RavenJObject, etag) ->
+                |> Option.map (fun (stateDocument : AggregateStateDocument<'TAggregateType>, metadata : RavenJObject, etag) ->
                     ({ 
                         StateSnapshot.LastEventNumber = stateDocument.LastEventNumber
                         State = deserialize serializer stateDocument.Snapshot aggregateConfig.StateBuilder.GetBlockBuilders
@@ -154,26 +171,27 @@ module AggregateStatePersistence =
                     (StateSnapshot.Empty, emptyMetadata(), Raven.Abstractions.Data.Etag.Empty))
 
             let docMetadata = (documentKey, metadata, etag)
-            return (persistedEvents, aggregateConfig, snapshot, docMetadata)
+            return (persistedEvents, aggregateType, aggregateConfig, snapshot, docMetadata)
         }
 
-        let applyEventsToSnapshot (persistedEvents, aggregateConfig, snapshot, docMetadata) =
+        let applyEventsToSnapshot (persistedEvents, aggregateType, aggregateConfig, snapshot, docMetadata) =
             let snapshot' = applyMessages aggregateConfig snapshot persistedEvents
-            (persistedEvents, aggregateConfig, snapshot', docMetadata)
+            (persistedEvents, aggregateType, aggregateConfig, snapshot', docMetadata)
 
-        let computeNextWakeup (persistedEvents, (aggregateConfig : EventfulStreamConfig<_>), snapshot, docMetadata) =
+        let computeNextWakeup (persistedEvents, aggregateType, (aggregateConfig : EventfulStreamConfig<_>), snapshot, docMetadata) =
             let nextWakeup = 
                 maybe {
                     let! EventfulWakeupHandler (nextWakeupStateBuilder,_) = aggregateConfig.Wakeup
                     return! nextWakeupStateBuilder.GetState snapshot.State
                 }
-            (persistedEvents, aggregateConfig, snapshot, docMetadata, nextWakeup)
+            (persistedEvents, aggregateType, aggregateConfig, snapshot, docMetadata, nextWakeup)
 
-        let createWriteRequest (_, _, (snapshot : StateSnapshot), (documentKey, metadata, etag), nextWakeup) =
+        let createWriteRequest (_, aggregateType, (aggregateConfig : EventfulStreamConfig<_>), (snapshot : StateSnapshot), (documentKey, metadata, etag), nextWakeup) =
             let updatedDoc = {
                 AggregateStateDocument.Snapshot = mapToRavenJObject serializer snapshot.State
                 LastEventNumber = snapshot.LastEventNumber
                 NextWakeup = serializeDateTimeOption nextWakeup
+                AggregateType = aggregateType
             }
 
             ProcessAction.Write (

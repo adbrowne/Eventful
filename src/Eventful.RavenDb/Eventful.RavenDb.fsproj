@@ -70,6 +70,7 @@
     <Compile Include="RavenConstants.fs" />
     <Compile Include="BulkRavenProjector.fs" />
     <Compile Include="AggregateStatePersistence.fs" />
+    <Compile Include="WakeupMonitor.fs" />
     <Compile Include="RavenReplayProjector.fs" />
     <None Include="app.config" />
   </ItemGroup>

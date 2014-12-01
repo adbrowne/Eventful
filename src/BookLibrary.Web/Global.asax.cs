@@ -6,6 +6,7 @@ using Autofac;
 using Autofac.Integration.Mvc;
 using Autofac.Integration.WebApi;
 using Raven.Client;
+using Raven.Client.Document;
 
 namespace BookLibrary.Web
 {
@@ -19,8 +20,8 @@ namespace BookLibrary.Web
             // Register the Web API controllers.
             builder.RegisterApiControllers(typeof(BooksController).Assembly);
             builder.RegisterControllers(typeof(WebApiApplication).Assembly);
-            RegisterEventStore(builder);
-            RegisterRaven(builder);
+            var documentStore = RegisterRaven(builder);
+            RegisterEventStore(documentStore, builder);
             // Build the container.
             var container = builder.Build();
 
@@ -42,9 +43,10 @@ namespace BookLibrary.Web
 
         }
 
-        private void RegisterRaven(ContainerBuilder builder)
+        private DocumentStore RegisterRaven(ContainerBuilder builder)
         {
-            builder.Register(c => ApplicationConfig.buildDocumentStore())
+            var singletonDocumentStore = ApplicationConfig.buildDocumentStore();
+            builder.Register(c => singletonDocumentStore)
                 .AsImplementedInterfaces()
                 .SingleInstance();
 
@@ -53,11 +55,12 @@ namespace BookLibrary.Web
                 var documentStore = c.Resolve<IDocumentStore>();
                 return documentStore.OpenAsyncSession();
             }).InstancePerRequest();
+            return singletonDocumentStore;
         }
 
-        private static void RegisterEventStore(ContainerBuilder builder)
+        private static void RegisterEventStore(DocumentStore documentStore, ContainerBuilder builder)
         {
-            var systemTask = ApplicationConfig.initializedSystem();
+            var systemTask = ApplicationConfig.initializedSystem(documentStore);
             var system = systemTask.Result;
             builder.RegisterInstance(system)
                 .AsImplementedInterfaces()

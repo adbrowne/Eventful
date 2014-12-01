@@ -193,6 +193,13 @@ module SnapshotProjectorTests =
         
     [<Fact>]
     [<Trait("category", "ravendb")>]
+    let ``Install Wakeup Index`` () =
+        let definition = AggregateStatePersistence.wakeupIndex()
+        documentStore.DatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase).PutIndex(definition.Name, definition) |> ignore
+        ()
+
+    [<Fact>]
+    [<Trait("category", "ravendb")>]
     let ``Given no events When first event happens Then snapshot is created`` () =
         async {
             let events = 
@@ -254,4 +261,15 @@ module SnapshotProjectorTests =
             aggregateState.NextWakeup |> should equal (Some notifyTime)
         }
         |> Async.RunSynchronously
+        ()
+
+    [<Fact>]
+    [<Trait("category", "ravendb")>]
+    let ``Run Wakeup Monitor`` () =
+        let runWakeup streamId aggregateType time =
+            printfn "runWakeup %A %A %A" streamId aggregateType time
+
+        let monitor = new WakeupMonitor<string>(documentStore, RavenProjectorTests.testDatabase, RunningTests.esSerializer, runWakeup)
+
+        Async.Sleep 10000 |> Async.RunSynchronously
         ()

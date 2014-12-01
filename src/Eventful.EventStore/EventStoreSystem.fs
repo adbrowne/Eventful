@@ -13,7 +13,8 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         client : Client,
         serializer: ISerializer,
         getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext,
-        getSnapshot
+        getSnapshot,
+        buildWakeupMonitor : (string -> 'TAggregateType -> DateTime -> unit) -> IWakeupMonitor
     ) =
 
     let log = createLogger "Eventful.EventStoreSystem"
@@ -60,6 +61,16 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
                 |> Async.Ignore
         }
 
+    let runWakeupHandler streamId aggregateType time =
+        let config = handlers.AggregateTypes.Item aggregateType
+        match config.Wakeup with
+        | Some (EventfulWakeupHandler (_, handler)) ->
+            handler streamId time
+            |> interpreter
+            |> Async.RunSynchronously
+        | None ->
+            ()
+
     member x.AddOnCompleteEvent callback = 
         onCompleteCallbacks <- callback::onCompleteCallbacks
 
@@ -77,7 +88,9 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
 
         let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
         timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
-        subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live")) }
+        subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live"))
+        let wakeupMonitor = buildWakeupMonitor runWakeupHandler
+        wakeupMonitor.Start() }
 
     member x.Stop () = 
         if timer <> null then
@@ -130,7 +143,6 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
 
     member x.EventStoreTypeToClassMap = handlers.EventStoreTypeToClassMap
     member x.ClassToEventStoreTypeMap = handlers.ClassToEventStoreTypeMap
-
 
     interface IDisposable with
         member x.Dispose () = x.Stop()

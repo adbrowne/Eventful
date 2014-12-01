@@ -141,7 +141,11 @@ type TestEventStoreSystemFixture () =
     let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
 
     let client = new Client(eventStoreProcess.Connection)
-    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj,string>(handlers, client, RunningTests.esSerializer, buildContext, nullGetSnapshot)
+    let mockWakeupMonitor _ = {
+        new Eventful.IWakeupMonitor with
+            member x.Start () = ()
+    }
+    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj,string>(handlers, client, RunningTests.esSerializer, buildContext, nullGetSnapshot, mockWakeupMonitor)
 
     let system = newSystem client
 
