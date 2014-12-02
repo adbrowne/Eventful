@@ -48,6 +48,7 @@ namespace BookLibrary.Web.Controllers
         {
             return Json(_comments, JsonRequestBehavior.AllowGet);
         }
+
         public BooksController(IBookLibrarySystem system, IAsyncDocumentSession documentSession)
         {
             _system = system;

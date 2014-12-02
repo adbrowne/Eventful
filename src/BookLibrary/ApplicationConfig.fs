@@ -1,8 +1,6 @@
 ﻿namespace BookLibrary
 
 open System
-open System.IO
-open Newtonsoft.Json
 open EventStore.ClientAPI
 open Eventful
 open Eventful.EventStore
@@ -18,27 +16,9 @@ type BookLibrarySystem (system : BookLibraryEventStoreSystem) =
             |> Async.StartAsTask
 
 module ApplicationConfig = 
-    let serializer = JsonSerializer.Create()
-
-    let serialize (t : 'T) =
-        use sw = new System.IO.StringWriter() :> System.IO.TextWriter
-        serializer.Serialize(sw, t :> obj)
-        System.Text.Encoding.UTF8.GetBytes(sw.ToString())
-
-    let deserializeObj (v : byte[]) (objType : Type) : obj =
-        let str = System.Text.Encoding.UTF8.GetString(v)
-        let reader = new StringReader(str) :> TextReader
-        let result = serializer.Deserialize(reader, objType) 
-        result
-
-    let esSerializer = 
-        { new ISerializer with
-            member x.DeserializeObj b t = deserializeObj b t
-            member x.Serialize o = serialize o }
-
     let getConnection () : Async<IEventStoreConnection> =
         async {
-            let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("192.168.59.103"), 1113)
+            let ipEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 1113)
             let connectionSettingsBuilder = 
                 ConnectionSettings
                     .Create()
@@ -74,10 +54,10 @@ module ApplicationConfig =
     let dbName = "BookLibrary"
 
     let buildWakeupMonitor documentStore onWakeups = 
-        new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, dbName, esSerializer, onWakeups) :> Eventful.IWakeupMonitor
+        new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, dbName, Serialization.esSerializer, onWakeups) :> Eventful.IWakeupMonitor
 
     let buildEventStoreSystem documentStore client =
-        new BookLibraryEventStoreSystem(handlers, client, esSerializer, (fun _ -> UnitEventContext), nullGetSnapshot, buildWakeupMonitor documentStore)
+        new BookLibraryEventStoreSystem(handlers, client, Serialization.esSerializer, (fun _ -> UnitEventContext), nullGetSnapshot, buildWakeupMonitor documentStore)
 
     let initializedSystem documentStore = 
         async {

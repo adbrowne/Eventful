@@ -144,6 +144,28 @@ open System.Net.Http
 open System.Web.Http
 open System.Web.Http.Routing
 
+open Suave
+open Suave.Http.Successful
+open Suave.Web
+open Suave.Http
+open Suave.Http.Applicatives
+open BookLibrary.WebHelpers
+
+module BooksWebApi = 
+    let addHandler (cmd : AddBookCommand) =
+        let cmd = { cmd with BookId = { BookId.Id = Guid.NewGuid() }}
+        let successResponse = 
+            let responseBody = new Newtonsoft.Json.Linq.JObject();
+            responseBody.Add("bookId", new Newtonsoft.Json.Linq.JValue(cmd.BookId.Id))
+            responseBody
+        (cmd, successResponse :> obj)
+
+    let config system =
+        url "/api/books" >>= choose
+            [ 
+                POST >>= commandHandler<AddBookCommand> system addHandler
+            ]
+        
 [<RoutePrefix("api/books")>]
 type BooksController(system : IBookLibrarySystem) =
     inherit ApiController()

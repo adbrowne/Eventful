@@ -7,6 +7,11 @@ open EventStore.ClientAPI
 open Eventful.EventStore
 open Eventful.Raven
 open System.Threading.Tasks
+open Suave
+open Suave.Http.Successful
+open Suave.Http
+open Suave.Http.Applicatives
+open Suave.Web
 
 type EventCountDoc = {
     Count : int
@@ -61,6 +66,7 @@ type TopShelfService () =
     }
 
     member x.Start () =
+
         log.Debug <| lazy "Starting App"
         async {
             let! connection = ApplicationConfig.getConnection()
@@ -70,6 +76,14 @@ type TopShelfService () =
 
             let system : BookLibraryEventStoreSystem = ApplicationConfig.buildEventStoreSystem documentStore c
             system.Start() |> Async.StartAsTask |> ignore
+
+            let bookLibrarySystem = new BookLibrarySystem(system)
+
+            // start web
+            choose 
+                [ BooksWebApi.config bookLibrarySystem
+                  (OK "Hello World!") ]
+            |> web_server default_config 
 
             let projector = {
                 MatchingKeys = matchingKeys
@@ -107,8 +121,8 @@ type TopShelfService () =
                 match system.EventStoreTypeToClassMap.ContainsKey re.Event.EventType with
                 | true ->
                     let eventClass = system.EventStoreTypeToClassMap.Item re.Event.EventType
-                    let evtObj = ApplicationConfig.esSerializer.DeserializeObj re.Event.Data eventClass
-                    let metadata = ApplicationConfig.esSerializer.DeserializeObj re.Event.Metadata typeof<BookLibraryEventMetadata> :?> BookLibraryEventMetadata
+                    let evtObj = Serialization.esSerializer.DeserializeObj re.Event.Data eventClass
+                    let metadata = Serialization.esSerializer.DeserializeObj re.Event.Metadata typeof<BookLibraryEventMetadata> :?> BookLibraryEventMetadata
 
                     let eventStoreMessage : EventStoreMessage = {
                         EventContext = metadata

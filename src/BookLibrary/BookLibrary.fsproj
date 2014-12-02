@@ -57,8 +57,10 @@
   <Import Project="$(FSharpTargetsPath)" />
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <ItemGroup>
+    <Compile Include="Serialization.fs" />
     <Compile Include="Aggregates.fs" />
     <Compile Include="Interfaces.fs" />
+    <Compile Include="WebHelpers.fs" />
     <Compile Include="Book.fs" />
     <Compile Include="BookCopy.fs" />
     <Compile Include="Award.fs" />
@@ -120,6 +122,10 @@
     </Reference>
     <Reference Include="Raven.Client.Lightweight">
       <HintPath>..\packages\RavenDB.Client.2.5.2935\lib\net45\Raven.Client.Lightweight.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="suave">
+      <HintPath>..\packages\Suave.0.18.0\lib\suave.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
