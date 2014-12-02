@@ -63,8 +63,7 @@ module Operations =
 
     let executeAsyncQ (query : CypherQuery) =
         query.Query.ExecuteWithoutResultsAsync()
-        |> Async.AwaitIAsyncResult
-        |> Async.Ignore
+        |> voidTaskAsAsync
 
     // This lets us add another independent query to a single cypher statement.
     // TODO: Use the transaction support http://neo4j.com/docs/stable/rest-api-transactional.html
