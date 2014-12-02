@@ -72,13 +72,24 @@
     <Compile Include="RavenProjectorTests.fs" />
     <Compile Include="RavenReplayProjectorTests.fs" />
     <Compile Include="SnapshotProjectorTests.fs" />
+    <Compile Include="Neo4jOperationTests.fs" />
     <None Include="app.config" />
     <Content Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\vendor\Neo4jClient\Neo4jClient\Neo4jClient.csproj">
+      <Name>Neo4jClient</Name>
+      <Project>{343b9889-6ddf-4474-a1ec-05508a652e5a}</Project>
+      <Private>True</Private>
+    </ProjectReference>
     <ProjectReference Include="..\Eventful.CsTests\Eventful.CsTests.csproj">
       <Name>Eventful.CsTests</Name>
       <Project>{8dcb39a0-a882-486a-b147-fc4b44a42f0a}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.Neo4j\Eventful.Neo4j.fsproj">
+      <Name>Eventful.Neo4j</Name>
+      <Project>{01019b14-edad-4754-ba5b-7c49d1d63326}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\Eventful.Testing\Eventful.Testing.fsproj">

@@ -57,9 +57,15 @@ module Operations =
     let returnQ (name : string) (query : CypherQuery) =
         query.Query.Return(name)
 
+    let resultsQ (query : ICypherFluentQuery<'a>) =
+        query.Results
+
     let resultsAsyncQ (query : ICypherFluentQuery<'a>) =
         query.ResultsAsync
         |> Async.AwaitTask
+
+    let executeQ (query : CypherQuery) =
+        query.Query.ExecuteWithoutResults()
 
     let executeAsyncQ (query : CypherQuery) =
         query.Query.ExecuteWithoutResultsAsync()
@@ -164,14 +170,14 @@ module Operations =
             let query, toSelector = query |> withNodeSelectorQ "to" to'
 
             query
-            |> matchQ (sprintf "(%s)-[r:`%s`]->(%s)" fromSelector relationshipType toSelector)
+            |> matchQ (sprintf "%s-[r:`%s`]->%s" fromSelector relationshipType toSelector)
             |> deleteQ "r"
 
         | RemoveAllIncomingRelationships (node, relationshipType) ->
             let query, selector = query |> withNodeSelectorQ "" node
             
             query
-            |> matchQ (sprintf "()-[r:`%s`]->(%s)" relationshipType selector)
+            |> matchQ (sprintf "()-[r:`%s`]->%s" relationshipType selector)
             |> deleteQ "r"
 
         | AddLabels (node, labels) ->
