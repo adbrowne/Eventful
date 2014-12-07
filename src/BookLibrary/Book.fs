@@ -160,11 +160,23 @@ module BooksWebApi =
             responseBody
         (cmd, successResponse :> obj)
 
+    let updateHandler bookId (cmd : UpdateBookTitleCommand) =
+        let cmd = { cmd with BookId = { BookId.Id =  bookId}}
+        let successResponse = new Newtonsoft.Json.Linq.JObject();
+        (cmd, successResponse :> obj)
+
     let config system =
-        url "/api/books" >>= choose
-            [ 
-                POST >>= commandHandler<AddBookCommand> system addHandler
-            ]
+        choose [
+            url "/api/books" >>= choose
+                [ 
+                    POST >>= commandHandler system addHandler
+                ]
+            url_with_guid "/api/book/{id}/title" (fun (id:Guid) -> 
+                choose
+                    [ 
+                        PUT >>= commandHandler system (updateHandler id)
+                    ])
+        ]
         
 [<RoutePrefix("api/books")>]
 type BooksController(system : IBookLibrarySystem) =

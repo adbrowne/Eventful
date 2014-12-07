@@ -82,7 +82,7 @@ type TopShelfService () =
             // start web
             choose 
                 [ BooksWebApi.config bookLibrarySystem
-                  (OK "Hello World!") ]
+                  (Suave.Http.RequestErrors.NOT_FOUND "404 Not Found") ]
             |> web_server default_config 
 
             let projector = {
