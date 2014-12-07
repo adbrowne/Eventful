@@ -355,18 +355,22 @@ module AggregateActionBuilder =
                     |> Choice2Of2
             }
         
-    let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata,'TBaseEvent>) = {
-        new ICommandHandler<'TAggregateId,'TCommandContext,'TMetadata, 'TBaseEvent> with 
-             member this.GetId context cmd = untypedGetId sb context cmd
-             member this.CmdType = typeof<'TCmd>
-             member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers sb.StateBuilder.GetBlockBuilders builders
-             member this.Handler (aggregateConfig : AggregateConfiguration<'TCommandContext, 'TAggregateId, 'TMetadata, 'TBaseEvent>) commandContext cmd = 
-                handleCommand sb aggregateConfig commandContext cmd
-             member this.Visitable = {
-                new IRegistrationVisitable with
-                    member x.Receive a r = r.Visit<'TCmd>(a)
-             }
-        }
+    let ToInterface (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata,'TBaseEvent>) = 
+        let cmdType = typeof<'TCmd>
+        if cmdType = typeof<obj> then
+            failwith "Command handler registered for type object. You might need to specify a type explicitely."
+        else
+            { new ICommandHandler<'TAggregateId,'TCommandContext,'TMetadata, 'TBaseEvent> with 
+                 member this.GetId context cmd = untypedGetId sb context cmd
+                 member this.CmdType = cmdType
+                 member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers sb.StateBuilder.GetBlockBuilders builders
+                 member this.Handler (aggregateConfig : AggregateConfiguration<'TCommandContext, 'TAggregateId, 'TMetadata, 'TBaseEvent>) commandContext cmd = 
+                    handleCommand sb aggregateConfig commandContext cmd
+                 member this.Visitable = {
+                    new IRegistrationVisitable with
+                        member x.Receive a r = r.Visit<'TCmd>(a)
+                 }
+            }
 
     let withCmdId (getId : 'TCmd -> 'TId) (builder : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) = 
         { builder with GetId = (fun _ cmd -> getId cmd )}
@@ -448,17 +452,22 @@ module AggregateActionBuilder =
             }
         )
 
-    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata, 'TCommandContext, 'TEventContext when 'TId : equality> (stateBuilder: IStateBuilder<_,_,_>) (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState>>) = {
-        new IEventHandler<'TId,'TMetadata, 'TEventContext> with 
-            member this.EventType = typeof<'TOnEvent>
-            member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
-            member this.Handler aggregateConfig eventContext evt = 
-                let typedEvent = evt.Body :?> 'TOnEvent
+    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata, 'TCommandContext, 'TEventContext when 'TId : equality> (stateBuilder: IStateBuilder<_,_,_>) (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState>>) = 
+        let evtType = typeof<'TOnEvent>
+        if evtType = typeof<obj> then
+            failwith "Event handler registered for type object. You might need to specify a type explicitely."
+        else 
+            {
+                new IEventHandler<'TId,'TMetadata, 'TEventContext> with 
+                    member this.EventType = typeof<'TOnEvent>
+                    member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
+                    member this.Handler aggregateConfig eventContext evt = 
+                        let typedEvent = evt.Body :?> 'TOnEvent
 
-                fId (typedEvent, eventContext) 
-                |> processSequence aggregateConfig stateBuilder eventContext
-                |> AsyncSeq.fold EventStream.combine EventStream.empty
-    }
+                        fId (typedEvent, eventContext) 
+                        |> processSequence aggregateConfig stateBuilder eventContext
+                        |> AsyncSeq.fold EventStream.combine EventStream.empty
+            }
 
     let linkEvent<'TLinkEvent,'TId,'TCommandContext,'TEventContext,'TMetadata when 'TId : equality> fId (metadata : metadataBuilder<'TMetadata>) = 
         getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata,'TCommandContext,'TEventContext> fId metadata

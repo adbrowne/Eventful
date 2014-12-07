@@ -91,6 +91,7 @@ module TestAggregate =
             Seq.empty
 
 module AggregateConfigurationErrorTests = 
+    open Swensen.Unquote
 
     let emptyTestSystem =
         EventfulHandlers.empty (konst "testaggregate")
@@ -110,3 +111,46 @@ module AggregateConfigurationErrorTests =
             exn.Message = "Object reference not set to an instance of an object."
 
         result.LastResult |> should containException<TestMetadata> (Some "Retrieving aggregate id from command", matcher)
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Command handler for object returns error`` () =
+        let cmdHandlers = seq {
+           let testCommand (cmd : 'a) = // cmd is generic and will be resolved to obj
+               { 
+                   TestId = { TestId.Id = Guid.NewGuid() }
+               } :> obj
+
+           yield TestAggregate.buildCmdHandler testCommand }
+
+        let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj,string> =
+            toAggregateDefinition 
+                "testaggregate" 
+                TestMetadata.GetUniqueId
+                TestAggregate.getStreamName<_> 
+                TestAggregate.getStreamName<_>
+                cmdHandlers 
+                Seq.empty
+        raisesWith 
+            <@ buildAggregate () @> 
+            (fun (e : System.Exception) -> <@ e.Message = "Command handler registered for type object. You might need to specify a type explicitely."@>)
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Event handler for object returns error`` () =
+        let testId = { TestId.Id = Guid.NewGuid() }
+        let evtHandlers = seq {
+           yield AggregateActionBuilder.onEvent (fun _ context -> testId) StateBuilder.nullStateBuilder (fun _ _  -> Seq.empty)
+        }
+
+        let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj,string> =
+            toAggregateDefinition 
+                "testaggregate" 
+                TestMetadata.GetUniqueId
+                TestAggregate.getStreamName<_> 
+                TestAggregate.getStreamName<_>
+                Seq.empty 
+                evtHandlers
+        raisesWith 
+            <@ buildAggregate () @> 
+            (fun (e : System.Exception) -> <@ e.Message = "Event handler registered for type object. You might need to specify a type explicitely."@>)
