@@ -18,6 +18,8 @@ type FromRouteAttribute () =
         inherit System.Attribute()
     end
 
+type IEvent = interface end
+
 type AggregateType =
     | Book = 1
     | BookCopy = 2
@@ -49,7 +51,7 @@ module Aggregates =
             (fun state () cmd -> 
                 let events = 
                     f state cmd 
-                    |> (fun evt -> (evt :> obj, buildMetadata))
+                    |> (fun evt -> (evt :> IEvent, buildMetadata))
                     |> Seq.singleton
 
                 let uniqueId = Guid.NewGuid().ToString()

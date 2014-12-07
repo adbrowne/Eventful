@@ -5,6 +5,7 @@ open BookLibrary.Aggregates
 open Eventful
 open FSharpx.Validation
 open FSharpx.Choice
+open FSharpx
 open FSharpx.Collections
 
 [<CLIMutable>]
@@ -18,14 +19,13 @@ type BookAddedEvent = {
     BookId : BookId
     Title : string
 }
+with interface IEvent
 
 [<CLIMutable>]
 type UpdateBookTitleCommand = {
     [<FromRoute>] BookId : BookId
     Title : string
 }
-
-type IEvent = interface end
 
 [<CLIMutable>]
 type BookTitleUpdatedEvent = {
@@ -70,6 +70,17 @@ module Book =
     let inline bookCmdHandler f =
         cmdHandler f buildBookMetadata
 
+    let addMetadata result =
+       result
+       |> Choice.map (fun events ->
+           let uniqueId = Guid.NewGuid().ToString()
+
+           {
+                UniqueId = uniqueId
+                Events = events |> List.map (fun evt -> (evt, buildBookMetadata))
+           }
+       )
+
     let cmdHandlers = 
         seq {
            yield 
@@ -80,27 +91,20 @@ module Book =
                })
                |> bookCmdHandler 
 
-           yield 
-               (fun (cmd : AddBookCommand) ->
-               { 
-                   BookAddedEvent.BookId = cmd.BookId
-                   Title = cmd.Title
-               })
-               |> bookCmdHandler 
+           let updateTitleHandler currentTitle () (cmd : UpdateBookTitleCommand) = 
+               let updateTitle newTitle =
+                   [{
+                       BookId = cmd.BookId
+                       Title = newTitle
+                   } :> IEvent]
 
-           yield 
-               (fun currentTitle m (cmd : UpdateBookTitleCommand) ->
-                   let updateTitle newTitle =
-                       [{
-                           BookId = cmd.BookId
-                           Title = newTitle
-                       } :> obj]
+               let newTitle = doesNotEqual (Some "title", "Cannot update title to the same value") currentTitle cmd.Title
 
-                   let newTitle = doesNotEqual (Some "title", "Cannot update title to the same value") currentTitle cmd.Title
-
-                   updateTitle <!> newTitle
-               )
-               |> bookCmdHandlerS bookTitle 
+               updateTitle <!> newTitle
+               |> addMetadata 
+           
+           yield AggregateActionBuilder.fullHandler bookTitle updateTitleHandler
+                 |> AggregateActionBuilder.buildCmd
         }
 
     let eventHandlers =

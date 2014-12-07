@@ -42,7 +42,7 @@ module ApplicationConfig =
         System.Reflection.Assembly.GetExecutingAssembly()
         |> Eventful.Utils.getLoadableTypes
 
-    let handlers =
+    let handlers : EventfulHandlers<_,_,_,IEvent,_> =
         EventfulHandlers.empty BookLibraryEventMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (Book.handlers ())
         |> EventfulHandlers.addAggregate (BookCopy.handlers ())
