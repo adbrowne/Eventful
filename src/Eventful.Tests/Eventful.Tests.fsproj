@@ -109,6 +109,7 @@
     <Compile Include="EventPositionTests.fs" />
     <Compile Include="CacheKeyTests.fs" />
     <Compile Include="CounterAgent.fs" />
+    <Compile Include="ActorPerformanceTests.fs" />
     <Compile Include="ParellelInOrderTransformerTests.fs" />
     <Compile Include="OperationSetCompleteTests.fs" />
     <Compile Include="MutableOrderedGroupingQueue.fs" />

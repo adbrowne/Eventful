@@ -322,16 +322,10 @@ module RavenProjectorTests =
 
     [<Fact>]
     let ``Run Events Through Grouping Queue`` () : unit =   
-        let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
-
-        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
 
         let streamCount = 10000
         let itemPerStreamCount = 100
-        let totalEvents = streamCount * itemPerStreamCount
         let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
-
-        let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
         let queue = new MutableOrderedGroupingBoundedQueue<string, SubscriberEvent>(100000000, "My Queue")
 
