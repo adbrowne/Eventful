@@ -143,14 +143,7 @@ module Book =
         // todo work out how this will work once statebuilders do not have ids
         //|> DocumentBuilder.mapStateToProperty bookTitle (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
 
-open System.Web
-open System.Net.Http
-open System.Web.Http
-open System.Web.Http.Routing
-
 open Suave
-open Suave.Http.Successful
-open Suave.Web
 open Suave.Http
 open Suave.Http.Applicatives
 open BookLibrary.WebHelpers
@@ -181,54 +174,3 @@ module BooksWebApi =
                         PUT >>= commandHandler system (updateHandler id)
                     ])
         ]
-        
-[<RoutePrefix("api/books")>]
-type BooksController(system : IBookLibrarySystem) =
-    inherit ApiController()
- 
-    // POST /api/values
-    [<Route("")>]
-    [<HttpPost>]
-    member x.Post (cmd:AddBookCommand) = 
-        async {
-            let cmdWithId = { cmd with BookId = { BookId.Id = Guid.NewGuid() }}
-            let! cmdResult = system.RunCommand cmdWithId 
-            return
-                match cmdResult with
-                | Choice1Of2 result ->
-                     let responseBody = new Newtonsoft.Json.Linq.JObject();
-                     responseBody.Add("bookId", new Newtonsoft.Json.Linq.JValue(cmdWithId.BookId.Id))
-                     let response = x.Request.CreateResponse<Newtonsoft.Json.Linq.JObject>(Net.HttpStatusCode.Accepted, responseBody)
-                     match result.Position with
-                     | Some position ->
-                         response.Headers.Add("eventful-last-write", position.BuildToken())
-                     | None ->
-                         ()
-                     response
-                | Choice2Of2 errorResult ->
-                     let response = x.Request.CreateResponse<NonEmptyList<CommandFailure>>(Net.HttpStatusCode.BadRequest, errorResult)
-                     response
-        } |> Async.StartAsTask
-
-    // PUT /api/values/5
-    [<Route("{bookId}/title")>]
-    [<HttpPut>]
-    member x.Put (bookId:Guid) ([<FromBody>] (cmd:UpdateBookTitleCommand)) = 
-        async {
-            let cmdWithId = { cmd with BookId = { BookId.Id = bookId }}
-            let! cmdResult = system.RunCommand cmdWithId 
-            return
-                match cmdResult with
-                | Choice1Of2 result ->
-                     let responseBody = new Newtonsoft.Json.Linq.JObject();
-                     let response = x.Request.CreateResponse<Newtonsoft.Json.Linq.JObject>(Net.HttpStatusCode.Accepted, responseBody)
-                     match result.Position with
-                     | Some position ->
-                         response.Headers.Add("eventful-last-write", position.BuildToken())
-                     | None ->
-                         ()
-                     response
-                | Choice2Of2 errorResult ->
-                     let response = x.Request.CreateResponse<NonEmptyList<CommandFailure>>(Net.HttpStatusCode.BadRequest, errorResult)
-                     response
-        } |> Async.StartAsTask

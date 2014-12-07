@@ -82,6 +82,8 @@ type TopShelfService () =
             // start web
             choose 
                 [ BooksWebApi.config bookLibrarySystem
+                  BooksCopiesWebApi.config bookLibrarySystem
+                  AwardsWebApi.config bookLibrarySystem
                   (Suave.Http.RequestErrors.NOT_FOUND "404 Not Found") ]
             |> web_server default_config 
 

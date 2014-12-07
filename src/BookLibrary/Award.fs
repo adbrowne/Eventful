@@ -1,6 +1,5 @@
 ﻿namespace BookLibrary
 
-open System
 open Eventful
 open BookLibrary.Aggregates
 
@@ -46,39 +45,24 @@ module Award =
             cmdHandlers 
             Seq.empty
 
-open System.Web
-open System.Net.Http
-open System.Web.Http
-open System.Web.Http.Routing
-open FSharpx.Choice
-open Eventful
-open FSharpx.Collections
+open Suave.Http
+open Suave.Http.Applicatives
+open BookLibrary.WebHelpers
 
-[<RoutePrefix("api/awards")>]
-type AwardsController(system : IBookLibrarySystem) =
-    inherit ApiController()
- 
-    // POST /api/values
-    [<Route("")>]
-    [<HttpPost>]
-    member x.Post (cmd:AddBookPrizeAwardCommand) = 
-        async {
-            let awardId = AwardId.New()
-            let cmdWithId = { cmd with AwardId = awardId }
-            let! cmdResult = system.RunCommand cmdWithId 
-            return
-                match cmdResult with
-                | Choice1Of2 result ->
-                     let responseBody = new Newtonsoft.Json.Linq.JObject();
-                     responseBody.Add("awardId", new Newtonsoft.Json.Linq.JValue(awardId.Id))
-                     let response = x.Request.CreateResponse<Newtonsoft.Json.Linq.JObject>(Net.HttpStatusCode.Accepted, responseBody)
-                     match result.Position with
-                     | Some position ->
-                         response.Headers.Add("eventful-last-write", position.BuildToken())
-                     | None ->
-                         ()
-                     response
-                | Choice2Of2 errorResult ->
-                     let response = x.Request.CreateResponse<NonEmptyList<CommandFailure>>(Net.HttpStatusCode.BadRequest, errorResult)
-                     response
-        } |> Async.StartAsTask
+module AwardsWebApi = 
+    let addHandler (cmd : AddBookPrizeAwardCommand) =
+        let awardId = AwardId.New()
+        let cmd = { cmd with AwardId = awardId }
+        let successResponse = 
+            let responseBody = new Newtonsoft.Json.Linq.JObject();
+            responseBody.Add("awardId", new Newtonsoft.Json.Linq.JValue(awardId))
+            responseBody
+        (cmd, successResponse :> obj)
+
+    let config system =
+        choose [
+            url "/api/awards" >>= choose
+                [ 
+                    POST >>= commandHandler system addHandler
+                ]
+        ]

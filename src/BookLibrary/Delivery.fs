@@ -1,6 +1,5 @@
 ﻿namespace BookLibrary
 
-open System
 open Eventful
 open BookLibrary.Aggregates
 
