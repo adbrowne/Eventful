@@ -215,7 +215,7 @@ module EventStream =
         let maxTries = 100
         let retry = ref true
         let count = ref 0
-        // WriteCancelled whould never be used
+        // WriteCancelled should never be used
         let finalResult = ref (Choice2Of2 RunFailure.WriteCancelled)
         while !retry do
             let! result = f
