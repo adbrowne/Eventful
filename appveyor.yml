@@ -122,24 +122,24 @@
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: Eventful.nupkg
+      artifact: build\Eventful.nupkg
 
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: Eventful.Testing.nupkg
+      artifact: build\Eventful.Testing.nupkg
 
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: RavenDb.nupkg
+      artifact: build\RavenDb.nupkg
 
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: EventStore.nupkg
+      artifact: build\EventStore.nupkg
 
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: Neo4j.nupkg
+      artifact: build\Neo4j.nupkg
