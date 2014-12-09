@@ -106,7 +106,7 @@
   #---------------------------------#
   artifacts:
     - path: 'build\*.nupkg' # find all NuGet packages recursively
-      name: nuget packages
+      name: eventful
 
   #---------------------------------#
   #          build cache            #
@@ -122,4 +122,4 @@
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: nuget packages
+      artifact: eventful
