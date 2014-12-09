@@ -161,7 +161,7 @@
     <ProjectReference Include="..\Eventful\Eventful.fsproj">
       <Name>Eventful</Name>
       <Project>{4c150478-a9fc-4010-9929-20312856ceaf}</Project>
-      <Private>False</Private>
+      <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
