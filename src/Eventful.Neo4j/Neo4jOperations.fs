@@ -1,5 +1,10 @@
 ﻿namespace Eventful.Neo4j
 
+open System
+open System.Linq.Expressions
+open Microsoft.FSharp.Quotations
+open Microsoft.FSharp.Linq.RuntimeHelpers
+
 open Eventful
 
 open FSharpx
@@ -38,6 +43,20 @@ module Operations =
 
     let orWhereQ (clause : string) (query : CypherQuery) =
         { query with Query = query.Query.OrWhere(clause) }
+
+    let withQ (clause : string) (query : CypherQuery) =
+        { query with Query = query.Query.With(clause) }
+
+    let optionalMatchQ (clause : string) (query : CypherQuery) =
+        { query with Query = query.Query.OptionalMatch(clause) }
+
+    let returnExprQ (expr : Expr<'a>) (query : CypherQuery) =
+        let linqExpression =
+            <@ Func<'a>(fun () -> %expr) @>
+            |> LeafExpressionConverter.QuotationToExpression
+            :?> Expression<Func<'a>>
+
+        query.Query.Return(linqExpression)
 
     let withParamQ name value (query : CypherQuery) =
         let parameterName = sprintf "%s_%i" name query.NextParameterIndex
