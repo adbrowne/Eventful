@@ -51,12 +51,11 @@ module Operations =
         { query with Query = query.Query.OptionalMatch(clause) }
 
     let returnExprQ (expr : Expr<'a>) (query : CypherQuery) =
-        let linqExpression =
-            <@ Func<'a>(fun () -> %expr) @>
-            |> LeafExpressionConverter.QuotationToExpression
+        let lambdaExpression =
+            Expression.Lambda(LeafExpressionConverter.QuotationToExpression expr, Seq.empty)
             :?> Expression<Func<'a>>
 
-        query.Query.Return(linqExpression)
+        query.Query.Return(lambdaExpression)
 
     let withParamQ name value (query : CypherQuery) =
         let parameterName = sprintf "%s_%i" name query.NextParameterIndex
