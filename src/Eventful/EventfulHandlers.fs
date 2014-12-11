@@ -59,6 +59,8 @@ type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventfulHandlers = 
+    let log = createLogger "Eventful.EventfulHandlers"
+
     let empty getAggregateType = 
         new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>(
             Map.empty, 
@@ -168,6 +170,9 @@ module EventfulHandlers =
             |> Map.tryFind cmdTypeFullName
             |> function
             | Some (EventfulCommandHandler(_, handler, _)) -> handler
-            | None -> failwith <| sprintf "Could not find handler for %A" cmdType
+            | None -> 
+                let msg = sprintf "Could not find handler for %A" cmdType
+                log.Warn <| lazy (msg)
+                failwith msg
 
         handler context cmd
