@@ -11,7 +11,7 @@ open FSharpx
 
 type Projector<'TKey, 'TMessage, 'TContext, 'TAction> =
     { MatchingKeys : 'TMessage -> 'TKey seq
-      ProcessEvents : 'TContext -> 'TKey -> 'TMessage seq -> Async<'TAction seq> }
+      ProcessEvents : 'TContext -> 'TKey -> 'TMessage seq -> Async<'TAction seq * Async<unit>> }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BulkProjector =
@@ -28,9 +28,16 @@ module BulkProjector =
             { MatchingKeys = projector.MatchingKeys
               ProcessEvents = (fun () -> projector.ProcessEvents context) })
 
-    let createProjector<'TKey, 'TMessage, 'TContext, 'TAction> (matchingKeys : Func<'TMessage, 'TKey seq>) (processEvents : Func<'TContext, 'TKey, 'TMessage seq, Task<'TAction seq>>) =
+    let funcTaskToAsync (func : Func<Task>) =
+        if func = null then async.Zero()
+        else func.Invoke() |> voidTaskAsAsync
+
+    let createProjector<'TKey, 'TMessage, 'TContext, 'TAction> (matchingKeys : Func<'TMessage, 'TKey seq>) (processEvents : Func<'TContext, 'TKey, 'TMessage seq, Task<'TAction seq * Func<Task>>>) =
         { MatchingKeys = fun message -> matchingKeys.Invoke(message)
-          ProcessEvents = fun context key messages -> processEvents.Invoke(context, key, messages) |> Async.AwaitTask }
+          ProcessEvents = fun context key messages ->
+            processEvents.Invoke(context, key, messages)
+            |> Async.AwaitTask
+            |> Async.map (fun (actions, onComplete) -> (actions, funcTaskToAsync onComplete)) }
 
 type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
     (
@@ -56,8 +63,9 @@ type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
     let tryEvent key projectorIndex events =
         async {
             let projector = projectors.[projectorIndex]
-            let! actions = projector.ProcessEvents () key events
-            return! executor actions
+            let! actions, onComplete = projector.ProcessEvents () key events
+            let! result = executor actions
+            return (result, onComplete)
         }
         
     let processEvent (key, projectorIndex) values = async {
@@ -66,10 +74,11 @@ type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
         let rec loop count exceptions = async {
             if count < maxAttempts then
                 try
-                    let! attempt = tryEvent key projectorIndex cachedValues
+                    let! attempt, onComplete = tryEvent key projectorIndex cachedValues
                     match attempt with
                     | Choice1Of2 _ ->
-                        ()
+                        do! onComplete
+                        return ()
                     | Choice2Of2 ex ->
                         return! loop (count + 1) (ex::exceptions)
                 with | ex ->

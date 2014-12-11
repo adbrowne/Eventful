@@ -214,6 +214,7 @@ module AggregateStatePersistence =
                     >> computeNextWakeup
                     >> createWriteRequest
                     >> Seq.singleton
+                    >> flip tuple2 (async.Zero())
                 )
         {
             MatchingKeys = matchingKeys

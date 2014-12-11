@@ -50,7 +50,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
     let accumulateItems s ((key, projectorIndex), items) = async {
         let events = items |> Seq.map fst
         let projector = projectors.[projectorIndex]
-        let! writeRequests = projector.ProcessEvents fetcher key events
+        let! writeRequests, _ = projector.ProcessEvents fetcher key events
         return Seq.append s writeRequests
     }
 

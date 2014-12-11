@@ -54,7 +54,7 @@ type TopShelfService () =
             messages
             |> Seq.fold (runMessage docKey) doc
 
-        return seq {
+        return (seq {
             let write = {
                DocumentKey = docKey
                Document = doc
@@ -62,7 +62,7 @@ type TopShelfService () =
                Etag = etag
             }
             yield Write (write, Guid.NewGuid())
-        }
+        }, async.Zero())
     }
 
     member x.Start () =

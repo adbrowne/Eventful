@@ -162,7 +162,7 @@ module RavenProjectorTests =
         } |> Async.RunSynchronously
         ()
 
-    let ``Get Projector`` documentStore =
+    let ``Get Projector`` documentStore onComplete =
         let countingDocKeyPrefix =  "MyCountingDocs/"
         let countingDocKey (key : Guid) =
             countingDocKeyPrefix + key.ToString()  
@@ -229,7 +229,7 @@ module RavenProjectorTests =
 
             permDoc.Writes <- permDoc.Writes + 1
 
-            return seq {
+            return (seq {
                 yield (
                         Write ({
                                 DocumentKey = docKey
@@ -246,7 +246,7 @@ module RavenProjectorTests =
                                 Etag = permEtag
                             },
                             requestId))
-            }
+            }, onComplete)
         }
 
         let projector = {
@@ -281,7 +281,7 @@ module RavenProjectorTests =
 
         projector
 
-    let ``Get Raven Projector`` documentStore = 
+    let ``Get Raven Projector With onComplete`` documentStore onComplete = 
         let monitor = new System.Object()
         let itemsComplete = ref 0
 
@@ -291,9 +291,12 @@ module RavenProjectorTests =
             )
         }
         
-        let myProjector = ``Get Projector`` documentStore
+        let myProjector = ``Get Projector`` documentStore onComplete
 
         buildRavenProjector documentStore myProjector writeComplete
+    
+    let ``Get Raven Projector`` documentStore = 
+        ``Get Raven Projector With onComplete`` documentStore (async.Zero())
   
     [<Fact>]
     let ``Enqueue events into projector`` () : unit =   
@@ -565,3 +568,30 @@ module RavenProjectorTests =
         |> Async.RunSynchronously
 
         ()
+
+    [<Fact>]
+    let ``OnComplete is triggered after batch completed`` () : unit =
+        let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
+
+        let streamCount = 10
+        let itemPerStreamCount = 100
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+
+        let completeCount = ref 0
+        let onComplete = async {
+            System.Threading.Interlocked.Increment completeCount |> ignore
+        }
+
+        let projector = ``Get Raven Projector With onComplete`` documentStore onComplete
+
+        async {
+            for event in myEvents do
+                do! projector.Enqueue event
+
+            Assert.Equal(0, !completeCount)
+
+            projector.StartWork()
+            do! projector.WaitAll()
+
+            Assert.Equal(streamCount, !completeCount)
+        } |> Async.RunSynchronously
