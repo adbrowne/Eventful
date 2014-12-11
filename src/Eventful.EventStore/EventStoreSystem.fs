@@ -26,12 +26,15 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
     let completeTracker = new LastCompleteItemAgent<EventPosition>()
 
     let updatePosition _ = async {
-        let! lastComplete = completeTracker.LastComplete()
-        log.Debug <| lazy ( sprintf "Updating position %A" lastComplete )
-        match lastComplete with
-        | Some position ->
-            ProcessingTracker.setPosition client position |> Async.RunSynchronously
-        | None -> () }
+        try
+            let! lastComplete = completeTracker.LastComplete()
+            log.Debug <| lazy ( sprintf "Updating position %A" lastComplete )
+            match lastComplete with
+            | Some position ->
+                ProcessingTracker.setPosition client position |> Async.RunSynchronously
+            | None -> () 
+        with | e ->
+            log.ErrorWithException <| lazy("failure updating position", e)}
 
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
 
@@ -45,10 +48,13 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
             getSnapshot 
             program
 
-    let runHandlerForEvent program =
+    let runHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>) program =
         async {
-            let! program = program
-            return! interpreter program
+            try
+                let! program = program
+                return! interpreter program
+            with | e ->
+                log.ErrorWithException <| lazy(sprintf "Exception in event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
         }
 
     let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>) (persistedEvent : PersistedEvent<'TMetadata>) =
@@ -56,7 +62,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
             do! 
                 handlers
                 |> EventfulHandlers.getHandlerPrograms getEventContextFromMetadata persistedEvent
-                |> List.map runHandlerForEvent
+                |> List.map (runHandlerForEvent persistedEvent)
                 |> Async.Parallel
                 |> Async.Ignore
         }

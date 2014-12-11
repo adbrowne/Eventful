@@ -54,8 +54,12 @@ module TestEventStoreSystemHelpers =
         cmdBuilderS StateBuilder.nullStateBuilder (fun _ -> f)
 
     let inline onEvent fId s f = 
-        let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata)) >> (fun x c -> { UniqueId = ""; Events = x })
-        Eventful.AggregateActionBuilder.onEvent fId s (withMetadata f)
+        let runEvent eventState evt ctx = 
+            f eventState evt ctx
+            |> Seq.map (fun x -> (x, buildMetadata))
+            |> (fun x -> { UniqueId = ""; Events = x })
+            
+        Eventful.AggregateActionBuilder.onEvent fId s runEvent
     let inline linkEvent fId = 
         Eventful.AggregateActionBuilder.linkEvent fId buildMetadata
 
@@ -125,10 +129,28 @@ type TestEventStoreSystemFixture () =
             Seq.empty 
             widgetCounterEventHandlers
 
+    let aggregateThatThrowsrEventHandlers =
+        seq {
+                let nullStateBuilder = StateBuilder.nullStateBuilder |> StateBuilder.toInterface
+                let getId (evt : WidgetCreatedEvent) _ = evt.WidgetId
+                let handler () evt ctx =
+                    failwith "Some random exception"
+                yield onEvent getId nullStateBuilder handler
+            }
+    let aggregateThatThrows =
+        toAggregateDefinition
+            "AggregateThatThrows"
+            TestMetadata.GetUniqueId
+            (getStreamName "AggregateThatThrows") 
+            (getEventStreamName "AggregateThatThrows") 
+            Seq.empty 
+            aggregateThatThrowsrEventHandlers
+
     let handlers =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate widgetHandlers
         |> EventfulHandlers.addAggregate widgetCounterAggregate
+        |> EventfulHandlers.addAggregate aggregateThatThrows
         |> StandardConventions.addEventType typeof<WidgetCreatedEvent>
 
     let eventContexts = new System.Collections.Concurrent.ConcurrentQueue<MockDisposable>()

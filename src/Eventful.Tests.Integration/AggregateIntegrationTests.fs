@@ -11,6 +11,7 @@ open Eventful.Aggregate
 open Eventful.AggregateActionBuilder
 open Eventful.Testing
 open Eventful.Tests
+open Swensen.Unquote
 
 open FSharpx.Option
 
@@ -19,8 +20,10 @@ open TestEventStoreSystemHelpers
 type AggregateIntegrationTests () = 
 
     let mutable system : EventStoreSystem<unit, MockDisposable, TestMetadata, obj, string> option = None
+    let mutable connection : EventStore.ClientAPI.IEventStoreConnection = null
 
     let streamPositionMap : Map<string, int> ref = ref Map.empty
+    let lastPosition : EventPosition ref = ref EventPosition.Start
 
     let waitFor f : Async<unit> =
         let timeout = DateTime.UtcNow.AddSeconds(20.0).Ticks
@@ -84,6 +87,42 @@ type AggregateIntegrationTests () =
 
     [<Fact>]
     [<Trait("category", "eventstore")>]
+    let ``Global position is updated`` () : unit =
+        streamPositionMap := Map.empty
+        let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
+            IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
+            streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
+            lastPosition := position
+
+        async {
+            let system = system.Value
+            system.AddOnCompleteEvent newEvent
+
+            let widgetId = { WidgetId.Id = Guid.NewGuid() }
+
+            let! cmdResult = 
+                system.RunCommand
+                    ()
+                    { 
+                        CreateWidgetCommand.WidgetId = widgetId; 
+                        Name = "Mine"
+                    }
+
+            let expectedStreamName = sprintf "Widget-%s" (widgetId.Id.ToString("N"))
+            do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 0)
+
+            do! Async.Sleep 6000 // wait for a bit more than one position save
+
+            let client = new Client(connection)
+
+            let! storedPosition = ProcessingTracker.readPosition client
+
+            !lastPosition >? EventPosition.Start
+            storedPosition >=? Some !lastPosition
+        } |> Async.RunSynchronously
+
+    [<Fact>]
+    [<Trait("category", "eventstore")>]
     let ``Can run many commands`` () : unit =
         streamPositionMap := Map.empty
         let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
@@ -128,3 +167,4 @@ type AggregateIntegrationTests () =
     interface Xunit.IUseFixture<TestEventStoreSystemFixture> with
         member x.SetFixture(fixture) =
             system <- Some fixture.System
+            connection <- fixture.Connection
