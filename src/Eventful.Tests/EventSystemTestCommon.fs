@@ -11,6 +11,7 @@ module EventSystemTestCommon =
     type BarEvent = {
         Id : Guid
     }
+    with interface IEvent
 
     let metadataBuilder sourceMessageId = { 
         SourceMessageId = sourceMessageId 

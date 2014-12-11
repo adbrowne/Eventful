@@ -25,14 +25,15 @@ module OnEventTests =
     let fooHandlers () =    
         let cmdHandlers = Seq.empty
 
-        let evtHandlers : seq<IEventHandler<_,_,UnitEventContext>> = seq {
+        let evtHandlers : seq<IEventHandler<_,_,UnitEventContext, IEvent>> = seq {
             yield 
                 AggregateActionBuilder.onEvent 
                     (fun (e : FooEvent) _ -> e.Id) 
                     StateBuilder.nullStateBuilder 
-                    (fun s e -> 
-                        ({ BarEvent.Id = e.Id } :> obj, metadataBuilder)
+                    (fun s e c -> 
+                        ({ BarEvent.Id = e.Id } :> IEvent, metadataBuilder)
                         |> Seq.singleton
+                        |> (fun evts -> { UniqueId = sprintf "FooEvent:%s" (e.Id.ToString()); Events = evts })
                     )
         }
 
@@ -72,6 +73,24 @@ module OnEventTests =
 
         barCount |> should equal 1
 
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Same event will not be run twice`` () : unit =
+        let thisId = Guid.NewGuid()
+        let streamName = getStreamName UnitEventContext thisId
+
+        let event = { FooEvent.Id = thisId } :> IEvent
+        let afterRun = 
+            emptyTestSystem  
+            |> TestSystem.injectEvent streamName 0 event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // first run
+            |> TestSystem.injectEvent streamName 0 event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // first run
+            |> TestSystem.runToEnd
+
+        let barStateIs1 guid =
+            afterRun.EvaluateState (getStreamName UnitEventContext guid) guid barEventCounter |> should equal 1
+
+        barStateIs1 thisId
+
 /// Test delivering an OnEvent to multiple
 /// aggregate instances
 module OnEventMultiAggregateTests =
@@ -93,7 +112,7 @@ module OnEventMultiAggregateTests =
         yield typeof<BarEvent>
     }
 
-    let fooHandlers () =    
+    let fooHandlers () =
         let cmdHandlers = seq {
             yield 
                 cmdHandler
@@ -109,8 +128,9 @@ module OnEventMultiAggregateTests =
 
         let evtHandlers = seq {
             let h = (fun aggregateId s -> 
-                    ({ BarEvent.Id = aggregateId } :> obj, metadataBuilder)
+                    ({ BarEvent.Id = aggregateId } :> IEvent, metadataBuilder)
                     |> Seq.singleton
+                    |> (fun evts -> { UniqueId = ""; Events = evts })
                 )
             yield 
                 AggregateActionBuilder.onEventMulti

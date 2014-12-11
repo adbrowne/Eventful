@@ -9,7 +9,7 @@ type IBookLibrarySystem =
     abstract member RunCommand<'a> : 'a -> Async<CommandResult<IEvent,BookLibraryEventMetadata>>
     abstract member RunCommandTask<'a> : 'a -> Task<CommandResult<IEvent,BookLibraryEventMetadata>>
 
-type BookLibraryEventStoreSystem = EventStoreSystem<unit,UnitEventContext,BookLibraryEventMetadata,IEvent,AggregateType>
+type BookLibraryEventStoreSystem = EventStoreSystem<unit,BookLibraryEventContext,BookLibraryEventMetadata,IEvent,AggregateType>
 
 [<CLIMutable>]
 type BookId = {

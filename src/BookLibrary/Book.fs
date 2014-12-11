@@ -38,7 +38,7 @@ module Book =
     let getStreamName () (bookId : BookId) =
         sprintf "Book-%s" <| bookId.Id.ToString("N")
 
-    let getEventStreamName (context : UnitEventContext) (bookId : BookId) =
+    let getEventStreamName (context : BookLibraryEventContext) (bookId : BookId) =
         sprintf "Book-%s" <| bookId.Id.ToString("N")
 
     let inline getBookId (a: ^a) _ = 
@@ -113,7 +113,7 @@ module Book =
 
             let onBookAwarded bookCopyCount (evt : BookPrizeAwardedEvent) = seq {
                 if(bookCopyCount > 10) then
-                    yield ({ BookPromotedEvent.BookId = evt.BookId } :> obj, buildBookMetadata)
+                    yield ({ BookPromotedEvent.BookId = evt.BookId } :> IEvent, buildBookMetadata)
             }
 
             yield onEvent (fun (evt : BookPrizeAwardedEvent) _ -> evt.BookId) copyCount onBookAwarded

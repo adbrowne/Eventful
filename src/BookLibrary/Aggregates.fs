@@ -35,6 +35,14 @@ with
     static member GetUniqueId x = Some x.SourceMessageId
     static member GetAggregateType x = x.AggregateType
 
+type BookLibraryEventContext = {
+    Metadata : BookLibraryEventMetadata
+    EventId : Guid
+}
+with 
+    interface IDisposable with
+        member x.Dispose() = ()
+
 module Aggregates = 
 
     let stateBuilder<'TId when 'TId : equality> = StateBuilder.nullStateBuilder<BookLibraryEventMetadata, 'TId>
@@ -71,6 +79,12 @@ module Aggregates =
         Eventful.AggregateActionBuilder.linkEvent fId buildMetadata
 
     let inline onEvent fId sb f =
-        Eventful.AggregateActionBuilder.onEvent fId sb f
+        let handler state event (context : BookLibraryEventContext) =
+            {
+                UniqueId = context.EventId.ToString()
+                Events = f state event
+            }
+            
+        Eventful.AggregateActionBuilder.onEvent fId sb handler
 
     let toAggregateDefinition = Eventful.Aggregate.toAggregateDefinition

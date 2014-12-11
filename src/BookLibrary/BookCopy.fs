@@ -13,7 +13,7 @@ module BookCopy =
     let getStreamName () (bookCopyId : BookCopyId) =
         sprintf "BookCopy-%s" <| bookCopyId.Id.ToString("N")
 
-    let getEventStreamName (context : UnitEventContext) (bookCopyId : BookCopyId) =
+    let getEventStreamName (context : BookLibraryEventContext) (bookCopyId : BookCopyId) =
         sprintf "BookCopy-%s" <| bookCopyId.Id.ToString("N")
 
     let inline getBookCopyId (a: ^a) _ = 

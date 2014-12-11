@@ -54,7 +54,7 @@ module TestEventStoreSystemHelpers =
         cmdBuilderS StateBuilder.nullStateBuilder (fun _ -> f)
 
     let inline onEvent fId s f = 
-        let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata))
+        let withMetadata s f = (f s) >> Seq.map (fun x -> (x, buildMetadata)) >> (fun x c -> { UniqueId = ""; Events = x })
         Eventful.AggregateActionBuilder.onEvent fId s (withMetadata f)
     let inline linkEvent fId = 
         Eventful.AggregateActionBuilder.linkEvent fId buildMetadata

@@ -57,7 +57,7 @@ module ApplicationConfig =
         new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, dbName, Serialization.esSerializer, onWakeups) :> Eventful.IWakeupMonitor
 
     let buildEventStoreSystem documentStore client =
-        new BookLibraryEventStoreSystem(handlers, client, Serialization.esSerializer, (fun _ -> UnitEventContext), nullGetSnapshot, buildWakeupMonitor documentStore)
+        new BookLibraryEventStoreSystem(handlers, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), nullGetSnapshot, buildWakeupMonitor documentStore)
 
     let initializedSystem documentStore = 
         async {

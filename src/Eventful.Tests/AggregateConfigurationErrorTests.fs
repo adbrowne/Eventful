@@ -140,7 +140,7 @@ module AggregateConfigurationErrorTests =
     let ``Event handler for object returns error`` () =
         let testId = { TestId.Id = Guid.NewGuid() }
         let evtHandlers = seq {
-           yield AggregateActionBuilder.onEvent (fun _ context -> testId) StateBuilder.nullStateBuilder (fun _ _  -> Seq.empty)
+           yield AggregateActionBuilder.onEvent (fun _ context -> testId) StateBuilder.nullStateBuilder (fun _ _ _ -> { UniqueId = ""; Events = Seq.empty })
         }
 
         let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj,string> =

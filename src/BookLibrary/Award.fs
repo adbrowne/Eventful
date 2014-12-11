@@ -13,7 +13,7 @@ module Award =
     let getStreamName () (awardId : AwardId) =
         sprintf "Award-%s" <| awardId.Id.ToString("N")
 
-    let getEventStreamName (context : UnitEventContext) (awardId : AwardId) =
+    let getEventStreamName (context : BookLibraryEventContext) (awardId : AwardId) =
         sprintf "Award-%s" <| awardId.Id.ToString("N")
 
     let inline getAwardId (a: ^a) _ = 

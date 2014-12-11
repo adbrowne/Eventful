@@ -73,7 +73,7 @@ module EventfulHandlers =
         |> Seq.map (fun x -> EventfulCommandHandler(x.CmdType, x.Handler config, x.Visitable))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>) h -> s.AddCommandHandler h) eventfulHandlers
 
-    let addEventHandlers config (eventHandlers : IEventHandler<_,_,_> list) eventfulHandlers =
+    let addEventHandlers config (eventHandlers : IEventHandler<_,_,_,_> list) eventfulHandlers =
         eventHandlers
         |> Seq.map (fun x -> EventfulEventHandler(x.EventType, x.Handler config))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent,'TAggregateType>) h -> s.AddEventHandler h) eventfulHandlers
