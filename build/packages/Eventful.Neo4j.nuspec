@@ -20,7 +20,6 @@
     <file src="..\Release\Eventful.Neo4j.dll" target="lib\net40" /> 
     <file src="..\Release\Eventful.Neo4j.pdb" target="lib\net40" /> 
     <file src="..\Release\Neo4jClient.dll" target="lib\net40" /> 
-    <file src="..\Release\Neo4jClient.pdb" target="lib\net40" /> 
     <file src="..\..\vendor\Neo4jClient\LICENSE*" target="lib\net40" /> 
     <file src="..\..\src\Eventful.Neo4j\**\*.fs" target="src" />
     <file src="..\..\src\Eventful.Neo4j\**\*.cs" target="src" />
