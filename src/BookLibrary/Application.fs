@@ -18,7 +18,7 @@ type EventCountDoc = {
 }
 
 type TopShelfService () =
-    let log = createLogger "EmergencyRoom.EmergencyRoomTopShelfService"
+    let log = createLogger "BookLibrary"
 
     let mutable client : Client option = None
     let mutable eventStoreSystem : BookLibraryEventStoreSystem option = None

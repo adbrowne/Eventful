@@ -1,30 +1,32 @@
 ﻿namespace Eventful
 
+open Serilog.Events
+
 type Logger internal (name : string) =
-    let logger = Common.Logging.LogManager.GetLogger(name)
+    let logger = EventfulLog.ForContext(name)
     member this.Debug (msg : Lazy<string>) : unit = 
-        if (logger.IsDebugEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Debug)) then
             let message = msg.Force()
             logger.Debug(message)
 
     member this.DebugWithException (msg : Lazy<string * System.Exception>) : unit = 
-        if (logger.IsDebugEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Debug)) then
             let message = msg.Force()
             let (message, exn) = msg.Force()
             logger.Debug(message, exn)
 
     member this.Warn (msg : Lazy<string>) : unit = 
-        if (logger.IsWarnEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Warning)) then
             let message = msg.Force()
-            logger.Warn(message)
+            logger.Warning(message)
 
     member this.Error (msg : Lazy<string>) : unit = 
-        if (logger.IsErrorEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Error)) then
             let message = msg.Force()
             logger.Error(message)
 
     member this.ErrorWithException (msg : Lazy<string * System.Exception>) : unit = 
-        if (logger.IsErrorEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Error)) then
             let (message, exn) = msg.Force()
             logger.Error(message, exn)
 

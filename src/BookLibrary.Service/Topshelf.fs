@@ -7,7 +7,7 @@ module Topshelf =
   open System
   open Topshelf.HostConfigurators
   open Topshelf.Runtime
-  open Topshelf.Common.Logging
+  open Serilog.Extras.Topshelf
 
   let configureTopShelf f =
     HostFactory.Run(new Action<_>(f)) |> int
@@ -101,6 +101,9 @@ module Topshelf =
     
   let startAutomatically (conf : HostConfigurator) =
     conf.StartAutomatically() |> ignore
+
+  let useSerilog (conf : HostConfigurator) =
+    conf.UseSerilog() |> ignore
 
   let startAutomaticallyDelayed (conf : HostConfigurator) =
     conf.StartAutomaticallyDelayed() |> ignore

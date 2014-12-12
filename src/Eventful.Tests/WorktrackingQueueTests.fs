@@ -121,7 +121,6 @@ module WorktrackingQueueTests =
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Completion function is called immediately when an items results in 0 groups`` () : unit =
-        log4net.Config.XmlConfigurator.Configure()
         let groupingFunction _ = Seq.empty
 
         let tcs = new TaskCompletionSource<bool>()

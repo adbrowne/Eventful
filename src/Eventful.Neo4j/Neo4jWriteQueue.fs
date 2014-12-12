@@ -19,7 +19,7 @@ type Neo4jWriteQueue
         cancellationToken : CancellationToken
     ) =
 
-    let log = Common.Logging.LogManager.GetLogger("Eventful.Neo4jWriteQueue")
+    let log = EventfulLog.ForContext "Eventful.Neo4jWriteQueue"
 
     let batchWriteTracker = Metric.Histogram("Neo4jWriteQueue Batch Size", Unit.Items)
     let batchWriteTime = Metric.Timer("Neo4jWriteQueue Timer", Unit.None)
@@ -58,8 +58,7 @@ type Neo4jWriteQueue
             try
                 do! (processActions graphName batch)
             with | e ->
-                if log.IsDebugEnabled then
-                    log.Debug("Exception on write",e)
+                log.Debug(e, "Exception on write")
     }
 
     let startConsumers = 

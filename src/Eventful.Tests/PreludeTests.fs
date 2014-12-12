@@ -8,7 +8,7 @@ open System
 
 module PreludeTests = 
 
-    let log = Common.Logging.LogManager.GetLogger("Eventful.Tests.PreludeTests")
+    let log = EventfulLog.ForContext "Eventful.Tests.PreludeTests"
 
     let longTask = async { do!  Async.Sleep(100000) }
     let action = runWithTimeout "MyName" (TimeSpan.FromMilliseconds(100.0)) Async.DefaultCancellationToken longTask
