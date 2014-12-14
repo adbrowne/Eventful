@@ -16,7 +16,7 @@ type IStateBuilder<'TState, 'TMetadata, 'TKey> =
     abstract GetBlockBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list
     abstract GetState : Map<string, obj> -> 'TState
 
-type StateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
+type StateBuilder<'TState, 'TMetadata, 'TKey>
     (
         name: string, 
         eventFold : EventFold<'TState, 'TMetadata, 'TKey>
@@ -76,6 +76,25 @@ type StateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
 module StateBuilder =
     let nullStateBuilder<'TMetadata, 'TKey when 'TKey : equality> =
         StateBuilder<unit, 'TMetadata, 'TKey>.Empty "$Empty" ()
+
+    let getUnitKey _ _ = ()
+
+    let withUnitKeyBlockBuilder (stateBlockBuilder : IStateBlockBuilder<'TMetadata, 'TKey>) = {
+        new IStateBlockBuilder<'TMetadata, unit> with
+            member x.Type = stateBlockBuilder.Type
+            member x.Name = stateBlockBuilder.Name
+            member x.InitialState = stateBlockBuilder.InitialState
+            member x.GetRunners () = 
+                stateBlockBuilder.GetRunners() 
+                |> Seq.map (fun (_, getEventKey) -> (getUnitKey, getEventKey))
+    }
+        
+    let withUnitKey (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) = {
+        new IStateBuilder<'TState, 'TMetadata, unit> with
+            member x.GetBlockBuilders = 
+                stateBuilder.GetBlockBuilders
+                |> List.map withUnitKeyBlockBuilder 
+            member x.GetState stateMap = stateBuilder.GetState stateMap}
 
     let handler (getKey : GetEventKey<'TMetadata, 'TEvent, 'TKey>) (f : HandlerFunction<'TState, 'TMetadata, 'TEvent>) (b : StateBuilder<'TState, 'TMetadata, 'TKey>) =
         b.AddHandler <| SingleEvent (typeof<'TEvent>, EventFold.untypedGetKey getKey, EventFold.untypedHandler f)

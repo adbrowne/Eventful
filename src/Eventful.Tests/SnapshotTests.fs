@@ -35,7 +35,8 @@ module SnapshotTests =
 
     let runningTotalBuilder = 
         StateBuilder.Empty "RunningTotal" 0
-        |> StateBuilder.aggregateStateHandler (fun (s,e:FooEvent,_) -> s + e.Value)
+        |> StateBuilder.aggregateStateHandler (fun (s,e:FooEvent,(_:TestMetadata)) -> s + e.Value)
+        |> StateBuilder.toInterface
 
     let fooHandlers : AggregateDefinition<Guid, _, _, _, _, _> =    
         let cmdHandlers = seq {

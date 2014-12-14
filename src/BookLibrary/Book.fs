@@ -15,11 +15,11 @@ type AddBookCommand = {
 }
 
 [<CLIMutable>]
-type BookAddedEvent = {
-    BookId : BookId
-    Title : string
-}
-with interface IEvent
+type BookAddedEvent = 
+    { BookId : BookId
+      Title : string }
+    interface IBookEvent with
+      member x.BookId = x.BookId
 
 [<CLIMutable>]
 type UpdateBookTitleCommand = {
@@ -28,13 +28,16 @@ type UpdateBookTitleCommand = {
 }
 
 [<CLIMutable>]
-type BookTitleUpdatedEvent = {
-    BookId : BookId
-    Title : string 
-}
-with interface IEvent
+type BookTitleUpdatedEvent = 
+    { BookId : BookId
+      Title : string }
+    interface IBookEvent with
+      member x.BookId = x.BookId
 
 module Book =
+    let addBookEventHandler (f : ('s * #IBookEvent * BookLibraryEventMetadata) -> 's) s =
+        s |> StateBuilder.handler (fun evt _ -> evt :> IBookEvent) f
+
     let getStreamName () (bookId : BookId) =
         sprintf "Book-%s" <| bookId.Id.ToString("N")
 
@@ -46,12 +49,12 @@ module Book =
 
     let bookTitle = 
         StateBuilder.Empty "bookTitle" ""
-        |> StateBuilder.aggregateStateHandler (fun (_, (e : BookAddedEvent), _) -> e.Title)
-        |> StateBuilder.aggregateStateHandler (fun (_, (e : BookTitleUpdatedEvent), _) -> e.Title)
+        |> addBookEventHandler (fun (_, (e : BookAddedEvent), _) -> e.Title)
+        |> addBookEventHandler (fun (_, (e : BookTitleUpdatedEvent), _) -> e.Title)
 
     let copyCount =
         StateBuilder.Empty "bookCopyCount" 0
-        |> StateBuilder.aggregateStateHandler (fun (s, (e : BookCopyAddedEvent), _) -> s + 1)
+        |> addBookEventHandler (fun (s, (e : BookCopyAddedEvent), _) -> s + 1)
 
     let doesNotEqual err other value =
         if other = value then
@@ -140,8 +143,7 @@ module Book =
 
     let documentBuilder : DocumentBuilder<BookId, BookDocument, BookLibraryEventMetadata> = 
         DocumentBuilder.Empty<BookId, BookDocument> BookDocument.NewDoc (fun x -> sprintf "Book/%s" (x.Id.ToString()))
-        // todo work out how this will work once statebuilders do not have ids
-        //|> DocumentBuilder.mapStateToProperty bookTitle (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
+        |> DocumentBuilder.mapStateToProperty bookTitle (fun e -> e.BookId) (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
 
 open Suave
 open Suave.Http

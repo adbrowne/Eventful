@@ -134,17 +134,17 @@ module AggregateActionBuilder =
 
     let log = createLogger "Eventful.AggregateActionBuilder"
 
-    let fullHandlerAsync<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent> stateBuilder f =
+    let fullHandlerAsync<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
-            StateBuilder = stateBuilder
+            StateBuilder = StateBuilder.withUnitKey stateBuilder
             Handler = f
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
-    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent> stateBuilder f =
+    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
-            StateBuilder = stateBuilder
+            StateBuilder = StateBuilder.withUnitKey stateBuilder
             Handler = (fun a b c ->  f a b c |> Async.returnM)
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
@@ -463,7 +463,7 @@ module AggregateActionBuilder =
             }
         )
 
-    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata, 'TCommandContext, 'TEventContext,'TBaseEvent when 'TId : equality> (stateBuilder: IStateBuilder<_,_,_>) (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState,'TBaseEvent>>) = 
+    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata, 'TCommandContext, 'TEventContext,'TBaseEvent,'TKey when 'TId : equality> (stateBuilder: IStateBuilder<_,_,'TKey>) (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState,'TBaseEvent>>) = 
         let evtType = typeof<'TOnEvent>
         if evtType = typeof<obj> then
             failwith "Event handler registered for type object. You might need to specify a type explicitely."
@@ -471,7 +471,12 @@ module AggregateActionBuilder =
             {
                 new IEventHandler<'TId,'TMetadata, 'TEventContext,'TBaseEvent> with 
                     member this.EventType = typeof<'TOnEvent>
-                    member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
+                    member this.AddStateBuilder builders = 
+                        let stateBuilderBlockBuilders = 
+                            stateBuilder
+                            |> StateBuilder.withUnitKey
+                            |> (fun x -> x.GetBlockBuilders)
+                        AggregateStateBuilder.combineHandlers stateBuilderBlockBuilders builders
                     member this.Handler aggregateConfig eventContext evt = 
                         let typedEvent = evt.Body :?> 'TOnEvent
 
@@ -483,19 +488,19 @@ module AggregateActionBuilder =
     let linkEvent<'TLinkEvent,'TId,'TCommandContext,'TEventContext,'TMetadata, 'TBaseEvent when 'TId : equality> fId (metadata : metadataBuilder<'TMetadata>) = 
         getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata,'TCommandContext,'TEventContext, 'TBaseEvent> fId metadata
 
-    let onEventMultiAsync<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent when 'TId : equality> 
-        stateBuilder 
+    let onEventMultiAsync<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey when 'TId : equality> 
+        (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TKey>)  
         (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TEventState,'TBaseEvent>>) = 
-        getEventInterfaceForOnEvent<'TOnEvent,'TEvent,'TId,'TEventState, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent> stateBuilder fId
+        getEventInterfaceForOnEvent<'TOnEvent,'TEvent,'TId,'TEventState, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey> stateBuilder fId
 
-    let onEventMulti<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent when 'TId : equality> 
-        stateBuilder 
+    let onEventMulti<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey when 'TId : equality> 
+        (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TKey>)  
         (fId : ('TOnEvent * 'TEventContext) -> seq<MultiEventRun<'TId,'TMetadata,'TEventState,'TBaseEvent>>) = 
         onEventMultiAsync stateBuilder (fId >> AsyncSeq.ofSeq)
 
-    let onEvent<'TOnEvent,'TEventState,'TId,'TMetadata,'TEventContext,'TBaseEvent when 'TId : equality> 
+    let onEvent<'TOnEvent,'TEventState,'TId,'TMetadata,'TEventContext,'TBaseEvent, 'TKey when 'TId : equality> 
         (fId : 'TOnEvent -> 'TEventContext -> 'TId) 
-        (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, unit>) 
+        (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TKey>) 
         (runEvent : 'TEventState -> 'TOnEvent -> 'TEventContext -> HandlerOutput< 'TBaseEvent, 'TMetadata>) = 
         
         let runEvent' = fun evt eventCtx state ->

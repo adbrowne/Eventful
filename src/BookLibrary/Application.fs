@@ -80,12 +80,14 @@ type TopShelfService () =
             let bookLibrarySystem = new BookLibrarySystem(system)
 
             // start web
-            choose 
-                [ BooksWebApi.config bookLibrarySystem
-                  BooksCopiesWebApi.config bookLibrarySystem
-                  AwardsWebApi.config bookLibrarySystem
-                  (Suave.Http.RequestErrors.NOT_FOUND "404 Not Found") ]
-            |> web_server default_config 
+            let (ready, listens) =
+                choose 
+                    [ BooksWebApi.config bookLibrarySystem
+                      BooksCopiesWebApi.config bookLibrarySystem
+                      AwardsWebApi.config bookLibrarySystem
+                      (Suave.Http.RequestErrors.NOT_FOUND "404 Not Found") ]
+                |> web_server_async default_config 
+            listens |> Async.Start
 
             let projector = {
                 MatchingKeys = matchingKeys
@@ -120,6 +122,7 @@ type TopShelfService () =
                 |> Option.map (fun eventPosition -> new EventStore.ClientAPI.Position(eventPosition.Commit, eventPosition.Prepare))
 
             let handle id (re : EventStore.ClientAPI.ResolvedEvent) =
+                log.Debug <| lazy(sprintf "Projector received event : %s" re.Event.EventType)
                 match system.EventStoreTypeToClassMap.ContainsKey re.Event.EventType with
                 | true ->
                     let eventClass = system.EventStoreTypeToClassMap.Item re.Event.EventType
@@ -140,7 +143,9 @@ type TopShelfService () =
 
             let onLive _ = ()
 
+            log.Debug <| lazy(sprintf "About to subscribe projector")
             c.subscribe lastPosition handle onLive |> ignore
+            log.Debug <| lazy(sprintf "Subscribed projector")
 
             client <- Some c
             eventStoreSystem <- Some system

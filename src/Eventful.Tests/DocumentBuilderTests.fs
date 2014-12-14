@@ -43,7 +43,7 @@ module DocumentBuilderTests =
         let getDocumentKey docId = sprintf "WidgetDocument/%s" (docId.ToString())
         let visitDocumentBuilder = 
             DocumentBuilder.Empty<Guid, WidgetDocument> (fun x -> WidgetDocument.Empty x) getDocumentKey
-            |> DocumentBuilder.mapStateToProperty widgetNameStateBuilder (fun doc -> doc.Name) (fun name doc -> { doc with Name = name })
+            |> DocumentBuilder.mapStateToProperty widgetNameStateBuilder id (fun doc -> doc.Name) (fun name doc -> { doc with Name = name })
 
         // visitDocumentBuilder.EventTypes |> List.exists (fun x -> x = typeof<WidgetRenamedEvent>) |> should equal true
         let guid = Guid.Parse("75ca0d81-7a8e-4692-86ac-7f128deb75bd")

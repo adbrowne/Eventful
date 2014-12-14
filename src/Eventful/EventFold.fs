@@ -13,7 +13,7 @@ type StateBuilderHandler<'TState, 'TMetadata, 'TKey> =
     | AllEvents of GetAllEventsKey<'TMetadata, 'TKey> * HandlerFunction<'TState, 'TMetadata, obj>
     | SingleEvent of Type * GetEventKey<'TMetadata, obj, 'TKey> * HandlerFunction<'TState, 'TMetadata, obj>
 
-type EventFold<'TState, 'TMetadata, 'TKey when 'TKey : equality> 
+type EventFold<'TState, 'TMetadata, 'TKey> 
     (
         initialState : 'TState, 
         handlers : StateBuilderHandler<'TState, 'TMetadata, 'TKey> list

@@ -41,12 +41,16 @@ type FileId = {
 }
 with static member New () = { Id = Guid.NewGuid() }
 
+type IBookEvent = 
+    inherit IEvent
+    abstract member BookId : BookId
+
 [<CLIMutable>]
-type BookCopyAddedEvent = {
-    BookCopyId : BookCopyId
-    BookId : BookId
-}
-with interface IEvent
+type BookCopyAddedEvent = 
+    { BookCopyId : BookCopyId
+      BookId : BookId }
+    interface IBookEvent with
+      member x.BookId = x.BookId
 
 [<CLIMutable>]
 type BookPromotedEvent = {

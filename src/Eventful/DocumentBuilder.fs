@@ -24,16 +24,16 @@ type DocumentBuilder<'TKey,'T, 'TMetadata when 'TKey : equality>(createDoc:'TKey
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module DocumentBuilder =
-    let mapStateToProperty (sb:StateBuilder<'TProperty, 'TMetadata,'TKey>) (getter:'T -> 'TProperty) (setter:'TProperty -> 'T -> 'T) (builder : DocumentBuilder<'TKey,'T, 'TMetadata>)  =
+    let mapStateToProperty (sb:StateBuilder<'TProperty, 'TMetadata,'TStateKey>) (keyMap : 'TStateKey -> 'TDocumentKey) (getter:'T -> 'TProperty) (setter:'TProperty -> 'T -> 'T) (builder : DocumentBuilder<'TDocumentKey,'T, 'TMetadata>)  =
        let stateMap = 
            {
-               new IDocumentStateMap<'T, 'TMetadata, 'TKey> with 
+               new IDocumentStateMap<'T, 'TMetadata, 'TDocumentKey> with 
                    member this.Apply (key, document, evt, metadata) = 
                         let currentValue = getter document
                         let handlers = 
                             sb.GetRunners<'TEvent>()
                             |> Seq.map (fun (getKey,runner) -> (getKey evt metadata, runner))
-                            |> Seq.filter(fun (k, _) -> builder.GetDocumentKey k = key)
+                            |> Seq.filter(fun (k, _) -> builder.GetDocumentKey (keyMap k) = key)
                             |> Seq.map snd
 
                         let runHandler v h = h evt metadata v
@@ -43,6 +43,6 @@ module DocumentBuilder =
                    member this.GetKey<'TEvent>(evt : 'TEvent, metadata) = 
                         sb.GetRunners<'TEvent>()
                         |> Seq.map fst
-                        |> Seq.map (fun f -> f evt metadata)
+                        |> Seq.map (fun f -> f evt metadata |> keyMap)
            }
        builder.AddStateMap(stateMap)
