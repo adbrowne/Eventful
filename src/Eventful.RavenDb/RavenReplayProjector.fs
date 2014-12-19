@@ -17,13 +17,12 @@ open FSharp.Collections.ParallelSeq
 type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage> 
     (
         documentStore:Raven.Client.IDocumentStore, 
-        projectors : Projector<string, 'TMessage, IDocumentFetcher, ProcessAction> seq,
+        projectors : IProjector<'TMessage, IDocumentFetcher, ProcessAction> seq,
         databaseName: string
     ) =
 
     let log = createLogger "Eventful.Raven.RavenReplayProjector"
     let numWorkers = 10
-    let projectors = projectors |> Seq.toArray
 
     let fetcher = {
         new IDocumentFetcher with
@@ -44,13 +43,17 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
 
     let mutable messages : 'TMessage list = List.Empty
 
+    let projectors =
+        BulkProjector.projectorsWithContext projectors fetcher
+        |> Seq.toArray
+
     let documentsWithKeys msg =
         BulkProjector.allMatchingKeys projectors msg
 
     let accumulateItems s ((key, projectorIndex), items) = async {
         let events = items |> Seq.map fst
         let projector = projectors.[projectorIndex]
-        let! writeRequests, _ = projector.ProcessEvents fetcher key events
+        let! writeRequests, _ = projector.ProcessEvents key events
         return Seq.append s writeRequests
     }
 

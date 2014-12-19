@@ -17,7 +17,7 @@ module BulkRavenProjector =
     let create
         (
             databaseName: string,
-            projectors : Projector<string, 'TMessage, IDocumentFetcher, ProcessAction> seq,
+            projectors : IProjector<'TMessage, IDocumentFetcher, ProcessAction> seq,
             cancellationToken : CancellationToken,
             onEventComplete : 'TMessage -> Async<unit>,
             documentStore:Raven.Client.IDocumentStore, 
@@ -56,7 +56,7 @@ module BulkRavenProjector =
             return writeResult |> RavenWriteQueue.resultWasSuccess
         }
 
-        BulkProjector<_, _, _>(
+        BulkProjector<_, _>(
             "Raven-" + databaseName,
             projectorsWithFetcher,
             executor,
@@ -66,5 +66,4 @@ module BulkRavenProjector =
             writeUpdatedPosition,
             maxEventQueueSize,
             eventWorkers,
-            workTimeout,
-            keyComparer = StringComparer.InvariantCultureIgnoreCase)
+            workTimeout)

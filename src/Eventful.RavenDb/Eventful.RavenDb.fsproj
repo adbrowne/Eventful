@@ -72,6 +72,7 @@
     <Compile Include="AggregateStatePersistence.fs" />
     <Compile Include="WakeupMonitor.fs" />
     <Compile Include="RavenReplayProjector.fs" />
+    <Compile Include="DocumentBuilderProjector.fs" />
     <None Include="app.config" />
   </ItemGroup>
   <ItemGroup>

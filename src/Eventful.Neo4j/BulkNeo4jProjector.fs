@@ -13,7 +13,7 @@ module BulkNeo4jProjector =
     let create
         (
             graphName : string,
-            projectors : Projector<NodeId, 'TMessage, unit, GraphAction> seq,
+            projectors : IProjector<'TMessage, unit, GraphAction> seq,
             cancellationToken : CancellationToken,
             onEventComplete : 'TMessage -> Async<unit>,
             graphClient : ICypherGraphClient,
@@ -40,7 +40,12 @@ module BulkNeo4jProjector =
             return writeResult |> (function Choice1Of2 _ -> true | _ -> false)
         }
 
-        BulkProjector<_, _, _>(
+ 
+        let projectors =
+            BulkProjector.projectorsWithContext projectors ()
+            |> Seq.toArray
+
+        BulkProjector<_, _>(
             "Neo4j-" + graphName,
             projectors,
             executor,

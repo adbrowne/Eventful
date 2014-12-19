@@ -217,6 +217,6 @@ module AggregateStatePersistence =
                     >> flip tuple2 (async.Zero())
                 )
         {
-            MatchingKeys = matchingKeys
-            ProcessEvents = processEvents
+            Projector.MatchingKeys = matchingKeys
+            Projector.ProcessEvents = processEvents
         }

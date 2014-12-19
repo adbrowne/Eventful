@@ -131,6 +131,7 @@ module SnapshotProjectorTests =
             buildPersistedEvent
             serializer
             handlers
+        :> IProjector<_,_,_>
         |> Seq.singleton
 
     let documentStore = RavenProjectorTests.buildDocumentStore ()

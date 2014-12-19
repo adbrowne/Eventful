@@ -178,8 +178,7 @@ module RavenProjectorTests =
 
             (doc, metadata, etag)
 
-        let buildNewDoc (docKey : string) =
-            let id = Guid.Parse(docKey.Replace(countingDocKeyPrefix, ""))
+        let buildNewDoc (id : Guid) =
             let newDoc = new MyCountingDoc()
             newDoc.Id <- id
             let etag = Raven.Abstractions.Data.Etag.Empty
@@ -193,7 +192,7 @@ module RavenProjectorTests =
             match subscriberEvent.Event with
             | :? (Guid * int) as event ->
                 let (guid, _) = event
-                countingDocKey guid |> Seq.singleton
+                guid |> Seq.singleton
             | _ -> Seq.empty
 
         let processEvent doc subscriberEvent = 
@@ -203,13 +202,14 @@ module RavenProjectorTests =
                 processValue value doc
             | _ -> doc
 
-        let processBatch (fetcher : IDocumentFetcher) (docKey) events = async {
+        let processBatch (fetcher : IDocumentFetcher) (docId : Guid) events = async {
             let requestId = Guid.NewGuid()
-            let permDocKey = "PermissionDocs/" + docKey
+            let docKey = countingDocKey docId
+            let permDocKey = "PermissionDocs/" + (docKey.ToString())
             let! (doc, metadata, etag) =  
                 fetcher.GetDocument docKey
                 |> Async.AwaitTask
-                |> Async.map (Option.getOrElseF (fun () -> buildNewDoc docKey))
+                |> Async.map (Option.getOrElseF (fun () -> buildNewDoc docId))
                
             let! (permDoc, permMetadata, permEtag) =
                 fetcher.GetDocument permDocKey
@@ -250,11 +250,13 @@ module RavenProjectorTests =
         }
 
         let projector = {
-            MatchingKeys = matcher
+            Projector.MatchingKeys = matcher
             ProcessEvents = processBatch
         }
 
-        projector |> Seq.singleton
+        projector 
+        :> IProjector<_,_,_>
+        |> Seq.singleton
 
     let testDatabase = "tenancy-blue"
 

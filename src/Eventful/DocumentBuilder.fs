@@ -4,17 +4,16 @@ type IDocumentStateMap<'TDocument, 'TMetadata, 'TKey> =
     abstract member GetKey<'TEvent> : 'TEvent * 'TMetadata -> 'TKey seq
     abstract member Apply<'TEvent> : string * 'TDocument * 'TEvent * 'TMetadata -> 'TDocument
 
-type DocumentBuilder<'TKey,'T, 'TMetadata when 'TKey : equality>(createDoc:'TKey -> 'T, getDocumentKey:'TKey -> string, stateMaps: IDocumentStateMap<'T, 'TMetadata, 'TKey> list) =
+type DocumentBuilder<'TKey,'T, 'TMetadata when 'TKey : comparison>(createDoc:'TKey -> 'T, getDocumentKey:'TKey -> string, stateMaps: IDocumentStateMap<'T, 'TMetadata, 'TKey> list) =
     static member Empty<'TKey,'T> createDoc getDocumentKey = new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, getDocumentKey, [])
     member x.AddStateMap stateMap =
         new DocumentBuilder<'TKey,'T, 'TMetadata>(createDoc, getDocumentKey, stateMap::stateMaps)
     member x.GetDocumentKey = getDocumentKey
-    member x.GetKeysFromEvent (evt:'TEvent, metadata : 'TMetadata) : string list =
+    member x.GetKeysFromEvent (evt:'TEvent, metadata : 'TMetadata) : 'TKey list =
         stateMaps 
         |> List.map (fun x -> x.GetKey (evt, metadata))
         |> Seq.collect id
         |> Seq.distinct
-        |> Seq.map getDocumentKey
         |> List.ofSeq
     member x.NewDocument key = createDoc key
     member x.ApplyEvent (key : string, currentDocument : 'T, evt:'TEvent, metadata : 'TMetadata) : 'T = 

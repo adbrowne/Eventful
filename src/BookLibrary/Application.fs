@@ -1,69 +1,18 @@
 ﻿namespace BookLibrary
 
 open System
-open System.IO
 open Eventful
-open EventStore.ClientAPI
 open Eventful.EventStore
 open Eventful.Raven
-open System.Threading.Tasks
 open Suave
-open Suave.Http.Successful
 open Suave.Http
-open Suave.Http.Applicatives
 open Suave.Web
-
-type EventCountDoc = {
-    Count : int
-}
 
 type TopShelfService () =
     let log = createLogger "BookLibrary"
 
     let mutable client : Client option = None
     let mutable eventStoreSystem : BookLibraryEventStoreSystem option = None
-
-    let matchingKeys (message : EventStoreMessage) =
-        let methodWithoutGeneric = Book.documentBuilder.GetType().GetMethod("GetKeysFromEvent", Reflection.BindingFlags.Public ||| Reflection.BindingFlags.Instance)
-        let genericMethod = methodWithoutGeneric.MakeGenericMethod([|message.Event.GetType()|])
-        let keys = genericMethod.Invoke(Book.documentBuilder, [|message.Event; message.EventContext|]) :?> string list
-
-        keys |> Seq.ofList
-
-    let runMessage (docKey : string) (document : Book.BookDocument) (message : EventStoreMessage) =
-        let methodWithoutGeneric = Book.documentBuilder.GetType().GetMethod("ApplyEvent", Reflection.BindingFlags.Public ||| Reflection.BindingFlags.Instance)
-        let genericMethod = methodWithoutGeneric.MakeGenericMethod([|message.Event.GetType()|])
-        genericMethod.Invoke(Book.documentBuilder, [|docKey; document; message.Event; message.EventContext|]) :?> Book.BookDocument
-
-    let processVisitEvent documentStore (documentFetcher:IDocumentFetcher) (docKey:string) (messages : seq<EventStoreMessage>) = async {
-        let! doc = documentFetcher.GetDocument<Book.BookDocument>(docKey) |> Async.AwaitTask
-        let bookId : BookId = 
-            messages
-            |> Seq.head
-            |> (fun x -> MagicMapper.magicId x.Event)
-        let (doc, metadata, etag) = 
-            match doc with
-            | Some x -> x
-            | None -> 
-                let doc = Book.BookDocument.NewDoc bookId
-                let metadata = RavenOperations.emptyMetadata<Book.BookDocument> documentStore
-                let etag = Raven.Abstractions.Data.Etag.Empty
-                (doc, metadata, etag)
-
-        let doc = 
-            messages
-            |> Seq.fold (runMessage docKey) doc
-
-        return (seq {
-            let write = {
-               DocumentKey = docKey
-               Document = doc
-               Metadata = lazy(metadata) 
-               Etag = etag
-            }
-            yield Write (write, Guid.NewGuid())
-        }, async.Zero())
-    }
 
     member x.Start () =
 
@@ -89,10 +38,13 @@ type TopShelfService () =
                 |> web_server_async default_config 
             listens |> Async.Start
 
-            let projector = {
-                MatchingKeys = matchingKeys
-                ProcessEvents = processVisitEvent documentStore
-            }
+            let projector = 
+                DocumentBuilderProjector.buildProjector 
+                    documentStore 
+                    Book.documentBuilder
+                    (fun (m:EventStoreMessage) -> m.Event)
+                    (fun (m:EventStoreMessage) -> m.EventContext)
+                :> IProjector<_,_,_>
 
             let cache = new System.Runtime.Caching.MemoryCache("myCache")
 

@@ -9,40 +9,64 @@ open Metrics
 
 open FSharpx
 
-type Projector<'TKey, 'TMessage, 'TContext, 'TAction> =
+type IProjector<'TMessage, 'TContext, 'TAction> = 
+    abstract member Compare : obj -> obj -> int
+    abstract member MatchingKeys : 'TMessage -> obj seq
+    abstract member ProcessEvents : 'TContext -> obj -> 'TMessage seq -> Async<'TAction seq * Async<unit>>
+
+type BulkProjectorWithContext<'TMessage, 'TAction> =
+    { MatchingKeys : 'TMessage -> obj seq
+      ProcessEvents : obj -> 'TMessage seq -> Async<'TAction seq * Async<unit>>
+      Compare : obj -> obj -> int }
+
+type Projector<'TKey, 'TMessage, 'TContext, 'TAction when 'TKey : comparison> =
     { MatchingKeys : 'TMessage -> 'TKey seq
       ProcessEvents : 'TContext -> 'TKey -> 'TMessage seq -> Async<'TAction seq * Async<unit>> }
+    interface IProjector<'TMessage, 'TContext, 'TAction> with
+        member x.Compare a b =
+            let a = a :?> 'TKey
+            let b = b :?> 'TKey
+            compare a b
+            
+        member x.MatchingKeys message =
+            x.MatchingKeys message
+            |> Seq.map (fun x -> x :> obj)
+
+        member x.ProcessEvents context key events =
+            let key = key :?> 'TKey
+            x.ProcessEvents context key events
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module BulkProjector =
     let allMatchingKeys projectors event =
         projectors
         |> Seq.mapi tuple2
-        |> Seq.collect (fun (projectorIndex, projector) ->
+        |> Seq.collect (fun (projectorIndex, projector : BulkProjectorWithContext<_,_>) ->
             projector.MatchingKeys event
             |> Seq.map (fun key -> (event, (key, projectorIndex))))
 
     let projectorsWithContext projectors context =
         projectors
-        |> Seq.map (fun (projector : Projector<_, _, _, _>) ->
-            { MatchingKeys = projector.MatchingKeys
-              ProcessEvents = (fun () -> projector.ProcessEvents context) })
+        |> Seq.map (fun (projector : IProjector<_, _, _>) ->
+            { BulkProjectorWithContext.MatchingKeys = projector.MatchingKeys
+              ProcessEvents = projector.ProcessEvents context
+              Compare = projector.Compare })
 
     let funcTaskToAsync (func : Func<Task>) =
         if func = null then async.Zero()
         else func.Invoke() |> voidTaskAsAsync
 
-    let createProjector<'TKey, 'TMessage, 'TContext, 'TAction> (matchingKeys : Func<'TMessage, 'TKey seq>) (processEvents : Func<'TContext, 'TKey, 'TMessage seq, Task<'TAction seq * Func<Task>>>) =
+    let createProjector<'TKey, 'TMessage, 'TContext, 'TAction when 'TKey : comparison> (matchingKeys : Func<'TMessage, 'TKey seq>) (processEvents : Func<'TContext, 'TKey, 'TMessage seq, Task<'TAction seq * Func<Task>>>) =
         { MatchingKeys = fun message -> matchingKeys.Invoke(message)
           ProcessEvents = fun context key messages ->
             processEvents.Invoke(context, key, messages)
             |> Async.AwaitTask
             |> Async.map (fun (actions, onComplete) -> (actions, funcTaskToAsync onComplete)) }
 
-type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
+type BulkProjector<'TMessage, 'TAction when 'TMessage :> IBulkMessage>
     (
         projectorName : string,
-        projectors : Projector<'TKey, 'TMessage, unit, 'TAction> seq,
+        projectors : BulkProjectorWithContext<'TMessage, 'TAction> seq,
         executor : 'TAction seq -> Async<Choice<unit, exn>>,
         cancellationToken : CancellationToken,
         onEventComplete : 'TMessage -> Async<unit>,
@@ -50,8 +74,7 @@ type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
         writeUpdatedPosition : EventPosition -> Async<bool>,
         maxEventQueueSize : int,
         eventWorkers : int,
-        workTimeout : TimeSpan option,
-        ?keyComparer : IComparer<'TKey>
+        workTimeout : TimeSpan option
     ) =
     let projectors = projectors |> Seq.toArray
 
@@ -63,7 +86,7 @@ type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
     let tryEvent key projectorIndex events =
         async {
             let projector = projectors.[projectorIndex]
-            let! actions, onComplete = projector.ProcessEvents () key events
+            let! actions, onComplete = projector.ProcessEvents key events
             let! result = executor actions
             return (result, onComplete)
         }
@@ -125,14 +148,16 @@ type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
         |> Async.Parallel
         |> Async.Ignore
 
-    let keyAndIndexComparer (keyComparer : IComparer<'TKey>) =
+    let keyAndIndexComparer =
         { new IComparer<'TKey * int> with
             member this.Compare((keyA, indexA), (keyB, indexB)) =
-                let keyComparison = keyComparer.Compare(keyA, keyB)
-                if keyComparison <> 0 then
-                    keyComparison
+                let indexComparison = compare indexA indexB
+                
+                if indexComparison = 0 then
+                    let projector = projectors.[indexA]
+                    projector.Compare (keyA :> obj) (keyB :> obj)
                 else
-                    compare indexA indexB
+                    indexComparison
              }
 
     let queue = 
@@ -144,7 +169,7 @@ type BulkProjector<'TKey, 'TMessage, 'TAction when 'TMessage :> IBulkMessage>
             eventComplete, 
             name = projectorName + " processing", 
             cancellationToken = cancellationToken, 
-            ?groupComparer = (keyComparer |> Option.map keyAndIndexComparer), 
+            groupComparer = keyAndIndexComparer, 
             runImmediately = false,
             workTimeout = workTimeout)
         :> IWorktrackingQueue<_,_,_>
