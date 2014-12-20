@@ -3,7 +3,6 @@
 open System
 open BookLibrary.Aggregates
 open Eventful
-open FSharpx.Validation
 open FSharpx.Choice
 open FSharpx
 open FSharpx.Collections
@@ -111,16 +110,8 @@ module Book =
                  |> AggregateActionBuilder.buildCmd
         }
 
-    let deliveryHandler (openSession : unit -> Raven.Client.IAsyncDocumentSession) (evt : DeliveryAcceptedEvent, ctx) = asyncSeq {
-            use session = openSession () 
-            let key = sprintf "files/%A" evt.FileId.Id
-            let! deliveryJObject = session.LoadAsync<Raven.Json.Linq.RavenJObject>(key) |> Async.AwaitTask
-
-            let deliveryDocument = 
-                deliveryJObject.ToString()
-                |> System.Text.Encoding.UTF8.GetBytes
-                |> (fun x -> Serialization.deserializeObj x typeof<DeliveryDocument>)
-                :?> DeliveryDocument
+    let deliveryHandler openSession (evt : DeliveryAcceptedEvent, ctx) = asyncSeq {
+            let! deliveryDocument = DocumentHelpers.getDeliveryDocument openSession evt.FileId
 
             for book in deliveryDocument.Books do
                 let result = {
@@ -162,16 +153,18 @@ module Book =
     type BookDocument = {
         BookId : Guid
         Title : string
+        CopyCount : int
     }
-
     with static member NewDoc (bookId : BookId) = {
             BookId = bookId.Id
             Title = ""
+            CopyCount = 0
         }
 
     let documentBuilder : DocumentBuilder<BookId, BookDocument, BookLibraryEventMetadata> = 
         DocumentBuilder.Empty<BookId, BookDocument> BookDocument.NewDoc (fun x -> sprintf "Book/%s" (x.Id.ToString()))
         |> DocumentBuilder.mapStateToProperty bookTitle (fun e -> e.BookId) (fun doc -> doc.Title) (fun value doc -> { doc with Title = value })
+        |> DocumentBuilder.mapStateToProperty copyCount (fun e -> e.BookId) (fun doc -> doc.CopyCount) (fun value doc -> { doc with CopyCount = value })
 
 open Suave
 open Suave.Http

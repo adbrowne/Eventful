@@ -1,7 +1,9 @@
 ﻿namespace BookLibrary
 
 open Eventful
+open FSharpx
 open BookLibrary.Aggregates
+open FSharp.Control.AsyncSeq
 
 [<CLIMutable>]
 type AddBookCopyCommand = {
@@ -36,14 +38,38 @@ module BookCopy =
            yield bookCopyCmdHandler addBookCopy
         }
 
-    let handlers () =
+    let deliveryHandler openSession (evt : DeliveryAcceptedEvent, ctx) = asyncSeq {
+            let! deliveryDocument = DocumentHelpers.getDeliveryDocument openSession evt.FileId
+
+            for book in deliveryDocument.Books do
+                for i in [1..book.Copies] do
+                    let bookCopyId = BookCopyId.New()
+                    let result = {
+                       UniqueId = sprintf "%s_%d" (evt.DeliveryId.Id.ToString()) i
+                       Events = 
+                        {
+                            BookCopyAddedEvent.BookCopyId = bookCopyId
+                            BookId = book.BookId
+                        } :> IEvent
+                        |> Seq.singleton
+                        |> Seq.map (fun evt -> (evt, buildBookCopyMetadata))
+                    }
+                    yield (bookCopyId, konst result) 
+        }
+
+    let eventHandlers dbCmd =
+        seq {
+            yield AggregateActionBuilder.onEventMultiAsync StateBuilder.nullStateBuilder (deliveryHandler dbCmd)
+        }
+
+    let handlers dbCmd =
         Eventful.Aggregate.toAggregateDefinition 
             AggregateType.BookCopy 
             BookLibraryEventMetadata.GetUniqueId
             getStreamName 
             getEventStreamName 
             cmdHandlers 
-            Seq.empty
+            (eventHandlers dbCmd)
 
 open Suave.Http
 open Suave.Http.Applicatives

@@ -61,6 +61,7 @@
     <Compile Include="Aggregates.fs" />
     <Compile Include="Interfaces.fs" />
     <Compile Include="WebHelpers.fs" />
+    <Compile Include="DocumentHelpers.fs" />
     <Compile Include="Book.fs" />
     <Compile Include="BookCopy.fs" />
     <Compile Include="Award.fs" />

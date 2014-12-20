@@ -45,7 +45,7 @@ module ApplicationConfig =
     let handlers openSession : EventfulHandlers<_,_,_,IEvent,_> =
         EventfulHandlers.empty BookLibraryEventMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (Book.handlers openSession)
-        |> EventfulHandlers.addAggregate (BookCopy.handlers ())
+        |> EventfulHandlers.addAggregate (BookCopy.handlers openSession)
         |> EventfulHandlers.addAggregate (Award.handlers ())
         |> EventfulHandlers.addAggregate (Delivery.handlers ())
         |> addEventTypes eventTypes
