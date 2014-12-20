@@ -7,7 +7,7 @@ open FSharp.Control.AsyncSeq
 
 [<CLIMutable>]
 type AddBookCopyCommand = {
-    [<GeneratedIdAttribute>]BookCopyId : BookCopyId
+    [<GeneratedId>]BookCopyId : BookCopyId
     BookId : BookId
 }
 

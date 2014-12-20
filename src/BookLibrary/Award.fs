@@ -5,7 +5,7 @@ open BookLibrary.Aggregates
 
 [<CLIMutable>]
 type AddBookPrizeAwardCommand = {
-    [<GeneratedIdAttribute>]AwardId : AwardId
+    [<GeneratedId>]AwardId : AwardId
     BookId : BookId
 }
 
