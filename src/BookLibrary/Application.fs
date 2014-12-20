@@ -36,6 +36,7 @@ type TopShelfService () =
                     [ BooksWebApi.config bookLibrarySystem
                       BooksCopiesWebApi.config bookLibrarySystem
                       AwardsWebApi.config bookLibrarySystem
+                      DeliveryWebApi.config bookLibrarySystem
                       FileWebApi.config dbCommands
                       (Suave.Http.RequestErrors.NOT_FOUND "404 Not Found") ]
                 |> web_server_async default_config 

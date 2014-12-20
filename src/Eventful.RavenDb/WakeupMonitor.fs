@@ -11,7 +11,7 @@ type WakeupMonitorEvents =
 
 type WakeupMonitor<'TAggregateType>
     (
-       documentStore : Raven.Client.Document.DocumentStore,
+       documentStore : Raven.Client.IDocumentStore,
        database : string,
        serializer: ISerializer,
        onStreamWakeup : string -> 'TAggregateType -> DateTime -> unit

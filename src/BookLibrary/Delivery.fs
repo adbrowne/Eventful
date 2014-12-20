@@ -12,7 +12,7 @@ module Delivery =
     let getStreamName () (deliveryId : DeliveryId) =
         sprintf "Delivery-%s" <| deliveryId.Id.ToString("N")
 
-    let getEventStreamName (context : UnitEventContext) (deliveryId : DeliveryId) =
+    let getEventStreamName (context : BookLibraryEventContext) (deliveryId : DeliveryId) =
         sprintf "Delivery-%s" <| deliveryId.Id.ToString("N")
 
     let inline getDeliveryId (a: ^a) _ = 

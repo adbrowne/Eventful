@@ -42,11 +42,12 @@ module ApplicationConfig =
         System.Reflection.Assembly.GetExecutingAssembly()
         |> Eventful.Utils.getLoadableTypes
 
-    let handlers : EventfulHandlers<_,_,_,IEvent,_> =
+    let handlers openSession : EventfulHandlers<_,_,_,IEvent,_> =
         EventfulHandlers.empty BookLibraryEventMetadata.GetAggregateType
-        |> EventfulHandlers.addAggregate (Book.handlers ())
+        |> EventfulHandlers.addAggregate (Book.handlers openSession)
         |> EventfulHandlers.addAggregate (BookCopy.handlers ())
         |> EventfulHandlers.addAggregate (Award.handlers ())
+        |> EventfulHandlers.addAggregate (Delivery.handlers ())
         |> addEventTypes eventTypes
 
     let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
@@ -56,8 +57,9 @@ module ApplicationConfig =
     let buildWakeupMonitor documentStore onWakeups = 
         new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, dbName, Serialization.esSerializer, onWakeups) :> Eventful.IWakeupMonitor
 
-    let buildEventStoreSystem documentStore client =
-        new BookLibraryEventStoreSystem(handlers, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), nullGetSnapshot, buildWakeupMonitor documentStore)
+    let buildEventStoreSystem (documentStore : Raven.Client.IDocumentStore) client =
+        let openSession () = documentStore.OpenAsyncSession(dbName)
+        new BookLibraryEventStoreSystem(handlers openSession, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), nullGetSnapshot, buildWakeupMonitor documentStore)
 
     let initializedSystem documentStore = 
         async {

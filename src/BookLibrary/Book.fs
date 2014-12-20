@@ -7,6 +7,7 @@ open FSharpx.Validation
 open FSharpx.Choice
 open FSharpx
 open FSharpx.Collections
+open FSharp.Control.AsyncSeq
 
 [<CLIMutable>]
 type AddBookCommand = {
@@ -110,7 +111,32 @@ module Book =
                  |> AggregateActionBuilder.buildCmd
         }
 
-    let eventHandlers =
+    let deliveryHandler (openSession : unit -> Raven.Client.IAsyncDocumentSession) (evt : DeliveryAcceptedEvent, ctx) = asyncSeq {
+            use session = openSession () 
+            let key = sprintf "files/%A" evt.FileId.Id
+            let! deliveryJObject = session.LoadAsync<Raven.Json.Linq.RavenJObject>(key) |> Async.AwaitTask
+
+            let deliveryDocument = 
+                deliveryJObject.ToString()
+                |> System.Text.Encoding.UTF8.GetBytes
+                |> (fun x -> Serialization.deserializeObj x typeof<DeliveryDocument>)
+                :?> DeliveryDocument
+
+            for book in deliveryDocument.Books do
+                let result = {
+                   UniqueId = evt.DeliveryId.Id.ToString() 
+                   Events = 
+                    {
+                        BookAddedEvent.BookId = book.BookId
+                        Title = book.Title
+                    } :> IEvent
+                    |> Seq.singleton
+                    |> Seq.map (fun evt -> (evt, buildBookMetadata))
+                }
+                yield (book.BookId, konst result) 
+        }
+
+    let eventHandlers dbCmd =
         seq {
             yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId) buildBookMetadata
 
@@ -120,16 +146,18 @@ module Book =
             }
 
             yield onEvent (fun (evt : BookPrizeAwardedEvent) _ -> evt.BookId) copyCount onBookAwarded
+
+            yield AggregateActionBuilder.onEventMultiAsync StateBuilder.nullStateBuilder (deliveryHandler dbCmd)
         }
 
-    let handlers () =
+    let handlers dbCmd =
         Eventful.Aggregate.toAggregateDefinition 
             AggregateType.Book 
             BookLibraryEventMetadata.GetUniqueId
             getStreamName 
             getEventStreamName 
             cmdHandlers 
-            eventHandlers
+            (eventHandlers dbCmd)
 
     type BookDocument = {
         BookId : Guid

@@ -71,3 +71,15 @@ type DeliveryAcceptedEvent = {
     FileId : FileId
 }
 with interface IEvent
+
+[<CLIMutable>]
+type BookDelivery = {
+    BookId : BookId
+    Title : string
+    Copies : int
+}
+
+[<CLIMutable>]
+type DeliveryDocument = {
+    Books : BookDelivery list
+}
