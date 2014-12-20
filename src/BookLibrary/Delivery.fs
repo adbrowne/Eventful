@@ -43,3 +43,26 @@ module Delivery =
             getEventStreamName 
             cmdHandlers 
             Seq.empty
+
+open System
+open Suave
+open Suave.Http
+open Suave.Http.Applicatives
+open BookLibrary.WebHelpers
+
+module DeliveryWebApi = 
+    let acceptHandler (cmd : AcceptDeliveryCommand) =
+        let cmd = { cmd with DeliveryId = { DeliveryId.Id = Guid.NewGuid() }}
+        let successResponse = 
+            let responseBody = new Newtonsoft.Json.Linq.JObject();
+            responseBody.Add("deliveryId", new Newtonsoft.Json.Linq.JValue(cmd.DeliveryId.Id))
+            responseBody
+        (cmd, successResponse :> obj)
+
+    let config system =
+        choose [
+            url "/api/delivery" >>= choose
+                [ 
+                    POST >>= commandHandler system acceptHandler
+                ]
+        ]

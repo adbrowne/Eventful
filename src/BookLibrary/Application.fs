@@ -28,12 +28,15 @@ type TopShelfService () =
 
             let bookLibrarySystem = new BookLibrarySystem(system)
 
+            let dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(ApplicationConfig.dbName)
+
             // start web
             let (ready, listens) =
                 choose 
                     [ BooksWebApi.config bookLibrarySystem
                       BooksCopiesWebApi.config bookLibrarySystem
                       AwardsWebApi.config bookLibrarySystem
+                      FileWebApi.config dbCommands
                       (Suave.Http.RequestErrors.NOT_FOUND "404 Not Found") ]
                 |> web_server_async default_config 
             listens |> Async.Start
