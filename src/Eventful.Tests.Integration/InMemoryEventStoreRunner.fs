@@ -36,14 +36,6 @@ module InMemoryEventStoreRunner =
     let testNodeEnvironmentVariable = "EventfulTestNode"
     let clusterNodeProcessName = "EventStore.ClusterNode"
 
-    let ensureNoZombieEventStores () =
-        for proc in Process.GetProcessesByName(clusterNodeProcessName) do
-            try
-                let isTestProcess = proc.MainModule.FileName = clusterNodeAbsolutePath
-                if isTestProcess then
-                    IntegrationTests.runUntilSuccess 100 (fun () -> proc.Kill(); proc.WaitForExit())
-            with | ex -> Console.WriteLine(sprintf "Error stopping process: %A" ex)
-
     let startNewProcess () =
         let testTcpPort = findFreeTcpPort()
         let testHttpPort = findFreeTcpPort()
@@ -104,7 +96,6 @@ module InMemoryEventStoreRunner =
         connection
 
     let startInMemoryEventStore () =
-        ensureNoZombieEventStores ()
         let (testTcpPort, testHttpPort, eventStoreProcess) = startNewProcess ()
         let connection = connectToEventStore testTcpPort
         {
