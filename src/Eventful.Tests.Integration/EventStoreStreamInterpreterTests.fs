@@ -43,7 +43,7 @@ type EventStoreStreamInterpreterTests () =
 
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
 
-    let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
+    let nullGetSnapshot streamId typeMap = StateSnapshot.Empty |> Async.returnM
 
     let run client program =
         EventStreamInterpreter.interpret 

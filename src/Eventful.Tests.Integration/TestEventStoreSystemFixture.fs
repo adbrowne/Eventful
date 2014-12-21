@@ -160,7 +160,7 @@ type TestEventStoreSystemFixture () =
         eventContexts.Enqueue disposable
         disposable
 
-    let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
+    let nullGetSnapshot streamId typeMap = StateSnapshot.Empty |> Async.returnM
 
     let client = new Client(eventStoreProcess.Connection)
     let mockWakeupMonitor _ = {

@@ -138,6 +138,20 @@ module StateBuilder =
         StateBuilder.Empty (sprintf "%sCount" typeof<'TEvent>.Name) 0
         |> handler getId (fun (s,_,_) -> s + 1)
 
+    let getTypeMapFromBlockBuilders (blockBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list) =
+        blockBuilders
+        |> List.map(fun x -> x.Name,x.Type)
+        |> Map.ofList
+
+    let getBlockBuilders (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
+        stateBuilder.GetBlockBuilders
+
+    let getTypeMapFromStateBuilder (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
+        stateBuilder
+        |> getBlockBuilders
+        |> List.map(fun x -> x.Name,x.Type)
+        |> Map.ofList
+
 type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
     (
         unitBuilders : IStateBlockBuilder<'TMetadata, 'TKey> list,
@@ -228,7 +242,8 @@ module AggregateStateBuilder =
             | None -> 
                 return snapshot }
             
-        let! currentSnapshot = EventStream.readSnapshot streamName
+        let typeMap = stateBuilder |> StateBuilder.getTypeMapFromStateBuilder
+        let! currentSnapshot = EventStream.readSnapshot streamName typeMap
         return! loop currentSnapshot
     }
 

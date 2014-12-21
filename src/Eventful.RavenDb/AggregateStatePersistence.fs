@@ -12,11 +12,10 @@ type AggregateState = {
 }
 
 module AggregateStatePersistence =
-    type AggregateStateDocument<'TAggregateType> = {
+    type AggregateStateDocument = {
         Snapshot : RavenJObject
         LastEventNumber : int
         NextWakeup : string
-        AggregateType : 'TAggregateType
     }
 
     let stateDocumentCollectionName = "AggregateStates"
@@ -33,20 +32,14 @@ module AggregateStatePersistence =
         definition.Stores.Add("AggregateType", Raven.Abstractions.Indexing.FieldStorage.Yes)
         definition
 
-    let deserialize (serializer :  ISerializer) (doc : RavenJObject) (blockBuilders : IStateBlockBuilder<'TMetadata, unit> list) =
+    let deserialize (serializer :  ISerializer) (doc : RavenJObject) (propertyTypes : Map<string,Type>) =
         let deserializeRavenJToken targetType jToken =
             jToken.ToString()
             |> System.Text.Encoding.UTF8.GetBytes
             |> (fun x -> serializer.DeserializeObj x targetType)
 
-        let blockBuilderMap = 
-            blockBuilders
-            |> Seq.map(fun b -> b.Name, b)
-            |> Map.ofSeq
-
         let addKey stateMap key =
-            let blockBuilder = blockBuilderMap.Item key
-            let blockType = blockBuilder.Type
+            let blockType = propertyTypes.Item key
             let jToken = doc.Item key
             let value = deserializeRavenJToken blockType jToken
             stateMap |> Map.add key value
@@ -83,16 +76,14 @@ module AggregateStatePersistence =
         (documentStore : Raven.Client.Document.DocumentStore) 
         serializer 
         (database : string) 
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,'TAggregateType>)
         streamId 
-        aggregateType
+        blockBuilders
         = 
         async {
         let stateDocumentKey = getDocumentKey streamId
         use session = documentStore.OpenAsyncSession(database)
-        let! doc = session.LoadAsync<AggregateStateDocument<'TAggregateType>> stateDocumentKey |> Async.AwaitTask
+        let! doc = session.LoadAsync<AggregateStateDocument> stateDocumentKey |> Async.AwaitTask
 
-        let blockBuilders = (handlers.AggregateTypes.Item aggregateType).StateBuilder.GetBlockBuilders
         let snapshot = deserialize serializer doc.Snapshot blockBuilders
         return {
             AggregateState.Snapshot = { StateSnapshot.State =  snapshot; LastEventNumber = doc.LastEventNumber }
@@ -155,16 +146,18 @@ module AggregateStatePersistence =
         let loadCurrentState (fetcher : IDocumentFetcher) streamId (persistedEvents, aggregateType, (aggregateConfig : EventfulStreamConfig<_>)) = async {
             let documentKey = getDocumentKey streamId
 
+
             let! doc = 
                 fetcher.GetDocument documentKey
                 |> Async.AwaitTask
+            let typeMap = StateBuilder.getTypeMapFromStateBuilder aggregateConfig.StateBuilder
 
             let (snapshot : StateSnapshot, metadata : RavenJObject, etag) = 
                 doc
-                |> Option.map (fun (stateDocument : AggregateStateDocument<'TAggregateType>, metadata : RavenJObject, etag) ->
+                |> Option.map (fun (stateDocument : AggregateStateDocument, metadata : RavenJObject, etag) ->
                     ({ 
                         StateSnapshot.LastEventNumber = stateDocument.LastEventNumber
-                        State = deserialize serializer stateDocument.Snapshot aggregateConfig.StateBuilder.GetBlockBuilders
+                        State = deserialize serializer stateDocument.Snapshot typeMap
                     }, metadata, etag)
                 )
                 |> Option.getOrElseF (fun () -> 
@@ -191,7 +184,6 @@ module AggregateStatePersistence =
                 AggregateStateDocument.Snapshot = mapToRavenJObject serializer snapshot.State
                 LastEventNumber = snapshot.LastEventNumber
                 NextWakeup = serializeDateTimeOption nextWakeup
-                AggregateType = aggregateType
             }
 
             ProcessAction.Write (

@@ -77,7 +77,7 @@ module EventStream =
 
     type EventStreamLanguage<'N,'TMetadata> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
-    | ReadSnapshot of string * (StateSnapshot -> 'N)
+    | ReadSnapshot of string * Map<string, Type> * (StateSnapshot -> 'N)
     | GetEventStoreTypeToClassMap of unit *  (EventStoreTypeToClassMap -> 'N)
     | GetClassToEventStoreTypeMap of unit *  (ClassToEventStoreTypeMap -> 'N)
     | ReadValue of EventToken *  ((obj * 'TMetadata) -> 'N)
@@ -95,8 +95,8 @@ module EventStream =
         match streamWorker with
         | ReadFromStream (stream, number, streamRead) -> 
             ReadFromStream (stream, number, (streamRead >> f))
-        | ReadSnapshot (stream, next) -> 
-            ReadSnapshot (stream, (next >> f))
+        | ReadSnapshot (typeMap, stream, next) -> 
+            ReadSnapshot (typeMap, stream, (next >> f))
         | GetEventStoreTypeToClassMap (eventStoreTypeToClassMap,next) -> 
             GetEventStoreTypeToClassMap (eventStoreTypeToClassMap, next >> f)
         | GetClassToEventStoreTypeMap (classToEventStoreTypeMap,next) -> 
@@ -117,8 +117,8 @@ module EventStream =
 
     let readFromStream stream number = 
         ReadFromStream (stream, number, id) |> liftF
-    let readSnapshot stream = 
-        ReadSnapshot (stream, id) |> liftF
+    let readSnapshot typeMap stream = 
+        ReadSnapshot (typeMap, stream, id) |> liftF
     let getEventStoreTypeToClassMap unit =
         GetEventStoreTypeToClassMap ((), id) |> liftF
     let getClassToEventStoreTypeMap unit =

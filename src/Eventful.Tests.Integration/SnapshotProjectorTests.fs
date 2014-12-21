@@ -165,14 +165,15 @@ module SnapshotProjectorTests =
             SourceMessageId = "ignored"
         } 
 
+    let stateBuilder = (handlers.AggregateTypes.Item aggregateType).StateBuilder
+
     let getAggregateState = 
         AggregateStatePersistence.getAggregateState
             documentStore
             serializer
             RavenProjectorTests.testDatabase
-            handlers
             streamId
-            aggregateType
+            (stateBuilder |> StateBuilder.getTypeMapFromStateBuilder)
 
     let getSnapshotData = 
         getAggregateState 

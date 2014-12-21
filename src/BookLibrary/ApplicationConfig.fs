@@ -50,7 +50,7 @@ module ApplicationConfig =
         |> EventfulHandlers.addAggregate (Delivery.handlers ())
         |> addEventTypes eventTypes
 
-    let nullGetSnapshot = konst StateSnapshot.Empty >> Async.returnM
+    let nullGetSnapshot streamId typeMap = StateSnapshot.Empty |> Async.returnM
 
     let dbName = "BookLibrary"
 

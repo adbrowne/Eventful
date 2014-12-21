@@ -5,6 +5,7 @@ open Eventful.EventStream
 open FSharpx.Collections
 open FSharpx.Option
 open EventStore.ClientAPI
+open System
 open System.Runtime.Caching
 
 module EventStreamInterpreter = 
@@ -19,7 +20,7 @@ module EventStreamInterpreter =
         (serializer : ISerializer)
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
-        (readSnapshot : string -> Async<StateSnapshot>)
+        (readSnapshot : string -> Map<string,Type> -> Async<StateSnapshot>)
         (prog : FreeEventStream<obj,'A,'TMetadata>) : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * 'TMetadata>) : Async<'A> =
             match prog with
@@ -34,9 +35,9 @@ module EventStreamInterpreter =
                     let! next = asyncBlock 
                     return! loop next values writes
                 }
-            | FreeEventStream (ReadSnapshot (stream, f)) -> 
+            | FreeEventStream (ReadSnapshot (stream, typeMap, f)) -> 
                 async {
-                    let! snapshot = readSnapshot stream
+                    let! snapshot = readSnapshot stream typeMap
                     let next = f snapshot
                     return! loop next values writes
                 }

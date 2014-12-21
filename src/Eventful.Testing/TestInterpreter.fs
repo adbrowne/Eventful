@@ -27,7 +27,7 @@ module TestInterpreter =
         | FreeEventStream (RunAsync asyncBlock) ->
             let next = asyncBlock |> Async.RunSynchronously
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes
-        | FreeEventStream (ReadSnapshot (streamId, f)) ->
+        | FreeEventStream (ReadSnapshot (streamId, typeMap, f)) ->
             let next =
                 if useSnapshots then
                     eventStore.AggregateStateSnapShots
