@@ -15,9 +15,12 @@ module Serialization =
 
     let deserializeObj (v : byte[]) (objType : Type) : obj =
         let str = System.Text.Encoding.UTF8.GetString(v)
-        let reader = new StringReader(str) :> TextReader
-        let result = serializer.Deserialize(reader, objType) 
-        result
+        if objType = typeof<string> then
+            str :> obj
+        else
+            let reader = new StringReader(str) :> TextReader
+            let result = serializer.Deserialize(reader, objType) 
+            result
 
     let esSerializer = 
         { new ISerializer with

@@ -73,23 +73,39 @@ module AggregateStatePersistence =
         | Some (dateTime : DateTime) -> dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
     let getAggregateState   
-        (documentStore : Raven.Client.Document.DocumentStore) 
+        (documentStore : Raven.Client.IDocumentStore) 
         serializer 
         (database : string) 
         streamId 
-        blockBuilders
+        typeMap
         = 
         async {
         let stateDocumentKey = getDocumentKey streamId
         use session = documentStore.OpenAsyncSession(database)
         let! doc = session.LoadAsync<AggregateStateDocument> stateDocumentKey |> Async.AwaitTask
 
-        let snapshot = deserialize serializer doc.Snapshot blockBuilders
-        return {
-            AggregateState.Snapshot = { StateSnapshot.State =  snapshot; LastEventNumber = doc.LastEventNumber }
-            NextWakeup = deserializeDateString doc.NextWakeup
-        }
+        if box doc <> null then
+            let snapshot = deserialize serializer doc.Snapshot typeMap
+            return {
+                AggregateState.Snapshot = { StateSnapshot.State =  snapshot; LastEventNumber = doc.LastEventNumber }
+                NextWakeup = deserializeDateString doc.NextWakeup
+            }
+        else
+            return {
+                AggregateState.Snapshot = StateSnapshot.Empty
+                NextWakeup = None
+            }
     }
+
+    let getStateSnapshot
+        (documentStore : Raven.Client.IDocumentStore) 
+        serializer 
+        (database : string) 
+        streamId 
+        typeMap
+        =
+        getAggregateState documentStore serializer database streamId typeMap
+        |> Async.map (fun x -> x.Snapshot)
 
     let applyMessages (streamConfig : EventfulStreamConfig<_>) (stateSnapshot : StateSnapshot) persistedEvents =
         let runEvent = 

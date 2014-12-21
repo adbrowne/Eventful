@@ -37,7 +37,8 @@ type WakeupMonitor<'TAggregateType>
             for result in result.Results do
                 let documentKey = (result.Item "__document_id").Value<string>()
                 let streamId = documentKey.Replace(AggregateStatePersistence.documentKeyPrefix.ToLowerInvariant(), "")
-                let wakeupTime = DateTime.Parse((result.Item AggregateStatePersistence.wakeupTimeFieldName).Value<string>())
+                let wakeupToken = result.Item AggregateStatePersistence.wakeupTimeFieldName
+                let wakeupTime = DateTime.Parse(wakeupToken.Value<string>())
                 let aggregateType = getAggregateType (result.Item "AggregateType")
                 yield (streamId, aggregateType, wakeupTime)
             

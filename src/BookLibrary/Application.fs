@@ -50,6 +50,12 @@ type TopShelfService () =
                     (fun (m:EventStoreMessage) -> m.EventContext)
                 :> IProjector<_,_,_>
 
+            let aggregateStateProjector = 
+                AggregateStatePersistence.buildProjector
+                    (EventStoreMessage.ToPersitedEvent >> Some)
+                    Serialization.esSerializer
+                    system.Handlers
+
             let cache = new System.Runtime.Caching.MemoryCache("myCache")
 
             let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, Async.DefaultCancellationToken, cache)
@@ -59,7 +65,7 @@ type TopShelfService () =
                 BulkRavenProjector.create
                     (
                         ApplicationConfig.dbName,
-                        Seq.singleton projector,
+                        [projector; aggregateStateProjector],
                         Async.DefaultCancellationToken,  
                         (fun _ -> async { () }),
                         documentStore,
@@ -92,6 +98,7 @@ type TopShelfService () =
                         StreamIndex = re.Event.EventNumber
                         EventPosition = { Commit = re.OriginalPosition.Value.CommitPosition; Prepare = re.OriginalPosition.Value.PreparePosition }
                         StreamName = re.Event.EventStreamId
+                        EventType = re.Event.EventType
                     }
 
                     bulkRavenProjector.Enqueue (eventStoreMessage)

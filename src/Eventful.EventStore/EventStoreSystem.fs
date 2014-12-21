@@ -149,6 +149,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
 
     member x.EventStoreTypeToClassMap = handlers.EventStoreTypeToClassMap
     member x.ClassToEventStoreTypeMap = handlers.ClassToEventStoreTypeMap
+    member x.Handlers = handlers
 
     interface IDisposable with
         member x.Dispose () = x.Stop()

@@ -50,16 +50,15 @@ module ApplicationConfig =
         |> EventfulHandlers.addAggregate (Delivery.handlers ())
         |> addEventTypes eventTypes
 
-    let nullGetSnapshot streamId typeMap = StateSnapshot.Empty |> Async.returnM
-
     let dbName = "BookLibrary"
 
     let buildWakeupMonitor documentStore onWakeups = 
         new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, dbName, Serialization.esSerializer, onWakeups) :> Eventful.IWakeupMonitor
 
     let buildEventStoreSystem (documentStore : Raven.Client.IDocumentStore) client =
+        let getSnapshot = Eventful.Raven.AggregateStatePersistence.getStateSnapshot documentStore Serialization.esSerializer dbName
         let openSession () = documentStore.OpenAsyncSession(dbName)
-        new BookLibraryEventStoreSystem(handlers openSession, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), nullGetSnapshot, buildWakeupMonitor documentStore)
+        new BookLibraryEventStoreSystem(handlers openSession, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), getSnapshot, buildWakeupMonitor documentStore)
 
     let initializedSystem documentStore = 
         async {
