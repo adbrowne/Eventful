@@ -4,23 +4,9 @@ open Serilog
 open Nessos.UnionArgParser
 open BookLibrary
 
-type CLIArguments =
-    | RavenServer of host:string * port:int
-    | RavenDatabase of string
-    | EventStore of host:string * port:int
-    | Create_Raven_Database
-    interface IArgParserTemplate with
-        member s.Usage =
-            match s with
-            | RavenServer _ -> "Specify Raven Server (hostname : port)."
-            | RavenDatabase _ -> "Specify Raven Database name."
-            | EventStore _ -> "Specify EventStore Server (hostname : port)."
-            | Create_Raven_Database -> "Create Raven database and exit"
-
 [<EntryPoint>]
 let main argv = 
-    let parser = UnionArgParser.Create<CLIArguments>()
-    let results = parser.Parse argv
+    let results = CLIArguments.Parser.Parse argv
 
     let createRavenDb = results.Contains <@ Create_Raven_Database @>
 
@@ -36,29 +22,6 @@ let main argv =
 
         EventfulLog.SetLog log
 
-        let default_eventstore_config : EventStoreConfig = {
-            Server = "localhost"
-            TcpPort = 1113
-            Username = "admin"
-            Password = "changeit" }
-
-        let default_raven_config : RavenConfig = {
-            Server = "localhost"
-            Port = 8080
-            Database = "BookLibrary"
-        }
-
-        let default_web_config : WebServerConfig = {
-            Server = "localhost"
-            Port = 8083
-        }
-
-        let default_application_config : ApplicationConfig = {
-            Raven = default_raven_config
-            EventStore = default_eventstore_config
-            WebServer = default_web_config 
-        }
-
         let applicationConfig = 
             let applyArgument (config : ApplicationConfig) = function
                 | RavenServer (host, port) ->
@@ -67,10 +30,12 @@ let main argv =
                      { config with Raven = { config.Raven with Database = database }}
                 | EventStore (host, port) ->
                      { config with EventStore = { config.EventStore with Server = host; TcpPort = port }}
+                | WebServer (host, port) ->
+                     { config with WebServer = { config.WebServer with Server = host; Port = port }}
                 | x -> failwith <| sprintf "Unhandled argument %A" x
 
             results.GetAllResults()
-            |> List.fold applyArgument default_application_config
+            |> List.fold applyArgument ApplicationConfig.default_application_config
 
         let runner = new BookLibrary.BookLibraryServiceRunner(applicationConfig)
 

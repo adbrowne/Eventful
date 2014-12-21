@@ -18,15 +18,17 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
     let mutable client : Client option = None
     let mutable eventStoreSystem : BookLibraryEventStoreSystem option = None
 
-    let getIpEndpoint server port =
+    let getIpAddress server = 
         let addresses = 
             System.Net.Dns.GetHostAddresses server
             |> List.ofArray
 
         match addresses with
         | [] -> failwith <| sprintf "Could not find IP for %s" server
-        | [x] -> new System.Net.IPEndPoint(x, port)
-        | xs -> failwith <| sprintf "Could not get unique IP for %s, found %A" server xs
+        | x::xs -> x
+        
+    let getIpEndpoint server port =
+        new System.Net.IPEndPoint(getIpAddress server, port)
         
     let getConnection (eventStoreConfig : EventStoreConfig) : Async<IEventStoreConnection> =
         async {
@@ -100,9 +102,10 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
 
             let dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(ravenConfig.Database)
 
+            let webAddress = getIpAddress webConfig.Server
             let suaveConfig = 
                 { default_config with 
-                   Types.SuaveConfig.bindings = [Types.HttpBinding.Create (Types.Protocol.HTTP, webConfig.Server,webConfig.Port)] }
+                   Types.SuaveConfig.bindings = [Types.HttpBinding.Create (Types.Protocol.HTTP, webAddress.ToString(), webConfig.Port)] }
 
             // start web
             let (ready, listens) =

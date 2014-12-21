@@ -61,6 +61,7 @@
   <ItemGroup>
     <Compile Include="IntegrationTests.fs" />
     <Compile Include="InMemoryRavenRunner.fs" />
+    <Compile Include="BookLibraryRunner.fs" />
     <Compile Include="InMemoryEventStoreRunner.fs" />
     <Compile Include="EventStoreFixture.fs" />
     <Compile Include="RavenDbPlay.fs" />
@@ -82,6 +83,11 @@
     <ProjectReference Include="..\..\vendor\Neo4jClient\Neo4jClient\Neo4jClient.csproj">
       <Name>Neo4jClient</Name>
       <Project>{343b9889-6ddf-4474-a1ec-05508a652e5a}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\BookLibrary\BookLibrary.fsproj">
+      <Name>BookLibrary</Name>
+      <Project>{fe210063-72a2-4653-b299-26a088a12c6e}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\Eventful.CsTests\Eventful.CsTests.csproj">
@@ -172,11 +178,19 @@
       <HintPath>..\packages\Serilog.Sinks.NLog.1.4.76\lib\net45\Serilog.Sinks.NLog.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Serilog.Sinks.Seq">
+      <HintPath>..\packages\Serilog.Sinks.Seq.1.4.76\lib\net45\Serilog.Sinks.Seq.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Runtime.Caching" />
+    <Reference Include="UnionArgParser">
+      <HintPath>..\packages\UnionArgParser.0.8.2\lib\net40\UnionArgParser.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Unquote">
       <HintPath>..\packages\Unquote.2.2.2\lib\net40\Unquote.dll</HintPath>
       <Private>True</Private>
