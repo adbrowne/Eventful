@@ -8,7 +8,7 @@ open Suave
 open Suave.Http
 open Suave.Web
 
-type TopShelfService () =
+type BookLibraryServiceRunner () =
     let log = createLogger "BookLibrary"
 
     let mutable client : Client option = None
