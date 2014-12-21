@@ -114,6 +114,7 @@
   cache:
       - src\packages
       - build\EventStore3
+      - build\RavenDB
   #---------------------------------#
   #     deployment configuration    #
   #---------------------------------#

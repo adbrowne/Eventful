@@ -60,6 +60,7 @@
   </Target>
   <ItemGroup>
     <Compile Include="IntegrationTests.fs" />
+    <Compile Include="InMemoryRavenRunner.fs" />
     <Compile Include="InMemoryEventStoreRunner.fs" />
     <Compile Include="EventStoreFixture.fs" />
     <Compile Include="RavenDbPlay.fs" />
@@ -73,6 +74,7 @@
     <Compile Include="RavenReplayProjectorTests.fs" />
     <Compile Include="SnapshotProjectorTests.fs" />
     <Compile Include="Neo4jOperationTests.fs" />
+    <Compile Include="PerformanceSuiteTests.fs" />
     <None Include="app.config" />
     <Content Include="packages.config" />
   </ItemGroup>

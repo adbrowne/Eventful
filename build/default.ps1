@@ -20,7 +20,7 @@ task MsBuildRelease {
   exec { msbuild /t:Build $slnPath -p:Configuration=Release /maxcpucount:8 /verbosity:quiet }
 }
 
-task AppveyorPostBuild -depends CreateNugetPackages, DownloadEventStore
+task AppveyorPostBuild -depends CreateNugetPackages, DownloadEventStore, DownloadRavenDb
 
 task RestorePackages {
   exec { & {.\tools\nuget\nuget.exe restore ..\src\Eventful.sln }}
@@ -47,6 +47,21 @@ function Expand-ZIPFile($filename, $destinationDirectory)
   $destination.Copyhere($zip_file.items(), 0x14)
 }
 
+task DownloadRavenDb {
+  $executablePath = "$PSScriptRoot\RavenDB\Server\Raven.Server.exe"
+  if (Test-Path $executablePath){
+    # already setup
+  }
+  else{
+    $downloadPath = "$PSScriptRoot\RavenDB-Build-2935.zip"
+    $wc=new-object system.net.webclient
+    $wc.UseDefaultCredentials = $true
+    $wc.downloadfile("https://daily-builds.s3.amazonaws.com/RavenDB-Build-2935.zip", $downloadPath)
+
+    exec { & {.\tools\7za\7za.exe x .\RavenDB-Build-2935.zip -oRavenDB -y }}
+  }
+}
+
 task DownloadEventStore {
   $executablePath = "$PSScriptRoot\EventStore3\EventStore.ClusterNode.exe"
   if (Test-Path $executablePath){
@@ -59,7 +74,7 @@ task DownloadEventStore {
     $wc.downloadfile("http://download.geteventstore.com/binaries/EventStore-OSS-Win-v3.0.0.zip", $downloadPath)
 
     exec { & {.\tools\7za\7za.exe x .\EventStore3.zip -oEventStore3 -y }}
-  }
+  } 
 }
 
 task Package -depends Clean, RestorePackages, MsBuildRelease, CreateNugetPackages {

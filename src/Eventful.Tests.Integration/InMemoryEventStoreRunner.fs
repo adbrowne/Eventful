@@ -2,26 +2,18 @@
 
 open System
 open System.IO
-open System.Net
-open System.Net.Sockets
 open System.Diagnostics
 open EventStore.ClientAPI
 
 module InMemoryEventStoreRunner =
-
-    let findFreeTcpPort () =
-        let l = new TcpListener(IPAddress.Loopback, 0)
-        l.Start()
-        let port = (l.LocalEndpoint :?> IPEndPoint).Port
-        l.Stop()
-        port
  
     type EventStoreAccess =     
         { Process : Process
-          Connection: IEventStoreConnection }
+          Connection: IEventStoreConnection
+          TcpPort : int
+          HttpPort : int }
         interface IDisposable with
          member this.Dispose() =
-             Console.WriteLine("Disposing")
              try
                  this.Connection.Dispose()
              with | ex ->
@@ -32,13 +24,12 @@ module InMemoryEventStoreRunner =
              this.Process.Dispose()
 
 
-    let clusterNodeAbsolutePath = Path.Combine(DirectoryInfo(Directory.GetCurrentDirectory()).Parent.FullName, "EventStore3\EventStore.ClusterNode.exe")
-    let testNodeEnvironmentVariable = "EventfulTestNode"
+    let clusterNodeAbsolutePath = Path.Combine(IntegrationTests.buildDirectoryPath, "EventStore3\EventStore.ClusterNode.exe")
     let clusterNodeProcessName = "EventStore.ClusterNode"
 
     let startNewProcess () =
-        let testTcpPort = findFreeTcpPort()
-        let testHttpPort = findFreeTcpPort()
+        let testTcpPort = IntegrationTests.findFreeTcpPort()
+        let testHttpPort = IntegrationTests.findFreeTcpPort()
         let processArguments = 
             let timeoutOptions = "--Int-Tcp-Heartbeat-Timeout=50000 --Ext-Tcp-Heartbeat-Timeout=50000"
             let portOptions = 
@@ -54,16 +45,7 @@ module InMemoryEventStoreRunner =
                 portOptions
                 timeoutOptions
 
-        let startInfo = 
-            System.Diagnostics.ProcessStartInfo(
-                clusterNodeAbsolutePath, 
-                processArguments,
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true)
-        startInfo.EnvironmentVariables.Add(testNodeEnvironmentVariable, "true")
-
-        let eventStoreProcess = Process.Start(startInfo)
+        let eventStoreProcess = IntegrationTests.startProcess clusterNodeAbsolutePath processArguments
 
         try
             let mutable started = false
@@ -100,5 +82,7 @@ module InMemoryEventStoreRunner =
         let connection = connectToEventStore testTcpPort
         {
             Process = eventStoreProcess
+            TcpPort = testTcpPort
+            HttpPort = testHttpPort
             Connection = connection
         }
