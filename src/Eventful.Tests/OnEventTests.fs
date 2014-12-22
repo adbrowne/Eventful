@@ -63,7 +63,6 @@ module OnEventTests =
             emptyTestSystem  
             |> TestSystem.injectEvent 
                 "fake stream" 
-                0 
                 ({ FooEvent.Id = thisId } :> IEvent)
                 { 
                     TestMetadata.AggregateType = "TestAggregate" 
@@ -82,8 +81,8 @@ module OnEventTests =
         let event = { FooEvent.Id = thisId } :> IEvent
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.injectEvent streamName 0 event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // first run
-            |> TestSystem.injectEvent streamName 0 event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // first run
+            |> TestSystem.injectEvent streamName event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // first run
+            |> TestSystem.injectEvent streamName event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // second run
             |> TestSystem.runToEnd
 
         let barStateIs1 guid =

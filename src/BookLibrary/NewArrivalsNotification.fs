@@ -113,7 +113,7 @@ module NewArrivalsNotificationTests =
 
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.injectEvent bookStreamId 0 bookAddedEvent bookAddedEventMetadata
+            |> TestSystem.injectEvent bookStreamId bookAddedEvent bookAddedEventMetadata
             |> TestSystem.runToEnd
 
         let notificationStreamName = NewArrivalsNotification.getStreamName () NewArrivalsNotification.notificationId

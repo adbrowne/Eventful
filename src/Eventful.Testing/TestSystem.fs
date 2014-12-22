@@ -59,19 +59,17 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         cmds
         |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) (cmd, context) -> s.RunCommand cmd context) x
 
-    member x.InjectEvent (streamId) (eventNumber) (evt : 'TBaseEvent) (metadata : 'TMetadata) =
+    member x.InjectEvent (streamId) (evt : 'TBaseEvent) (metadata : 'TMetadata) =
         let eventType = state.Handlers.ClassToEventStoreTypeMap.Item (evt.GetType())
-        let fakeEvent = PersistedStreamEvent {
-            EventId = Guid.NewGuid()
-            StreamId = streamId
-            EventNumber = eventNumber
+
+        let fakeEvent = EventStreamEvent.Event {
             Body = evt :> obj
-            Metadata = metadata
             EventType = eventType
+            Metadata = metadata
         }
-        
+
         let allEvents' =
-            TestEventStore.runEvent state.BuildEventContext interpret state.Handlers state.AllEvents fakeEvent
+            state.AllEvents |> TestEventStore.addEvent streamId fakeEvent
             |> TestEventStore.processPendingEvents state.BuildEventContext interpret state.Handlers 
         new TestSystem<_,_,_,_,_>({ state with AllEvents = allEvents' })
 
@@ -148,8 +146,8 @@ module TestSystem =
     let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommand x c
     let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommandNoThrow x c
     let runToEnd (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunToEnd()
-    let injectEvent stream eventNumber event metadata (testSystem : TestSystem<_,_,_,_,_>) =
-        testSystem.InjectEvent stream eventNumber event metadata
+    let injectEvent stream event metadata (testSystem : TestSystem<_,_,_,_,_>) =
+        testSystem.InjectEvent stream event metadata
     let getStreamEvents streamId (system:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) =
         system.AllEvents.Events
         |> Map.tryFind streamId
