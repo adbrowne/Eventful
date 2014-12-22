@@ -7,6 +7,7 @@ open Newtonsoft.Json
 
 module Serialization = 
     let serializer = JsonSerializer.Create()
+    serializer.Converters.Add(new Converters.StringEnumConverter())
 
     let serialize (t : 'T) =
         use sw = new System.IO.StringWriter() :> System.IO.TextWriter
@@ -17,9 +18,11 @@ module Serialization =
         let str = System.Text.Encoding.UTF8.GetString(v)
         if objType = typeof<string> then
             str :> obj
+        elif objType.IsEnum then
+            Enum.Parse(objType, str, true)
         else
             let reader = new StringReader(str) :> TextReader
-            let result = serializer.Deserialize(reader, objType) 
+            let result = serializer.Deserialize(reader, objType)
             result
 
     let esSerializer = 

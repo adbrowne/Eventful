@@ -12,10 +12,11 @@ type AggregateState = {
 }
 
 module AggregateStatePersistence =
-    type AggregateStateDocument = {
+    type AggregateStateDocument<'TAggregateType> = {
         Snapshot : RavenJObject
         LastEventNumber : int
         NextWakeup : string
+        [<Raven.Imports.Newtonsoft.Json.JsonConverter(typeof<Raven.Imports.Newtonsoft.Json.Converters.StringEnumConverter>)>] AggregateType : 'TAggregateType
     }
 
     let stateDocumentCollectionName = "AggregateStates"
@@ -45,6 +46,7 @@ module AggregateStatePersistence =
             stateMap |> Map.add key value
 
         doc.Keys
+        |> Seq.filter (fun x -> x <> "AggregateType")
         |> Seq.fold addKey Map.empty
 
     let documentKeyPrefix = "AggregateState/"
@@ -72,7 +74,7 @@ module AggregateStatePersistence =
         | None -> null
         | Some (dateTime : DateTime) -> dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
-    let getAggregateState   
+    let getAggregateState<'TAggregateType>   
         (documentStore : Raven.Client.IDocumentStore) 
         serializer 
         (database : string) 
@@ -82,7 +84,7 @@ module AggregateStatePersistence =
         async {
         let stateDocumentKey = getDocumentKey streamId
         use session = documentStore.OpenAsyncSession(database)
-        let! doc = session.LoadAsync<AggregateStateDocument> stateDocumentKey |> Async.AwaitTask
+        let! doc = session.LoadAsync<AggregateStateDocument<'TAggregateType>> stateDocumentKey |> Async.AwaitTask
 
         if box doc <> null then
             let snapshot = deserialize serializer doc.Snapshot typeMap
@@ -97,14 +99,14 @@ module AggregateStatePersistence =
             }
     }
 
-    let getStateSnapshot
+    let getStateSnapshot<'TAggregateType>
         (documentStore : Raven.Client.IDocumentStore) 
         serializer 
         (database : string) 
         streamId 
         typeMap
         =
-        getAggregateState documentStore serializer database streamId typeMap
+        getAggregateState<'TAggregateType> documentStore serializer database streamId typeMap
         |> Async.map (fun x -> x.Snapshot)
 
     let applyMessages (streamConfig : EventfulStreamConfig<_>) (stateSnapshot : StateSnapshot) persistedEvents =
@@ -162,7 +164,6 @@ module AggregateStatePersistence =
         let loadCurrentState (fetcher : IDocumentFetcher) streamId (persistedEvents, aggregateType, (aggregateConfig : EventfulStreamConfig<_>)) = async {
             let documentKey = getDocumentKey streamId
 
-
             let! doc = 
                 fetcher.GetDocument documentKey
                 |> Async.AwaitTask
@@ -170,7 +171,7 @@ module AggregateStatePersistence =
 
             let (snapshot : StateSnapshot, metadata : RavenJObject, etag) = 
                 doc
-                |> Option.map (fun (stateDocument : AggregateStateDocument, metadata : RavenJObject, etag) ->
+                |> Option.map (fun (stateDocument : AggregateStateDocument<'TAggregateType>, metadata : RavenJObject, etag) ->
                     ({ 
                         StateSnapshot.LastEventNumber = stateDocument.LastEventNumber
                         State = deserialize serializer stateDocument.Snapshot typeMap
@@ -200,6 +201,7 @@ module AggregateStatePersistence =
                 AggregateStateDocument.Snapshot = mapToRavenJObject serializer snapshot.State
                 LastEventNumber = snapshot.LastEventNumber
                 NextWakeup = serializeDateTimeOption nextWakeup
+                AggregateType = aggregateType
             }
 
             ProcessAction.Write (

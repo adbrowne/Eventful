@@ -583,7 +583,7 @@ module Aggregate =
                 member x.Handler aggregateConfiguration streamId (time : DateTime) =
                     eventStream {
                         let run streamState = AggregateActionBuilder.runHandler aggregateConfiguration.GetUniqueId aggregateConfiguration.StateBuilder.GetBlockBuilders aggregateConfiguration.StateChangeHandlers streamId streamState stateBuilder (handler time)
-                        let! result = AggregateActionBuilder.retryOnWrongVersion streamId stateBuilder run
+                        let! result = AggregateActionBuilder.retryOnWrongVersion streamId aggregateConfiguration.StateBuilder run
                         match result with
                         | Choice2Of2 failure ->
                             failwith "WakeupHandler failed %A" failure

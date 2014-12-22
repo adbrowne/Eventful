@@ -32,7 +32,7 @@ type Logger internal (name : string) =
     member this.ErrorWithException (msg : Lazy<string * System.Exception>) : unit = 
         if (logger.IsEnabled(LogEventLevel.Error)) then
             let (message, exn) = msg.Force()
-            logger.Error(message, exn)
+            logger.Error(message + " {@Exception}", exn)
 
 [<AutoOpen>]
 module Prelude =

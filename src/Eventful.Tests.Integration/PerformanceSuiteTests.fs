@@ -5,6 +5,7 @@ open Serilog
 open Xunit
 
 module PerformanceSuiteTests =
+
     [<Fact>]
     let ``Full Integration Run`` () =
 

@@ -16,7 +16,7 @@ module SetupHelpers =
         documentStore :> Raven.Client.IDocumentStore
 
 type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
-    let log = createLogger "BookLibrary"
+    let log = createLogger "BookLibrary.BookLibraryServiceRunner"
     let webConfig = applicationConfig.WebServer
     let ravenConfig = applicationConfig.Raven
     let eventStoreConfig = applicationConfig.EventStore
@@ -77,7 +77,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
         new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, ravenConfig.Database, Serialization.esSerializer, onWakeups) :> Eventful.IWakeupMonitor
 
     let buildEventStoreSystem (documentStore : Raven.Client.IDocumentStore) client =
-        let getSnapshot = Eventful.Raven.AggregateStatePersistence.getStateSnapshot documentStore Serialization.esSerializer ravenConfig.Database
+        let getSnapshot = Eventful.Raven.AggregateStatePersistence.getStateSnapshot<BookLibrary.AggregateType> documentStore Serialization.esSerializer ravenConfig.Database
         let openSession () = documentStore.OpenAsyncSession(ravenConfig.Database)
         new BookLibraryEventStoreSystem(handlers openSession, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), getSnapshot, buildWakeupMonitor documentStore)
 
