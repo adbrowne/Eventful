@@ -1,17 +1,20 @@
 ﻿namespace BookLibrary
 
 open System
+open Eventful
 open Suave
 open Suave.Http
 open Suave.Http.Successful
 
 module WebHelpers =
+    let log = createLogger "BookLibrary.WebHelpers"
     let fromJson<'TDto> (f : 'TDto -> Types.WebPart) (context : Types.HttpContext) : Types.SuaveTask<Types.HttpContext> =
         let dto = Serialization.deserializeObj context.request.raw_form typeof<'TDto> :?> 'TDto
         f dto context 
         
     let runCommandInSystem (system  : IBookLibrarySystem) (cmd, successResult) (context : Types.HttpContext) : Types.SuaveTask<Types.HttpContext> = async {
         let! result = system.RunCommand cmd 
+        log.RichDebug "Command Result {@Command} {@Result}" [|cmd;result|]
         return!
             match result with
             | Choice1Of2 result ->

@@ -9,6 +9,7 @@ open System
 open System.Runtime.Caching
 
 module EventStreamInterpreter = 
+    let log = createLogger "Eventful.EventStore.EventStreamInterpreter"
     let cachePolicy = new CacheItemPolicy()
 
     let getCacheKey stream eventNumber =
@@ -21,6 +22,7 @@ module EventStreamInterpreter =
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
         (readSnapshot : string -> Map<string,Type> -> Async<StateSnapshot>)
+        (correlationId : Guid)
         (prog : FreeEventStream<obj,'A,'TMetadata>) : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * 'TMetadata>) : Async<'A> =
             match prog with
@@ -30,35 +32,50 @@ module EventStreamInterpreter =
             | FreeEventStream (GetClassToEventStoreTypeMap ((), f)) ->
                 let next = f classToEventStoreTypeMap
                 loop next values writes
+            | FreeEventStream (LogMessage (logLevel, messageTemplate, args, next)) ->
+                async {
+                    // todo take level into account
+                    log.RichDebug messageTemplate args
+                    return! loop next values writes
+                }
             | FreeEventStream (RunAsync asyncBlock) ->
+                log.RichDebug "RunAsync {@CorrelationId}" [|correlationId|]
                 async {
                     let! next = asyncBlock 
                     return! loop next values writes
                 }
-            | FreeEventStream (ReadSnapshot (stream, typeMap, f)) -> 
+            | FreeEventStream (ReadSnapshot (streamId, typeMap, f)) -> 
+                log.RichDebug "ReadSnapshot {@StreamId} {@CorrelationId}" [|streamId;correlationId|]
                 async {
-                    let! snapshot = readSnapshot stream typeMap
+                    let! snapshot = readSnapshot streamId typeMap
                     let next = f snapshot
                     return! loop next values writes
                 }
-            | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
+            | FreeEventStream (ReadFromStream (streamId, eventNumber, f)) -> 
+                log.RichDebug "ReadFromStream Start {@StreamId} {@EventNumber} {@CorrelationId}" [|streamId;eventNumber;correlationId|]
+                let sw = System.Diagnostics.Stopwatch.StartNew()
                 async {
-                    let cacheKey = getCacheKey stream eventNumber
+                    let cacheKey = getCacheKey streamId eventNumber
                     let cachedEvent = cache.Get(cacheKey)
 
                     let! event = 
                         match cachedEvent with
                         | :? ResolvedEvent as evt ->
+                            sw.Stop()
+                            log.RichDebug "ReadFromStream End. Retrieved from cache {@CorrelationId}  {Elapsed:000} ms" [|correlationId;sw.ElapsedMilliseconds|]
                             async { return Some evt }
                         | _ -> 
                             async {
-                                let! events = eventStore.readStreamSliceForward stream eventNumber 100
+                                let! events = eventStore.readStreamSliceForward streamId eventNumber 100
 
                                 for event in events do
-                                    let key = getCacheKey stream event.OriginalEventNumber
+                                    let key = getCacheKey streamId event.OriginalEventNumber
                                     let cacheItem = new CacheItem(key, event)
                                     cache.Set(cacheItem, cachePolicy)
-                                return events |> tryHead
+                                sw.Stop()
+                                let requestedEvent = events |> tryHead
+                                log.RichDebug "ReadFromStream End. Retrieved from event store {@Event}. Retrieved {@EventCount} in total. {@CorrelationId} {Elapsed:000} ms" [|requestedEvent;events.Length;correlationId;sw.ElapsedMilliseconds|]
+                                return requestedEvent
                             }
                         
                     let readEvent = 
@@ -66,7 +83,7 @@ module EventStreamInterpreter =
                         | Some event ->
                             let event = event.Event
                             let eventToken = {
-                                Stream = stream
+                                Stream = streamId
                                 Number = eventNumber
                                 EventType = event.EventType
                             }
@@ -83,6 +100,8 @@ module EventStreamInterpreter =
                         return! loop next values writes
                 }
             | FreeEventStream (ReadValue (token, g)) ->
+                log.RichDebug "ReadValue {@StreamId} {@EventNumber} {@EventType} {@CorrelationId}" [|token.Stream;token.Number;token.EventType;correlationId|]
+
                 let (data, metadata) = values.[token]
                 let dataClass = eventStoreTypeToClassMap.Item(token.EventType)
                 let dataObj = serializer.DeserializeObj(data) dataClass
@@ -90,6 +109,7 @@ module EventStreamInterpreter =
                 let next = g (dataObj,metadataObj)
                 loop next  values writes
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->
+                log.RichDebug "WriteToStream {@StreamId} {@EventNumber} {@Events} {@CorrelationId}" [|streamId;eventNumber;events;correlationId|]
                 let toEventData = function
                     | Event { Body = dataObj; EventType = typeString; Metadata = metadata} -> 
                         let serializedData = serializer.Serialize(dataObj)
@@ -119,6 +139,8 @@ module EventStreamInterpreter =
                 let next = g ()
                 loop next values writes
             | Pure result ->
+                log.RichDebug "Pure @{Result} {@CorrelationId}" [|result;correlationId|]
+
                 async {
                     return result
                 }

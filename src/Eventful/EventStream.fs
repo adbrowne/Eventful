@@ -65,6 +65,12 @@ type PersistedStreamEntry<'TMetadata> =
     | PersistedStreamEvent of PersistedEvent<'TMetadata>
     | PersistedStreamLink of PersistedEventLink<'TMetadata>
 
+type LogMessageLevel = 
+| Debug
+| Info
+| Warn
+| Error
+
 module EventStream =
     open FSharpx.Operators
     open FSharpx.Collections
@@ -82,7 +88,8 @@ module EventStream =
     | GetClassToEventStoreTypeMap of unit *  (ClassToEventStoreTypeMap -> 'N)
     | ReadValue of EventToken *  ((obj * 'TMetadata) -> 'N)
     | RunAsync of Async<'N>
-    | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> *  (WriteResult -> 'N)
+    | LogMessage of LogMessageLevel * string * obj[] * 'N
+    | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
     | NotYetDone of (unit -> 'N)
     and 
         FreeEventStream<'F,'R,'TMetadata> = 
@@ -105,6 +112,8 @@ module EventStream =
             ReadValue (eventToken, readValue >> f)
         | WriteToStream (stream, expectedVersion, events, next) -> 
             WriteToStream (stream, expectedVersion, events, (next >> f))
+        | LogMessage (logLevel, messageTemplate, data, next) -> 
+            LogMessage (logLevel, messageTemplate, data, f next)
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
         | RunAsync asyncBlock -> 
@@ -127,6 +136,8 @@ module EventStream =
         ReadValue(eventToken, id) |> liftF
     let writeToStream stream number events = 
         WriteToStream(stream, number, events, id) |> liftF
+    let logMessage logLevel messageTemplate data = 
+        LogMessage (logLevel, messageTemplate, data, ()) |> liftF
     let runAsync (a : Async<'a>) : FreeEventStream<'f2,'a,'m> =  
         RunAsync(a) |> liftF
 

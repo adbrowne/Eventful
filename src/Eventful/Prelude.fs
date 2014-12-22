@@ -4,6 +4,10 @@ open Serilog.Events
 
 type Logger internal (name : string) =
     let logger = EventfulLog.ForContext(name)
+    member this.RichDebug (msgTemplate : string) args : unit = 
+        if (logger.IsEnabled(LogEventLevel.Debug)) then
+            logger.Debug(msgTemplate, args)
+
     member this.Debug (msg : Lazy<string>) : unit = 
         if (logger.IsEnabled(LogEventLevel.Debug)) then
             let message = msg.Force()

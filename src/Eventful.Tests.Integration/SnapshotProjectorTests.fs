@@ -197,7 +197,7 @@ module SnapshotProjectorTests =
     [<Trait("category", "ravendb")>]
     let ``Install Wakeup Index`` () =
         let definition = AggregateStatePersistence.wakeupIndex()
-        documentStore.DatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase).PutIndex(definition.Name, definition) |> ignore
+        documentStore.DatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase).PutIndex(definition.Name, definition, true) |> ignore
         ()
 
     [<Fact>]

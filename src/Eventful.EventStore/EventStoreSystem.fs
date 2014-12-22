@@ -49,10 +49,11 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
             program
 
     let runHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>) program =
+        let correlationId = Guid.NewGuid()
         async {
             try
                 let! program = program
-                return! interpreter program
+                return! interpreter correlationId program
             with | e ->
                 log.ErrorWithException <| lazy(sprintf "Exception in event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
         }
@@ -68,11 +69,13 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         }
 
     let runWakeupHandler streamId aggregateType time =
+        let correlationId = Guid.NewGuid()
+        log.RichDebug "RunWakeupHandler {@StreamId} {@AggregateType} {@Time} {@CorrelationId}" [|streamId;aggregateType;time;correlationId|]
         let config = handlers.AggregateTypes.Item aggregateType
         match config.Wakeup with
         | Some (EventfulWakeupHandler (_, handler)) ->
             handler streamId time
-            |> interpreter
+            |> interpreter correlationId
             |> Async.RunSynchronously
         | None ->
             ()
@@ -80,7 +83,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
     member x.AddOnCompleteEvent callback = 
         onCompleteCallbacks <- callback::onCompleteCallbacks
 
-    member x.RunStreamProgram program = interpreter program
+    member x.RunStreamProgram program = interpreter (Guid.NewGuid()) program
 
     member x.Start () =  async {
         let! position = ProcessingTracker.readPosition client |> Async.map (Option.map EventPosition.toEventStorePosition)
@@ -139,11 +142,19 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
                 completeTracker.Complete position
             }
 
-    member x.RunCommand (context:'TCommandContext) (cmd : obj) = 
-        let program = EventfulHandlers.getCommandProgram context cmd handlers
-        let result = 
-            interpreter program
-        result
+    member x.RunCommand (context:'TCommandContext) (cmd : obj) =
+        async {
+            let correlationId = Guid.NewGuid()
+            log.RichDebug "Running command: {@Command} {@CorrelationId}" [|cmd;correlationId|]
+            let sw = System.Diagnostics.Stopwatch.StartNew()
+            let program = EventfulHandlers.getCommandProgram context cmd handlers
+            let! result = 
+                interpreter correlationId program
+
+            sw.Stop()
+            log.RichDebug "Command complete: {@Command} {@Result} {@CorrelationId} {Elapsed:000} ms" [|cmd;result;correlationId;sw.ElapsedMilliseconds|]
+            return result
+        }
 
     member x.LastEventProcessed = lastEventProcessed
 

@@ -334,6 +334,7 @@ module AggregateActionBuilder =
                         (processCommand cmd) 
 
                 eventStream {
+                    do! logMessage LogMessageLevel.Debug "Starting command tries" [||]
                     let! result = retryOnWrongVersion stream aggregateConfiguration.StateBuilder f
                     return
                         result |> Choice.mapSecond mapValidationFailureToCommandFailure

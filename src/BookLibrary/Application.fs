@@ -9,6 +9,12 @@ open Suave
 open Suave.Http
 open Suave.Web
 
+module SetupHelpers =
+    let buildDocumentStore (ravenConfig : RavenConfig) =
+        let documentStore = new Raven.Client.Document.DocumentStore(Url = sprintf "http://%s:%d/" ravenConfig.Server ravenConfig.Port)
+        documentStore.Initialize() |> ignore
+        documentStore :> Raven.Client.IDocumentStore
+
 type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
     let log = createLogger "BookLibrary"
     let webConfig = applicationConfig.WebServer
@@ -43,10 +49,11 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
             let connectionSettings : ConnectionSettings = ConnectionSettingsBuilder.op_Implicit(connectionSettingsBuilder)
 
             let connection = EventStoreConnection.Create(connectionSettings, ipEndPoint)
-            connection.Connected.Add(fun _ ->  printf "Connected" )
-            connection.ErrorOccurred.Add(fun e -> printfn "Error: %A" e.Exception )
-            connection.Disconnected.Add(fun _ ->  printf "Disconnectiong" )
+            connection.Connected.Add(fun _ -> log.RichDebug "EventStore Connected" [||])
+            connection.ErrorOccurred.Add(fun e -> log.ErrorWithException <| lazy("EventStore Connection Error", e.Exception))
+            connection.Disconnected.Add(fun _ -> log.RichDebug "EventStore Disconnected" [||])
 
+            log.RichDebug "EventStore Connecting" [||]
             return! connection.ConnectAsync().ContinueWith(fun t -> connection) |> Async.AwaitTask
         }
 
@@ -63,6 +70,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
         |> EventfulHandlers.addAggregate (BookCopy.handlers openSession)
         |> EventfulHandlers.addAggregate (Award.handlers ())
         |> EventfulHandlers.addAggregate (Delivery.handlers ())
+        |> EventfulHandlers.addAggregate NewArrivalsNotification.handlers
         |> addEventTypes eventTypes
 
     let buildWakeupMonitor documentStore onWakeups = 
@@ -81,12 +89,6 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
             return new BookLibrarySystem(system)
         } |> Async.StartAsTask
 
-    let buildDocumentStore() =
-        let documentStore = new Raven.Client.Document.DocumentStore(Url = sprintf "http://%s:%d/" ravenConfig.Server ravenConfig.Port)
-        documentStore.DefaultDatabase <- ravenConfig.Database
-        documentStore.Initialize() |> ignore
-        documentStore
-
     member x.Start () =
 
         log.Debug <| lazy "Starting App"
@@ -94,7 +96,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
             let! connection = getConnection eventStoreConfig
             let c = new Client(connection)
 
-            let documentStore = buildDocumentStore()
+            let documentStore = SetupHelpers.buildDocumentStore ravenConfig
 
             let system : BookLibraryEventStoreSystem = buildEventStoreSystem documentStore c
             system.Start() |> Async.StartAsTask |> ignore

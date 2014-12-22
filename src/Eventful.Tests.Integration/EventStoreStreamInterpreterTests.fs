@@ -53,6 +53,7 @@ type EventStoreStreamInterpreterTests () =
             eventTypeToClassMap 
             classToEventTypeName 
             nullGetSnapshot
+            (Guid.NewGuid())
             program
 
     [<Fact>]
