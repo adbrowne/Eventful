@@ -8,6 +8,8 @@ open FSharpx.Collections
 open FSharpx.Option
 
 module TestInterpreter =
+    let log = createLogger "Eventful.Testing.TestInterpreter"
+
     let rec interpret 
         (prog : EventStreamProgram<'T,_>)
         (eventStore : TestEventStore<'TMetadata, 'TAggregateType>) 
@@ -24,6 +26,10 @@ module TestInterpreter =
         | FreeEventStream (GetClassToEventStoreTypeMap ((), f)) ->
             let next = f classToEventStoreTypeMap
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes
+        | FreeEventStream (LogMessage (logLevel, messageTemplate, args, f)) ->
+            // todo take level into account
+            log.RichDebug messageTemplate args
+            interpret f eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes
         | FreeEventStream (RunAsync asyncBlock) ->
             let next = asyncBlock |> Async.RunSynchronously
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes
