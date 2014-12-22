@@ -21,10 +21,11 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
     let getIpAddress server = 
         let addresses = 
             System.Net.Dns.GetHostAddresses server
+            |> Array.filter (fun x -> x.AddressFamily = Net.Sockets.AddressFamily.InterNetwork)
             |> List.ofArray
 
         match addresses with
-        | [] -> failwith <| sprintf "Could not find IP for %s" server
+        | [] -> failwith <| sprintf "Could not find IPv4 address for %s" server
         | x::xs -> x
         
     let getIpEndpoint server port =
