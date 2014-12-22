@@ -25,6 +25,7 @@ type AggregateType =
     | BookCopy = 2
     | Award = 3
     | Delivery = 4
+    | NewArrivalsNotification = 5
 
 type BookLibraryEventMetadata = {
     SourceMessageId: string

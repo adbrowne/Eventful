@@ -66,6 +66,7 @@
     <Compile Include="BookCopy.fs" />
     <Compile Include="Award.fs" />
     <Compile Include="Delivery.fs" />
+    <Compile Include="NewArrivalsNotification.fs" />
     <Compile Include="File.fs" />
     <Compile Include="ApplicationEvent.fs" />
     <Compile Include="ApplicationConfig.fs" />
@@ -157,6 +158,10 @@
       <HintPath>..\packages\UnionArgParser.0.8.2\lib\net40\UnionArgParser.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Unquote">
+      <HintPath>..\packages\Unquote.2.2.2\lib\net40\Unquote.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="xunit">
       <HintPath>..\packages\xunit.1.9.2\lib\net20\xunit.dll</HintPath>
       <Private>True</Private>
@@ -172,6 +177,11 @@
       <Name>Eventful.RavenDb</Name>
       <Project>{639b7247-67ae-4a1f-8b09-28bcf23bce20}</Project>
       <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.Testing\Eventful.Testing.fsproj">
+      <Name>Eventful.Testing</Name>
+      <Project>{7c47cd17-5bd2-47fd-9361-80d7ced2dc71}</Project>
+      <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\Eventful\Eventful.fsproj">
       <Name>Eventful</Name>
