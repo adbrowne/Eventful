@@ -4,33 +4,20 @@ open System
 open Eventful
 open FSharp.Control
 open System.Threading
+open Raven.Client.Connection.Async
 
 type WakeupMonitorEvents =
 | TimerTick
 | IndexChanged
 
-type WakeupMonitor<'TAggregateType>
-    (
-       documentStore : Raven.Client.IDocumentStore,
-       database : string,
-       serializer: ISerializer,
-       onStreamWakeup : string -> 'TAggregateType -> DateTime -> unit
-    ) =
-
+module WakeupMonitorModule =
     let log = createLogger "Eventful.Raven.WakeupMonitor"
-    let dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(database)
 
-    let getAggregateType (token : Raven.Json.Linq.RavenJToken) = 
-        if typeof<'TAggregateType> = typeof<string> then
-            token.Value<string>() :> obj :?> 'TAggregateType
-        else
-            serializer.DeserializeObj (System.Text.Encoding.UTF8.GetBytes(token.ToString())) typeof<'TAggregateType> :?> 'TAggregateType
-        
-    let getWakeups time = 
+    let getWakeups (dbCommands : IAsyncDatabaseCommands) time = 
         let rec loop start = asyncSeq {
             log.RichDebug "getWakeups {@Time} {@Start}" [|time;start|]
             let indexQuery = new Raven.Abstractions.Data.IndexQuery()
-            indexQuery.FieldsToFetch <- [|AggregateStatePersistence.wakeupTimeFieldName; "AggregateType"|]
+            indexQuery.FieldsToFetch <- [|AggregateStatePersistence.wakeupTimeFieldName; "AggregateType"; AggregateStatePersistence.streamIdFieldName|]
             indexQuery.SortedFields <- [|new Raven.Abstractions.Data.SortedField(AggregateStatePersistence.wakeupTimeFieldName)|]
             indexQuery.Start <- start
             indexQuery.PageSize <- 200
@@ -38,11 +25,10 @@ type WakeupMonitor<'TAggregateType>
             log.RichDebug "getWakeups {@Result}" [|result|]
             
             for result in result.Results do
-                let documentKey = (result.Item "__document_id").Value<string>()
-                let streamId = documentKey.Replace(AggregateStatePersistence.documentKeyPrefix.ToLowerInvariant(), "")
+                let streamId = (result.Item "StreamId").Value<string>()
                 let wakeupToken = result.Item AggregateStatePersistence.wakeupTimeFieldName
                 let wakeupTime = DateTime.Parse(wakeupToken.Value<string>())
-                let aggregateType = getAggregateType (result.Item "AggregateType")
+                let aggregateType = (result.Item "AggregateType").Value<string>()
                 log.RichDebug "Waking up {@StreamId} {@AggregateType} {@Time}" [|streamId;aggregateType;wakeupTime|]
                 yield (streamId, aggregateType, wakeupTime)
             
@@ -52,27 +38,46 @@ type WakeupMonitor<'TAggregateType>
 
         loop 0
 
+type WakeupMonitor
+    (
+       documentStore : Raven.Client.IDocumentStore,
+       database : string,
+       onStreamWakeup : string -> string -> DateTime -> unit
+    ) =
+
+    let log = createLogger "Eventful.Raven.WakeupMonitor"
+    let dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(database)
+
+    let getWakeups = WakeupMonitorModule.getWakeups dbCommands
+
     let agent = newAgent "WakeupMonitor" log (fun agent -> 
             let rec loop () = async {
-                log.RichDebug "agent.Receive()" Array.empty
-                let! msg = agent.Receive()
+                let! (msg : WakeupMonitorEvents) = agent.Receive()
 
                 log.RichDebug "Wakeup tick" Array.empty
 
                 do! 
                     getWakeups DateTime.UtcNow
                     |> AsyncSeq.iter (fun (streamId, aggregateType, wakeupTime) -> onStreamWakeup streamId aggregateType wakeupTime)
-                log.RichDebug "Wakeup tick complete" Array.empty
                 return! loop ()
             }
                 
             loop ()
         )
 
-    let callback _ = agent.Post TimerTick
+    let callback _ = 
+        try
+            agent.Post TimerTick
+        with | e ->
+            log.ErrorWithException <| lazy("Exception in timer callback", e)
+
+    // create timer but not running
+    let timer = new Timer(callback, null, -1, -1)
 
     interface IWakeupMonitor with
         member x.Start () = 
             log.RichDebug "IWakeupMonitor.Start" Array.empty
-            let timer = new Timer(callback, null, TimeSpan.Zero, TimeSpan.FromSeconds(1.0));
+            let timerUpdated = timer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1.0))
+            if not timerUpdated then
+                log.RichDebug "Failed to start timer" Array.empty
             ()

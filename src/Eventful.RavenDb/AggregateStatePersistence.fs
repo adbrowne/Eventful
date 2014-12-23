@@ -12,25 +12,31 @@ type AggregateState = {
 }
 
 module AggregateStatePersistence =
-    type AggregateStateDocument<'TAggregateType> = {
+    type AggregateStateDocument = {
         Snapshot : RavenJObject
         LastEventNumber : int
         NextWakeup : string
-        [<Raven.Imports.Newtonsoft.Json.JsonConverter(typeof<Raven.Imports.Newtonsoft.Json.Converters.StringEnumConverter>)>] AggregateType : 'TAggregateType
+        // stored explicitly instead of computing from document key
+        // as it is case sensitive
+        StreamId : string 
+        AggregateType : string
     }
 
     let stateDocumentCollectionName = "AggregateStates"
 
     let wakeupIndexName =  "EventfulWakeup"
     let wakeupTimeFieldName = "WakeupTime"
+    let streamIdFieldName = "StreamId"
+    let aggregateTypeFieldName = "AggregateType"
     let wakeupIndex () = 
         let definition = new Raven.Abstractions.Indexing.IndexDefinition()
 
         definition.Name <- wakeupIndexName
-        definition.Map <- sprintf "docs.%s.Where(state => state.NextWakeup != null).Select(state => new { %s = state.NextWakeup, AggregateType = state.AggregateType })" stateDocumentCollectionName wakeupTimeFieldName
+        definition.Map <- sprintf "docs.%s.Where(state => state.NextWakeup != null).Select(state => new { %s = state.NextWakeup, AggregateType = state.AggregateType, StreamId = state.StreamId })" stateDocumentCollectionName wakeupTimeFieldName
         definition.SortOptions.Add("WakeupTime", Raven.Abstractions.Indexing.SortOptions.String)
-        definition.Stores.Add("WakeupTime", Raven.Abstractions.Indexing.FieldStorage.Yes)
-        definition.Stores.Add("AggregateType", Raven.Abstractions.Indexing.FieldStorage.Yes)
+        definition.Stores.Add(wakeupTimeFieldName, Raven.Abstractions.Indexing.FieldStorage.Yes)
+        definition.Stores.Add(aggregateTypeFieldName, Raven.Abstractions.Indexing.FieldStorage.Yes)
+        definition.Stores.Add(streamIdFieldName, Raven.Abstractions.Indexing.FieldStorage.Yes)
         definition
 
     let deserialize (serializer :  ISerializer) (doc : RavenJObject) (propertyTypes : Map<string,Type>) =
@@ -74,7 +80,7 @@ module AggregateStatePersistence =
         | None -> null
         | Some (dateTime : DateTime) -> dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
-    let getAggregateState<'TAggregateType>   
+    let getAggregateState
         (documentStore : Raven.Client.IDocumentStore) 
         serializer 
         (database : string) 
@@ -84,7 +90,7 @@ module AggregateStatePersistence =
         async {
         let stateDocumentKey = getDocumentKey streamId
         use session = documentStore.OpenAsyncSession(database)
-        let! doc = session.LoadAsync<AggregateStateDocument<'TAggregateType>> stateDocumentKey |> Async.AwaitTask
+        let! doc = session.LoadAsync<AggregateStateDocument> stateDocumentKey |> Async.AwaitTask
 
         if box doc <> null then
             let snapshot = deserialize serializer doc.Snapshot typeMap
@@ -99,14 +105,14 @@ module AggregateStatePersistence =
             }
     }
 
-    let getStateSnapshot<'TAggregateType>
+    let getStateSnapshot
         (documentStore : Raven.Client.IDocumentStore) 
         serializer 
         (database : string) 
         streamId 
         typeMap
         =
-        getAggregateState<'TAggregateType> documentStore serializer database streamId typeMap
+        getAggregateState documentStore serializer database streamId typeMap
         |> Async.map (fun x -> x.Snapshot)
 
     let applyMessages (streamConfig : EventfulStreamConfig<_>) (stateSnapshot : StateSnapshot) persistedEvents =
@@ -157,7 +163,7 @@ module AggregateStatePersistence =
 
             match handlers.AggregateTypes |> Map.tryFind aggregateType with
             | Some aggregateConfig -> 
-                (persistedEvents, aggregateType, aggregateConfig)
+                (persistedEvents, handlers.AggregateTypeToString aggregateType, aggregateConfig)
             | None -> 
                 failwith <| sprintf "Could not find configuration for aggregateType: %A" aggregateType
 
@@ -171,7 +177,7 @@ module AggregateStatePersistence =
 
             let (snapshot : StateSnapshot, metadata : RavenJObject, etag) = 
                 doc
-                |> Option.map (fun (stateDocument : AggregateStateDocument<'TAggregateType>, metadata : RavenJObject, etag) ->
+                |> Option.map (fun (stateDocument : AggregateStateDocument, metadata : RavenJObject, etag) ->
                     ({ 
                         StateSnapshot.LastEventNumber = stateDocument.LastEventNumber
                         State = deserialize serializer stateDocument.Snapshot typeMap
@@ -196,12 +202,13 @@ module AggregateStatePersistence =
                 }
             (persistedEvents, aggregateType, aggregateConfig, snapshot, docMetadata, nextWakeup)
 
-        let createWriteRequest (_, aggregateType, (aggregateConfig : EventfulStreamConfig<_>), (snapshot : StateSnapshot), (documentKey, metadata, etag), nextWakeup) =
+        let createWriteRequest streamId (_, aggregateType, (aggregateConfig : EventfulStreamConfig<_>), (snapshot : StateSnapshot), (documentKey, metadata, etag), nextWakeup) =
             let updatedDoc = {
                 AggregateStateDocument.Snapshot = mapToRavenJObject serializer snapshot.State
                 LastEventNumber = snapshot.LastEventNumber
                 NextWakeup = serializeDateTimeOption nextWakeup
                 AggregateType = aggregateType
+                StreamId = streamId
             }
 
             ProcessAction.Write (
@@ -222,7 +229,7 @@ module AggregateStatePersistence =
                 >> Async.map (
                     applyEventsToSnapshot
                     >> computeNextWakeup
-                    >> createWriteRequest
+                    >> (createWriteRequest streamId)
                     >> Seq.singleton
                     >> flip tuple2 (async.Zero())
                 )

@@ -297,7 +297,8 @@ module AggregateActionBuilder =
             |> NonEmptyList.singleton 
 
     let retryOnWrongVersion streamId stateBuilder handler = 
-        let program = eventStream {
+        let program attempt = eventStream {
+            log.RichDebug "Starting attempt {@Attempt}" [|attempt|]
             let! streamState = 
                     stateBuilder
                     |> AggregateStateBuilder.toStreamProgram streamId ()
@@ -586,7 +587,7 @@ module Aggregate =
                         let! result = AggregateActionBuilder.retryOnWrongVersion streamId aggregateConfiguration.StateBuilder run
                         match result with
                         | Choice2Of2 failure ->
-                            failwith "WakeupHandler failed %A" failure
+                            failwith <| sprintf "WakeupHandler failed %A" failure
                         | _ -> 
                             ()
                     }

@@ -15,6 +15,23 @@ module SetupHelpers =
         documentStore.Initialize() |> ignore
         documentStore :> Raven.Client.IDocumentStore
 
+    let addEventTypes evtTypes handlers =
+        Array.fold (fun h x -> StandardConventions.addEventType x h) handlers evtTypes
+
+    let eventTypes =
+        System.Reflection.Assembly.GetExecutingAssembly()
+        |> Eventful.Utils.getLoadableTypes
+
+    let handlers openSession : EventfulHandlers<_,_,_,IEvent,_> =
+        EventfulHandlers.empty BookLibraryEventMetadata.GetAggregateType
+        |> EventfulHandlers.addAggregate (Book.handlers openSession)
+        |> EventfulHandlers.addAggregate (BookCopy.handlers openSession)
+        |> EventfulHandlers.addAggregate (Award.handlers ())
+        |> EventfulHandlers.addAggregate (Delivery.handlers ())
+        |> EventfulHandlers.addAggregate NewArrivalsNotification.handlers
+        |> addEventTypes eventTypes
+        |> EventfulHandlers.withAggregateConversion (fun at -> Enum.GetName(typeof<AggregateType>, at)) (fun str -> Enum.Parse(typeof<AggregateType>, str) :?> AggregateType)
+
 type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
     let log = createLogger "BookLibrary.BookLibraryServiceRunner"
     let webConfig = applicationConfig.WebServer
@@ -57,29 +74,14 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
             return! connection.ConnectAsync().ContinueWith(fun t -> connection) |> Async.AwaitTask
         }
 
-    let addEventTypes evtTypes handlers =
-        Array.fold (fun h x -> StandardConventions.addEventType x h) handlers evtTypes
-
-    let eventTypes =
-        System.Reflection.Assembly.GetExecutingAssembly()
-        |> Eventful.Utils.getLoadableTypes
-
-    let handlers openSession : EventfulHandlers<_,_,_,IEvent,_> =
-        EventfulHandlers.empty BookLibraryEventMetadata.GetAggregateType
-        |> EventfulHandlers.addAggregate (Book.handlers openSession)
-        |> EventfulHandlers.addAggregate (BookCopy.handlers openSession)
-        |> EventfulHandlers.addAggregate (Award.handlers ())
-        |> EventfulHandlers.addAggregate (Delivery.handlers ())
-        |> EventfulHandlers.addAggregate NewArrivalsNotification.handlers
-        |> addEventTypes eventTypes
-
     let buildWakeupMonitor documentStore onWakeups = 
-        new Eventful.Raven.WakeupMonitor<AggregateType>(documentStore, ravenConfig.Database, Serialization.esSerializer, onWakeups) :> Eventful.IWakeupMonitor
+        new Eventful.Raven.WakeupMonitor(documentStore, ravenConfig.Database, onWakeups) :> Eventful.IWakeupMonitor
 
     let buildEventStoreSystem (documentStore : Raven.Client.IDocumentStore) client =
-        let getSnapshot = Eventful.Raven.AggregateStatePersistence.getStateSnapshot<BookLibrary.AggregateType> documentStore Serialization.esSerializer ravenConfig.Database
+        let getSnapshot = Eventful.Raven.AggregateStatePersistence.getStateSnapshot documentStore Serialization.esSerializer ravenConfig.Database
         let openSession () = documentStore.OpenAsyncSession(ravenConfig.Database)
-        new BookLibraryEventStoreSystem(handlers openSession, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), getSnapshot, buildWakeupMonitor documentStore)
+        let wakeupMonitor = buildWakeupMonitor documentStore
+        new BookLibraryEventStoreSystem(SetupHelpers.handlers openSession, client, Serialization.esSerializer, (fun pe -> { BookLibraryEventContext.Metadata = pe.Metadata; EventId = pe.EventId }), getSnapshot, wakeupMonitor)
 
     let initializedSystem documentStore eventStoreConfig = 
         async {
@@ -87,6 +89,15 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
             let client = new Client(conn)
             let system = buildEventStoreSystem documentStore client
             return new BookLibrarySystem(system)
+        } |> Async.StartAsTask
+
+    let runAsyncAsTask f =
+        async {
+            try 
+                do! f
+            with | e -> 
+                log.ErrorWithException <| lazy("Exception starting EventStoreSystem",e)
+                raise ( new System.Exception("See inner exception",e)) // cannot use reraise in an async block
         } |> Async.StartAsTask
 
     member x.Start () =
@@ -192,7 +203,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
 
             client <- Some c
             eventStoreSystem <- Some system
-        } |> Async.StartAsTask
+        } |> runAsyncAsTask
 
     member x.Stop () =
         log.Debug <| lazy "App Stopping"

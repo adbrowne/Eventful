@@ -71,6 +71,7 @@
     <Compile Include="ApplicationEvent.fs" />
     <Compile Include="ApplicationConfig.fs" />
     <Compile Include="Application.fs" />
+    <Compile Include="ConfigurationTests.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
@@ -114,6 +115,10 @@
     </Reference>
     <Reference Include="NHamcrest">
       <HintPath>..\packages\FsUnit.xUnit.1.3.0.1\Lib\net40\NHamcrest.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="NSubstitute">
+      <HintPath>..\packages\NSubstitute.1.8.0.0\lib\net45\NSubstitute.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Raven.Abstractions">

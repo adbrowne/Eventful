@@ -11,6 +11,8 @@ open Eventful
 open Eventful.Raven
 open Eventful.Tests
 open System.ComponentModel
+open FSharp.Control
+open Swensen.Unquote
 
 module SnapshotProjectorTests =
     open Eventful.AggregateActionBuilder
@@ -251,6 +253,51 @@ module SnapshotProjectorTests =
 
     [<Fact>]
     [<Trait("category", "ravendb")>]
+    let ``StreamId is stored`` () =
+        async {
+            let notifyTime = DateTime.Parse("1 January 2009")
+            let events = 
+                buildEvent notifyTime |> Seq.singleton
+
+            do! runEvents events
+
+            use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
+
+            let wakeupStreams = 
+                WakeupMonitorModule.getWakeups dbCommands DateTime.MaxValue
+                |> AsyncSeq.map (fun (streamId,_,_) -> streamId)
+                |> AsyncSeq.toBlockingSeq
+                |> List.ofSeq
+
+            test <@ wakeupStreams |> List.exists (fun s -> s = streamId) @>
+        }
+        |> Async.RunSynchronously
+        ()
+
+    [<Fact>]
+    [<Trait("category", "ravendb")>]
+    let ``AggregateType is stored`` () =
+        async {
+            let notifyTime = DateTime.Parse("1 January 2009")
+            let events = 
+                buildEvent notifyTime |> Seq.singleton
+
+            do! runEvents events
+
+            use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
+
+            WakeupMonitorModule.getWakeups dbCommands DateTime.MaxValue
+            |> AsyncSeq.filter (fun (s,_,_) -> s = streamId)
+            |> AsyncSeq.map (fun (_,aggregateType,_) -> aggregateType)
+            |> AsyncSeq.toBlockingSeq
+            |> Seq.head
+            =? aggregateType 
+        }
+        |> Async.RunSynchronously
+        ()
+
+    [<Fact>]
+    [<Trait("category", "ravendb")>]
     let ``Next wakeup is computed`` () =
         async {
             let notifyTime = DateTime.Parse("1 January 2009")
@@ -271,7 +318,7 @@ module SnapshotProjectorTests =
         let runWakeup streamId aggregateType time =
             printfn "runWakeup %A %A %A" streamId aggregateType time
 
-        let monitor = new WakeupMonitor<string>(documentStore, RavenProjectorTests.testDatabase, RunningTests.esSerializer, runWakeup)
+        let monitor = new WakeupMonitor(documentStore, RavenProjectorTests.testDatabase, runWakeup)
 
         Async.Sleep 10000 |> Async.RunSynchronously
         ()

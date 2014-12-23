@@ -229,7 +229,7 @@ module EventStream =
         // WriteCancelled should never be used
         let finalResult = ref (Choice2Of2 RunFailure.WriteCancelled)
         while !retry do
-            let! result = f
+            let! result = f !count
             match result with
             | Choice2Of2 RunFailure.WrongExpectedVersion ->
                 count := !count + 1

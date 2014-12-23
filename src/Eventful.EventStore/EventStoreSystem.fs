@@ -14,7 +14,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         serializer: ISerializer,
         getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext,
         getSnapshot,
-        buildWakeupMonitor : (string -> 'TAggregateType -> DateTime -> unit) -> IWakeupMonitor
+        buildWakeupMonitor : (string -> string -> DateTime -> unit) -> IWakeupMonitor
     ) =
 
     let log = createLogger "Eventful.EventStoreSystem"
@@ -68,9 +68,11 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
                 |> Async.Ignore
         }
 
-    let runWakeupHandler streamId aggregateType time =
+    let runWakeupHandler streamId aggregateTypeString time =
         let correlationId = Guid.NewGuid()
+        let aggregateType = handlers.StringToAggregateType aggregateTypeString
         log.RichDebug "RunWakeupHandler {@StreamId} {@AggregateType} {@Time} {@CorrelationId}" [|streamId;aggregateType;time;correlationId|]
+
         let config = handlers.AggregateTypes.Item aggregateType
         match config.Wakeup with
         | Some (EventfulWakeupHandler (_, handler)) ->
@@ -80,26 +82,32 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         | None ->
             ()
 
+    let wakeupMonitor = buildWakeupMonitor runWakeupHandler
+
     member x.AddOnCompleteEvent callback = 
         onCompleteCallbacks <- callback::onCompleteCallbacks
 
     member x.RunStreamProgram program = interpreter (Guid.NewGuid()) program
 
     member x.Start () =  async {
-        let! position = ProcessingTracker.readPosition client |> Async.map (Option.map EventPosition.toEventStorePosition)
-        let! nullablePosition = match position with
-                                | Some position -> async { return  Nullable(position) }
-                                | None -> 
-                                    log.Debug <| lazy("No event position found. Starting from current head.")
-                                    async {
-                                        let! nextPosition = client.getNextPosition ()
-                                        return Nullable(nextPosition) }
+        try
+            let! position = ProcessingTracker.readPosition client |> Async.map (Option.map EventPosition.toEventStorePosition)
+            let! nullablePosition = match position with
+                                    | Some position -> async { return  Nullable(position) }
+                                    | None -> 
+                                        log.Debug <| lazy("No event position found. Starting from current head.")
+                                        async {
+                                            let! nextPosition = client.getNextPosition ()
+                                            return Nullable(nextPosition) }
 
-        let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
-        timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
-        subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live"))
-        let wakeupMonitor = buildWakeupMonitor runWakeupHandler
-        wakeupMonitor.Start() }
+            let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
+            timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
+            subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live"))
+            wakeupMonitor.Start() 
+        with | e ->
+            log.ErrorWithException <| lazy("Exception starting EventStoreSystem",e)
+            raise ( new System.Exception("See inner exception",e)) // cannot use reraise in an async block
+        }
 
     member x.Stop () = 
         if timer <> null then
