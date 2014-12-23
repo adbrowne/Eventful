@@ -107,10 +107,9 @@ module AggregateConfigurationErrorTests =
             emptyTestSystem 
             |> TestSystem.runCommandNoThrow cmdWithNullId ()
 
-        let matcher (exn : System.Exception) =
-            exn.Message = "Object reference not set to an instance of an object."
-
-        result.LastResult |> should containException<TestMetadata> (Some "Retrieving aggregate id from command", matcher)
+        test <@ match result.LastResult with
+                | CommandResultContainingException "Retrieving aggregate id from command" "Object reference not set to an instance of an object."-> true
+                | _ -> false @>
 
     [<Fact>]
     [<Trait("category", "unit")>]

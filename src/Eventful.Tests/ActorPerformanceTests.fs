@@ -1,7 +1,7 @@
 ﻿namespace Eventful.Tests
 
 open Xunit
-open FSharpx.Core
+open FSharpx
 
 module ActorPerformanceTests =  
     type Agent<'T> = MailboxProcessor<'T>
@@ -71,12 +71,13 @@ module ActorPerformanceTests =
                     match msg with
                     | Enqueue value -> loop (value::items)
                     | Read r ->
-                        let (x::xs) = items 
-                        r.Reply x
-                        match xs with
-                        | [] -> empty ()
-                        | _ -> loop xs
-                    
+                        match items with
+                        | x::xs -> 
+                            r.Reply x
+                            match xs with
+                            | [] -> empty ()
+                            | _ -> loop xs
+                        | _ -> Async.returnM ()
             }
             empty ())
 
