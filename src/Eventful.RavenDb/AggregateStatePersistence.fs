@@ -70,15 +70,25 @@ module AggregateStatePersistence =
             jObject.Add(keyValuePair.Key, RavenJToken.Parse(System.Text.Encoding.UTF8.GetString <| serializer.Serialize keyValuePair.Value))
         jObject
 
+    let getTickString (dateTime : DateTime) =
+        dateTime.Ticks.ToString("D21")
+
+    let fromTickString (str : String) =
+        str 
+        |> System.Int64.Parse
+        |> (fun x -> new DateTime(x, DateTimeKind.Utc))
+
     let deserializeDateString (value : string) =
         match value with
         | null -> None
         | value -> 
-            Some (DateTime.Parse value)
+            value 
+            |> fromTickString
+            |> Some
 
     let serializeDateTimeOption = function
         | None -> null
-        | Some (dateTime : DateTime) -> dateTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        | Some (dateTime : DateTime) -> getTickString (dateTime)
 
     let getAggregateState
         (documentStore : Raven.Client.IDocumentStore) 

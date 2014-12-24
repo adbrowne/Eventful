@@ -136,11 +136,17 @@
     <Compile Include="WakeupTests.fs" />
     <Compile Include="StateChangeTests.fs" />
     <Compile Include="SnapshotTests.fs" />
+    <Compile Include="AggregateStatePerisistenceTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">
       <Name>Eventful.EventStore</Name>
       <Project>{ae510f33-d499-41ad-8ea6-6961ad7e2dfe}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Eventful.RavenDb\Eventful.RavenDb.fsproj">
+      <Name>Eventful.RavenDb</Name>
+      <Project>{639b7247-67ae-4a1f-8b09-28bcf23bce20}</Project>
       <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\Eventful.Testing\Eventful.Testing.fsproj">

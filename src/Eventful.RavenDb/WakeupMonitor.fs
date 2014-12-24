@@ -13,7 +13,8 @@ type WakeupMonitorEvents =
 module WakeupMonitorModule =
     let log = createLogger "Eventful.Raven.WakeupMonitor"
 
-    let getWakeups (dbCommands : IAsyncDatabaseCommands) time = 
+    let minWakeupTimeTicks = AggregateStatePersistence.getTickString DateTime.MinValue
+    let getWakeups waitForNonStale (dbCommands : IAsyncDatabaseCommands) time = 
         let rec loop start = asyncSeq {
             log.RichDebug "getWakeups {@Time} {@Start}" [|time;start|]
             let indexQuery = new Raven.Abstractions.Data.IndexQuery()
@@ -21,19 +22,23 @@ module WakeupMonitorModule =
             indexQuery.SortedFields <- [|new Raven.Abstractions.Data.SortedField(AggregateStatePersistence.wakeupTimeFieldName)|]
             indexQuery.Start <- start
             indexQuery.PageSize <- 200
+            indexQuery.Query <- sprintf "WakeupTime: [%s TO %s]" minWakeupTimeTicks (AggregateStatePersistence.getTickString time)
             let! result = dbCommands.QueryAsync(AggregateStatePersistence.wakeupIndexName, indexQuery, Array.empty) |> Async.AwaitTask
             log.RichDebug "getWakeups {@Result}" [|result|]
-            
-            for result in result.Results do
-                let streamId = (result.Item "StreamId").Value<string>()
-                let wakeupToken = result.Item AggregateStatePersistence.wakeupTimeFieldName
-                let wakeupTime = DateTime.Parse(wakeupToken.Value<string>())
-                let aggregateType = (result.Item "AggregateType").Value<string>()
-                log.RichDebug "Waking up {@StreamId} {@AggregateType} {@Time}" [|streamId;aggregateType;wakeupTime|]
-                yield (streamId, aggregateType, wakeupTime)
-            
-            if result.TotalResults > result.SkippedResults + result.Results.Count then
-                yield! loop (start + result.Results.Count)
+
+            if result.IsStale && waitForNonStale then
+                yield! loop start
+            else 
+                for result in result.Results do
+                    let streamId = (result.Item "StreamId").Value<string>()
+                    let wakeupToken = result.Item AggregateStatePersistence.wakeupTimeFieldName
+                    let wakeupTime = AggregateStatePersistence.fromTickString (wakeupToken.Value<string>())
+                    let aggregateType = (result.Item "AggregateType").Value<string>()
+                    log.RichDebug "Waking up {@StreamId} {@AggregateType} {@Time}" [|streamId;aggregateType;wakeupTime|]
+                    yield (streamId, aggregateType, wakeupTime)
+                
+                if result.TotalResults > result.SkippedResults + result.Results.Count then
+                    yield! loop (start + result.Results.Count)
         }
 
         loop 0
@@ -48,7 +53,7 @@ type WakeupMonitor
     let log = createLogger "Eventful.Raven.WakeupMonitor"
     let dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(database)
 
-    let getWakeups = WakeupMonitorModule.getWakeups dbCommands
+    let getWakeups = WakeupMonitorModule.getWakeups false dbCommands
 
     let agent = newAgent "WakeupMonitor" log (fun agent -> 
             let rec loop () = async {

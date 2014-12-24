@@ -264,7 +264,7 @@ module SnapshotProjectorTests =
             use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
 
             let wakeupStreams = 
-                WakeupMonitorModule.getWakeups dbCommands DateTime.MaxValue
+                WakeupMonitorModule.getWakeups true dbCommands DateTime.MaxValue
                 |> AsyncSeq.map (fun (streamId,_,_) -> streamId)
                 |> AsyncSeq.toBlockingSeq
                 |> List.ofSeq
@@ -286,12 +286,35 @@ module SnapshotProjectorTests =
 
             use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
 
-            WakeupMonitorModule.getWakeups dbCommands DateTime.MaxValue
+            WakeupMonitorModule.getWakeups true dbCommands DateTime.MaxValue
             |> AsyncSeq.filter (fun (s,_,_) -> s = streamId)
             |> AsyncSeq.map (fun (_,aggregateType,_) -> aggregateType)
             |> AsyncSeq.toBlockingSeq
             |> Seq.head
             =? aggregateType 
+        }
+        |> Async.RunSynchronously
+        ()
+
+    [<Fact>]
+    [<Trait("category", "ravendb")>]
+    let ``WakeupTime is returned`` () =
+        async {
+            let notifyTime = DateTime.Parse("2008-01-01 00:00:11 GMT")
+            let events = 
+                buildEvent notifyTime |> Seq.singleton
+
+            do! runEvents events
+
+            use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
+
+            let wakeupStreams = 
+                WakeupMonitorModule.getWakeups true dbCommands notifyTime
+                |> AsyncSeq.map (fun (_,_,wakeupTime) -> wakeupTime)
+                |> AsyncSeq.toBlockingSeq
+                |> List.ofSeq
+
+            test <@ wakeupStreams |> List.exists (fun t -> t = notifyTime) @>
         }
         |> Async.RunSynchronously
         ()
@@ -310,15 +333,4 @@ module SnapshotProjectorTests =
             aggregateState.NextWakeup |> should equal (Some notifyTime)
         }
         |> Async.RunSynchronously
-        ()
-
-    [<Fact>]
-    [<Trait("category", "ravendb")>]
-    let ``Run Wakeup Monitor`` () =
-        let runWakeup streamId aggregateType time =
-            printfn "runWakeup %A %A %A" streamId aggregateType time
-
-        let monitor = new WakeupMonitor(documentStore, RavenProjectorTests.testDatabase, runWakeup)
-
-        Async.Sleep 10000 |> Async.RunSynchronously
         ()
