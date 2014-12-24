@@ -204,7 +204,7 @@ module AggregateStatePersistence =
             return (persistedEvents, aggregateType, aggregateConfig, snapshot, docMetadata)
         }
 
-        let applyEventsToSnapshot (persistedEvents, aggregateType, aggregateConfig, snapshot, docMetadata) =
+        let applyEventsToSnapshot (persistedEvents : seq<PersistedEvent<'TMetadata>>, aggregateType : string, aggregateConfig : EventfulStreamConfig<'TMetadata>, snapshot, docMetadata) =
             let snapshot' = applyMessages aggregateConfig snapshot persistedEvents
             (persistedEvents, aggregateType, aggregateConfig, snapshot', docMetadata)
 
