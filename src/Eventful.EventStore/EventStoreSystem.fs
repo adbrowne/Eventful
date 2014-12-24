@@ -14,7 +14,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         serializer: ISerializer,
         getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext,
         getSnapshot,
-        buildWakeupMonitor : (string -> string -> DateTime -> unit) -> IWakeupMonitor
+        buildWakeupMonitor : (string -> string -> UtcDateTime -> unit) -> IWakeupMonitor
     ) =
 
     let log = createLogger "Eventful.EventStoreSystem"

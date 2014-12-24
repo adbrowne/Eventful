@@ -62,7 +62,7 @@ type IEventHandler<'TAggregateId,'TMetadata, 'TEventContext,'TBaseEvent when 'TA
 type IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> =
     abstract member WakeupFold : WakeupFold<'TMetadata>
                             //streamId -> getUniqueId                   -> time     -> program
-    abstract member Handler : AggregateConfiguration<'TEventContext, 'TAggregateId, 'TMetadata, 'TBaseEvent> -> string   -> DateTime -> EventStreamProgram<EventResult,'TMetadata>
+    abstract member Handler : AggregateConfiguration<'TEventContext, 'TAggregateId, 'TMetadata, 'TBaseEvent> -> string   -> UtcDateTime -> EventStreamProgram<EventResult,'TMetadata>
 
 type AggregateCommandHandlers<'TAggregateId,'TCommandContext,'TMetadata, 'TBaseEvent> = seq<ICommandHandler<'TAggregateId,'TCommandContext,'TMetadata, 'TBaseEvent>>
 type AggregateEventHandlers<'TAggregateId,'TMetadata, 'TEventContext,'TBaseEvent  when 'TAggregateId : equality> = seq<IEventHandler<'TAggregateId, 'TMetadata, 'TEventContext,'TBaseEvent >>
@@ -565,7 +565,7 @@ module Aggregate =
     let withWakeup 
         (wakeupFold : WakeupFold<'TMetadata>) 
         (stateBuilder : IStateBuilder<'T,'TMetadata, unit>) 
-        (wakeupHandler : DateTime -> 'T ->  seq<'TBaseEvent * metadataBuilder<'TMetadata>>)
+        (wakeupHandler : UtcDateTime -> 'T ->  seq<'TBaseEvent * metadataBuilder<'TMetadata>>)
         (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent,'TAggregateType>) =
 
         let handler time t : Async<Choice<HandlerOutput<_,_>,_>> = async {
@@ -581,7 +581,7 @@ module Aggregate =
         let wakeup = {
             new IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> with
                 member x.WakeupFold = wakeupFold
-                member x.Handler aggregateConfiguration streamId (time : DateTime) =
+                member x.Handler aggregateConfiguration streamId (time : UtcDateTime) =
                     eventStream {
                         let run streamState = AggregateActionBuilder.runHandler aggregateConfiguration.GetUniqueId aggregateConfiguration.StateBuilder.GetBlockBuilders aggregateConfiguration.StateChangeHandlers streamId streamState stateBuilder (handler time)
                         let! result = AggregateActionBuilder.retryOnWrongVersion streamId aggregateConfiguration.StateBuilder run

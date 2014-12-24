@@ -9,7 +9,7 @@ open FSharpx.Collections
 type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
 type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T, 'TMetadata>) * IRegistrationVisitable
 
-type EventfulWakeupHandler<'TMetadata> = EventfulWakeupHandler of WakeupFold<'TMetadata> * (string -> DateTime -> EventStreamProgram<EventResult, 'TMetadata>)
+type EventfulWakeupHandler<'TMetadata> = EventfulWakeupHandler of WakeupFold<'TMetadata> * (string -> UtcDateTime -> EventStreamProgram<EventResult, 'TMetadata>)
 type EventfulStreamConfig<'TMetadata> = {
     Wakeup : EventfulWakeupHandler<'TMetadata> option
     StateBuilder : IStateBuilder<Map<string,obj>, 'TMetadata, unit>

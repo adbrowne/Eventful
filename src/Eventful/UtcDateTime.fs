@@ -31,3 +31,11 @@ module UtcDateTime =
         str 
         |> System.Int64.Parse
         |> (fun x -> { UtcDateTime.Ticks = x })
+
+    let minValue = 
+        DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
+        |> fromDateTime
+
+    let maxValue = 
+        DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc)
+        |> fromDateTime

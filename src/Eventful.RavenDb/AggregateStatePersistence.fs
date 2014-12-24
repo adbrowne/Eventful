@@ -8,7 +8,7 @@ open Eventful
 
 type AggregateState = {
     Snapshot : StateSnapshot
-    NextWakeup : DateTime option
+    NextWakeup : UtcDateTime option
 }
 
 module AggregateStatePersistence =
@@ -83,16 +83,13 @@ module AggregateStatePersistence =
         | null -> None
         | value -> 
             value 
-            |> fromTickString
+            |> UtcDateTime.fromString
             |> Some
 
     let serializeDateTimeOption = function
         | None -> null
-        | Some (dateTime : DateTime) ->
-            if dateTime.Kind <> DateTimeKind.Utc then
-                failwith "WakeupTime must be in UTC"
-            else
-                 getTickString dateTime
+        | Some (dateTime : UtcDateTime) ->
+            UtcDateTime.toString dateTime
 
     let getAggregateState
         (documentStore : Raven.Client.IDocumentStore) 
@@ -216,7 +213,7 @@ module AggregateStatePersistence =
                 }
             (persistedEvents, aggregateType, aggregateConfig, snapshot, docMetadata, nextWakeup)
 
-        let createWriteRequest streamId (_, aggregateType, (aggregateConfig : EventfulStreamConfig<_>), (snapshot : StateSnapshot), (documentKey, metadata, etag), (nextWakeup:DateTime option)) =
+        let createWriteRequest streamId (_, aggregateType, (aggregateConfig : EventfulStreamConfig<_>), (snapshot : StateSnapshot), (documentKey, metadata, etag), (nextWakeup:UtcDateTime option)) =
             let updatedDoc = {
                 AggregateStateDocument.Snapshot = mapToRavenJObject serializer snapshot.State
                 LastEventNumber = snapshot.LastEventNumber

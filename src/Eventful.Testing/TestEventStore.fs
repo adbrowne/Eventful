@@ -7,7 +7,7 @@ open Eventful
 open System
 
 type WakeupRecord<'TAggregateType> = {
-    Time : DateTime
+    Time : UtcDateTime
     Stream: string
     Type : 'TAggregateType
 }
@@ -132,17 +132,14 @@ module TestEventStore =
                     let! EventfulWakeupHandler(wakeupFold, _) = aggregateConfig.Wakeup
                     let! newTime = wakeupFold.GetState state'.State
 
-                    if newTime.Kind <> DateTimeKind.Utc then
-                        failwith "WakeupTime must be in UTC"
-                    else
-                        let newWakeupRecord = {
-                            Time = newTime
-                            Stream = streamId
-                            Type = aggregateType
-                        }
+                    let newWakeupRecord = {
+                        Time = newTime
+                        Stream = streamId
+                        Type = aggregateType
+                    }
 
-                        return 
-                            testEventStore.WakeupQueue |> PriorityQueue.insert newWakeupRecord }
+                    return 
+                        testEventStore.WakeupQueue |> PriorityQueue.insert newWakeupRecord }
                 |> FSharpx.Option.getOrElse testEventStore.WakeupQueue
 
             { testEventStore with

@@ -76,6 +76,7 @@ module SnapshotProjectorTests =
     let nextWakeupStateBuilder = 
         toPendingNotificationsStateBuilder 
         |> AggregateStateBuilder.map (fun s -> s |> Map.values |> Seq.sort |> Seq.tryHead)
+        |> AggregateStateBuilder.map (Option.map UtcDateTime.fromDateTime)
 
     let handlers =
         let getStreamName typeName () (id:SnappyId) =
@@ -107,7 +108,7 @@ module SnapshotProjectorTests =
                 toPendingNotificationsStateBuilder
                 (fun t p -> 
                     p 
-                    |> Map.filter (fun k v -> v = t)
+                    |> Map.filter (fun k v -> v |> UtcDateTime.fromDateTime = t)
                     |> Map.keys
                     |> Seq.map (fun x -> ({ SnappyNotificationSent.SnappyId = x } :> obj, buildMetadata))
                 )
@@ -264,7 +265,7 @@ module SnapshotProjectorTests =
             use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
 
             let wakeupStreams = 
-                WakeupMonitorModule.getWakeups true dbCommands DateTime.MaxValue
+                WakeupMonitorModule.getWakeups true dbCommands UtcDateTime.maxValue
                 |> AsyncSeq.map (fun (streamId,_,_) -> streamId)
                 |> AsyncSeq.toBlockingSeq
                 |> List.ofSeq
@@ -286,7 +287,7 @@ module SnapshotProjectorTests =
 
             use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
 
-            WakeupMonitorModule.getWakeups true dbCommands DateTime.MaxValue
+            WakeupMonitorModule.getWakeups true dbCommands UtcDateTime.maxValue
             |> AsyncSeq.filter (fun (s,_,_) -> s = streamId)
             |> AsyncSeq.map (fun (_,aggregateType,_) -> aggregateType)
             |> AsyncSeq.toBlockingSeq
@@ -309,12 +310,13 @@ module SnapshotProjectorTests =
             use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
 
             let wakeupStreams = 
-                WakeupMonitorModule.getWakeups true dbCommands notifyTime
+                WakeupMonitorModule.getWakeups true dbCommands (notifyTime |> UtcDateTime.fromDateTime)
                 |> AsyncSeq.map (fun (_,_,wakeupTime) -> wakeupTime)
                 |> AsyncSeq.toBlockingSeq
                 |> List.ofSeq
 
-            test <@ wakeupStreams |> List.exists (fun t -> t = notifyTime) @>
+            let utcNotifyTime = (notifyTime |> UtcDateTime.fromDateTime)
+            test <@ wakeupStreams |> List.exists (fun t -> t = utcNotifyTime) @>
         }
         |> Async.RunSynchronously
         ()
@@ -323,7 +325,7 @@ module SnapshotProjectorTests =
     [<Trait("category", "ravendb")>]
     let ``Next wakeup is computed`` () =
         async {
-            let notifyTime = DateTime.Parse("1 January 2009")
+            let notifyTime = DateTime.Parse("2008-01-01 00:00:11 GMT")
             let events = 
                 buildEvent notifyTime |> Seq.singleton
 

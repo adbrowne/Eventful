@@ -66,8 +66,9 @@ module NewArrivalsNotification =
     let wakeupBuilder =
         pendingNotificationsBuilder
         |> AggregateStateBuilder.map getEarliestNotificationTime
+        |> AggregateStateBuilder.map (Option.map UtcDateTime.fromDateTime)
 
-    let onWakeup (_ : DateTime) (pendingNotifications : Map<BookId, DateTime>) =
+    let onWakeup (_ : UtcDateTime) (pendingNotifications : Map<BookId, DateTime>) =
         Seq.singleton ({ NewArrivalsNotificationEvent.NotificationId = notificationId; BookIds = pendingNotifications |> Map.toList |> List.map fst } :> IEvent, buildMetadata)
 
     let handlers =

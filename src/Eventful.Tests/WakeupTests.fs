@@ -55,15 +55,15 @@ module WakeupTests =
             AggregateStateBuilder.tuple2 fooCount wakeupCount
             |> AggregateStateBuilder.map (function
                 | (1, 0) ->
-                    Some wakeupTime
+                    Some <| wakeupTime ()
                 | (1, 1) ->
-                    Some wakeupTime
+                    Some <| wakeupTime ()
                 | _ -> None)
 
         let evtHandlers = Seq.empty
 
-        let onWakeup (time : DateTime) () =
-            Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid(); TimeRun = time } :> IEvent, EventSystemTestCommon.metadataBuilder)
+        let onWakeup (time : UtcDateTime) () =
+            Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid(); TimeRun = time |> UtcDateTime.toDateTime } :> IEvent, EventSystemTestCommon.metadataBuilder)
 
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate"
@@ -97,31 +97,33 @@ module WakeupTests =
     [<Trait("category", "unit")>]
     let ``Wakeup event is run on time`` () : unit =
         let thisId = Guid.NewGuid() 
-        let wakeupTime = DateTime.UtcNow.AddDays(1.0)
+        let wakeupTime = DateTime.UtcNow.AddDays(1.0) |> UtcDateTime.fromDateTime
         let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 
         let afterRun = 
-            emptyTestSystem wakeupTime
+            emptyTestSystem (konst wakeupTime)
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd
 
-        let actualTimeRun = afterRun.EvaluateState streamName () wakeupTimeBuilder
+        let actualTimeRun = 
+            afterRun.EvaluateState streamName () wakeupTimeBuilder
+            |> Option.map UtcDateTime.fromDateTime
 
-        actualTimeRun |> should equal (Some wakeupTime)
+        actualTimeRun =? Some wakeupTime
 
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Can chain wakeup events`` () : unit =
         let thisId = Guid.NewGuid()
-        let wakeupTime = DateTime.UtcNow.AddDays(1.0)
+        let wakeupTime = DateTime.UtcNow.AddDays(1.0) |> UtcDateTime.fromDateTime
         let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 
         let afterRun = 
-            emptyTestSystem wakeupTime
+            emptyTestSystem (konst wakeupTime)
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd
 
@@ -135,7 +137,7 @@ module WakeupTests =
         // note this test only checks the test system
         // this test does not prove that there will be an exception thrown by EventStoreSystem
         let thisId = Guid.NewGuid()
-        let wakeupTime = DateTime.Now.AddDays(1.0)
+        let wakeupTime () = DateTime.SpecifyKind(DateTime.UtcNow.AddDays(1.0), DateTimeKind.Unspecified) |> UtcDateTime.fromDateTime
         let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
@@ -144,4 +146,4 @@ module WakeupTests =
             <@ emptyTestSystem wakeupTime
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd @>
-            (fun (e:exn) -> <@ e.Message = "WakeupTime must be in UTC" @>)
+            (fun (e:exn) -> <@ e.Message = "Unknown DateTimeKind: Unspecified" @>)

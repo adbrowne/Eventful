@@ -13,7 +13,7 @@ type TestSystemState<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 
     LastResult : CommandResult<'TBaseEvent,'TMetadata>
     AllEvents : TestEventStore<'TMetadata, 'TAggregateType>
     BuildEventContext: PersistedEvent<'TMetadata> -> 'TEventContext
-    OnTimeChange : DateTime -> unit
+    OnTimeChange : UtcDateTime -> unit
     UseSnapshots : bool
 }
 
