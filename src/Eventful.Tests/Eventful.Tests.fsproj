@@ -114,6 +114,7 @@
     <Compile Include="TestHelpers.fs" />
     <Compile Include="TestMetadata.fs" />
     <Compile Include="PreludeTests.fs" />
+    <Compile Include="UtcDateTimeTests.fs" />
     <Compile Include="EventPositionTests.fs" />
     <Compile Include="CacheKeyTests.fs" />
     <Compile Include="CounterAgent.fs" />
@@ -136,7 +137,6 @@
     <Compile Include="WakeupTests.fs" />
     <Compile Include="StateChangeTests.fs" />
     <Compile Include="SnapshotTests.fs" />
-    <Compile Include="AggregateStatePerisistenceTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Eventful.EventStore\Eventful.EventStore.fsproj">

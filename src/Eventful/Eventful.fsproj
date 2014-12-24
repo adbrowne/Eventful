@@ -69,6 +69,7 @@
     <Compile Include="EventfulLog.fs" />
     <Compile Include="Prelude.fs" />
     <Compile Include="Utils.fs" />
+    <Compile Include="UtcDateTime.fs" />
     <Compile Include="LastCompleteItemAgent.fs" />
     <Compile Include="ParallelInOrderTransformer.fs" />
     <Compile Include="ParellelInOrderTransformer.CSharp.fs" />
