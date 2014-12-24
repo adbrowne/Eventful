@@ -134,14 +134,15 @@ module TestEventStore =
 
                     if newTime.Kind <> DateTimeKind.Utc then
                         failwith "WakeupTime must be in UTC"
+                    else
+                        let newWakeupRecord = {
+                            Time = newTime
+                            Stream = streamId
+                            Type = aggregateType
+                        }
 
-                    let newWakeupRecord = {
-                        Time = newTime
-                        Stream = streamId
-                        Type = aggregateType
-                    }
-                    return 
-                        testEventStore.WakeupQueue |> PriorityQueue.insert newWakeupRecord }
+                        return 
+                            testEventStore.WakeupQueue |> PriorityQueue.insert newWakeupRecord }
                 |> FSharpx.Option.getOrElse testEventStore.WakeupQueue
 
             { testEventStore with

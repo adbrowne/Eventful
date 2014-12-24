@@ -13,7 +13,7 @@ module AggregateStatePerisistenceTests =
             gen {
                 let! (DontSize (value : int64)) = Arb.generate
                 let value = Math.Abs(value) % DateTime.MaxValue.Ticks //make it in range
-                return new DateTime(value)
+                return new DateTime(value, DateTimeKind.Utc)
             }
             |> Arb.fromGen
 
