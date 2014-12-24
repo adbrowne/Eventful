@@ -132,6 +132,9 @@ module TestEventStore =
                     let! EventfulWakeupHandler(wakeupFold, _) = aggregateConfig.Wakeup
                     let! newTime = wakeupFold.GetState state'.State
 
+                    if newTime.Kind <> DateTimeKind.Utc then
+                        failwith "WakeupTime must be in UTC"
+
                     let newWakeupRecord = {
                         Time = newTime
                         Stream = streamId

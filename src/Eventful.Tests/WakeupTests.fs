@@ -7,6 +7,7 @@ open FSharpx
 
 open Xunit
 open FsUnit.Xunit
+open Swensen.Unquote
 
 module WakeupTests =
     open EventSystemTestCommon
@@ -35,9 +36,7 @@ module WakeupTests =
         yield typeof<WakeupRunEvent>
     }
 
-    let wakeupTime = DateTime.UtcNow.AddDays(1.0)
-
-    let fooHandlers =    
+    let fooHandlers wakeupTime =
         let cmdHandlers = seq {
             yield 
                 cmdHandler
@@ -52,7 +51,7 @@ module WakeupTests =
         let fooCount =
             StateBuilder.eventTypeCountBuilder (fun (evt:FooEvent) _ -> ())
 
-        let wakeupBuilder =
+        let wakeupBuilder wakeupTime =
             AggregateStateBuilder.tuple2 fooCount wakeupCount
             |> AggregateStateBuilder.map (function
                 | (1, 0) ->
@@ -74,16 +73,16 @@ module WakeupTests =
             cmdHandlers
             evtHandlers
         |> Eventful.Aggregate.withWakeup 
-            wakeupBuilder 
+            (wakeupBuilder wakeupTime)
             StateBuilder.nullStateBuilder 
             onWakeup
 
-    let handlers =
+    let handlers wakeupTime = 
         EventfulHandlers.empty TestMetadata.GetAggregateType
-        |> EventfulHandlers.addAggregate fooHandlers
+        |> EventfulHandlers.addAggregate (fooHandlers wakeupTime)
         |> StandardConventions.addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
+    let emptyTestSystem wakeupTime = TestSystem.Empty (konst UnitEventContext) (handlers wakeupTime)
 
     let fooEventCounter : IStateBuilder<int, TestMetadata, Guid> =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
@@ -97,13 +96,14 @@ module WakeupTests =
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Wakeup event is run on time`` () : unit =
-        let thisId = Guid.NewGuid()
+        let thisId = Guid.NewGuid() 
+        let wakeupTime = DateTime.UtcNow.AddDays(1.0)
         let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 
         let afterRun = 
-            emptyTestSystem  
+            emptyTestSystem wakeupTime
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd
 
@@ -115,15 +115,33 @@ module WakeupTests =
     [<Trait("category", "unit")>]
     let ``Can chain wakeup events`` () : unit =
         let thisId = Guid.NewGuid()
+        let wakeupTime = DateTime.UtcNow.AddDays(1.0)
         let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 
         let afterRun = 
-            emptyTestSystem  
+            emptyTestSystem wakeupTime
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd
 
         let wakeupCount = afterRun.EvaluateState streamName () (StateBuilder.eventTypeCountBuilder (fun (e:WakeupRunEvent) _ -> ()))
 
         wakeupCount |> should equal 2
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Throws if wakeupTime is not UTC`` () : unit =
+        // note this test only checks the test system
+        // this test does not prove that there will be an exception thrown by EventStoreSystem
+        let thisId = Guid.NewGuid()
+        let wakeupTime = DateTime.Now.AddDays(1.0)
+        let streamName = getStreamName UnitEventContext thisId
+
+        let commandId = Guid.NewGuid() 
+
+        Swensen.Unquote.Assertions.raisesWith 
+            <@ emptyTestSystem wakeupTime
+            |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
+            |> TestSystem.runToEnd @>
+            (fun (e:exn) -> <@ e.Message = "WakeupTime must be in UTC" @>)
