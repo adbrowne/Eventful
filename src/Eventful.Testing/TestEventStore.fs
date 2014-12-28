@@ -190,6 +190,24 @@ module TestEventStore =
         let program = handler cmd 
         interpreter program testEventStore
 
+    let runWakeup
+        (wakeupTime : UtcDateTime)
+        (streamId : string)
+        (aggregateType : 'TAggregateType)
+        interpreter 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
+        (testEventStore :  TestEventStore<'TMetadata, 'TAggregateType>) = 
+
+        maybe {
+            let! aggregate = handlers.AggregateTypes |> Map.tryFind aggregateType
+            let! EventfulWakeupHandler(wakeupFold, wakeupHandler) = aggregate.Wakeup
+            return
+                interpreter (wakeupHandler streamId wakeupTime) testEventStore
+                |> fst
+        }
+        |> FSharpx.Option.getOrElse testEventStore
+
+        
     let rec runToEnd 
         onTimeChange
         buildEventContext
@@ -197,26 +215,20 @@ module TestEventStore =
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
         (testEventStore :  TestEventStore<'TMetadata, 'TAggregateType>)
         : TestEventStore<'TMetadata, 'TAggregateType> =
-
         let rec loop testEventStore =
             maybe {
                 let! (w,ws) =  testEventStore.WakeupQueue |> PriorityQueue.tryPop 
-                let! aggregate = handlers.AggregateTypes |> Map.tryFind w.Type
-                let! EventfulWakeupHandler(wakeupFold, wakeupHandler) = aggregate.Wakeup
+                onTimeChange w.Time
 
-                let initialState = 
-                    getCurrentState w.Stream testEventStore
-
-                let! expectedTime = wakeupFold.GetState initialState.State
-                return 
-                    if expectedTime = w.Time then
-                        onTimeChange w.Time
-                        interpreter (wakeupHandler w.Stream expectedTime) { testEventStore with WakeupQueue = ws }
-                        |> fst
+                return runWakeup
+                         w.Time
+                         w.Stream
+                         w.Type
+                         interpreter
+                         handlers
+                         { testEventStore with WakeupQueue = ws }
                         |> processPendingEvents buildEventContext interpreter handlers
                         |> loop
-                    else
-                        loop { testEventStore with WakeupQueue = ws }
             } 
             |> FSharpx.Option.getOrElse testEventStore
 

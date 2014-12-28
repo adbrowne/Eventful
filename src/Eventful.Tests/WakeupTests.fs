@@ -46,10 +46,10 @@ module WakeupTests =
         }
 
         let wakeupCount =
-            StateBuilder.eventTypeCountBuilder (fun (evt:WakeupRunEvent) _ -> ())
+            StateBuilder.eventTypeCountBuilder (fun (_:WakeupRunEvent) _ -> ())
 
         let fooCount =
-            StateBuilder.eventTypeCountBuilder (fun (evt:FooEvent) _ -> ())
+            StateBuilder.eventTypeCountBuilder (fun (_:FooEvent) _ -> ())
 
         let wakeupBuilder wakeupTime =
             AggregateStateBuilder.tuple2 fooCount wakeupCount
@@ -115,6 +115,27 @@ module WakeupTests =
 
     [<Fact>]
     [<Trait("category", "unit")>]
+    let ``Wakeup event for the wrong time is ignored`` () : unit =
+        let thisId = Guid.NewGuid() 
+        let wakeupTime = DateTime.UtcNow.AddDays(1.0) |> UtcDateTime.fromDateTime
+        let streamName = getStreamName UnitEventContext thisId
+
+        let commandId = Guid.NewGuid() 
+
+        let wrongWakeupTime = { wakeupTime with Ticks = wakeupTime.Ticks - 1L } 
+        let afterRun = 
+            emptyTestSystem (konst wakeupTime)
+            |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
+            |> TestSystem.wakeup wrongWakeupTime streamName "TestAggregate"
+
+        let actualTimeRun = 
+            afterRun.EvaluateState streamName () wakeupTimeBuilder
+            |> Option.map UtcDateTime.fromDateTime
+
+        actualTimeRun =? None
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Can chain wakeup events`` () : unit =
         let thisId = Guid.NewGuid()
         let wakeupTime = DateTime.UtcNow.AddDays(1.0) |> UtcDateTime.fromDateTime
@@ -138,11 +159,10 @@ module WakeupTests =
         // this test does not prove that there will be an exception thrown by EventStoreSystem
         let thisId = Guid.NewGuid()
         let wakeupTime () = DateTime.SpecifyKind(DateTime.UtcNow.AddDays(1.0), DateTimeKind.Unspecified) |> UtcDateTime.fromDateTime
-        let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 
-        Swensen.Unquote.Assertions.raisesWith 
+        raisesWith 
             <@ emptyTestSystem wakeupTime
             |> TestSystem.runCommand { FooCmd.Id = thisId } commandId
             |> TestSystem.runToEnd @>

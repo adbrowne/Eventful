@@ -82,6 +82,11 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
             |> Choice1Of2
         new TestSystem<_,_,_,_,_>({ state with LastResult = result'; AllEvents = allEvents' })
 
+    member x.Wakeup (wakeupTime : UtcDateTime) (streamId : string) (aggregateType : 'TAggregateType) =
+        let allEvents' =
+            TestEventStore.runWakeup wakeupTime streamId aggregateType interpret state.Handlers state.AllEvents 
+        new TestSystem<_,_,_,_,_>({ state with AllEvents = allEvents' })
+
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 
             state.AllEvents.Events 
@@ -148,6 +153,8 @@ module TestSystem =
     let runToEnd (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunToEnd()
     let injectEvent stream event metadata (testSystem : TestSystem<_,_,_,_,_>) =
         testSystem.InjectEvent stream event metadata
+    let wakeup (wakeupTime : UtcDateTime) (streamId : string) (aggregateType : 'TAggregateType) (testSystem : TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) =
+        testSystem.Wakeup wakeupTime streamId aggregateType 
     let getStreamEvents streamId (system:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) =
         system.AllEvents.Events
         |> Map.tryFind streamId

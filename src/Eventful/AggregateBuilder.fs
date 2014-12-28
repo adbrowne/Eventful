@@ -13,7 +13,7 @@ type CommandSuccess<'TBaseEvent, 'TMetadata> = {
     Position : EventPosition option
 }
 with 
-    static member Empty = {
+    static member Empty : CommandSuccess<'TBaseEvent, 'TMetadata> = {
         Events = List.empty
         Position = None
     }
@@ -583,7 +583,19 @@ module Aggregate =
                 member x.WakeupFold = wakeupFold
                 member x.Handler aggregateConfiguration streamId (time : UtcDateTime) =
                     eventStream {
-                        let run streamState = AggregateActionBuilder.runHandler aggregateConfiguration.GetUniqueId aggregateConfiguration.StateBuilder.GetBlockBuilders aggregateConfiguration.StateChangeHandlers streamId streamState stateBuilder (handler time)
+                        let run streamState = 
+                            // ensure that the handler is only run if the state matches the time
+                            let nextWakeupTimeFromState = wakeupFold.GetState streamState.State
+                            if Some time = nextWakeupTimeFromState then
+                                AggregateActionBuilder.runHandler aggregateConfiguration.GetUniqueId aggregateConfiguration.StateBuilder.GetBlockBuilders aggregateConfiguration.StateChangeHandlers streamId streamState stateBuilder (handler time)
+                            else
+                                // if the time is out of date just return success with no events
+                                eventStream {
+                                    do! logMessage LogMessageLevel.Debug "Ignoring out of date wakeup time {@NextExpectedWakeupTime} {@WakeupTime}" [|nextWakeupTimeFromState;time|]
+                                    return
+                                        CommandSuccess<'TBaseEvent,'TMetadata>.Empty
+                                        |> Choice1Of2
+                                }
                         let! result = AggregateActionBuilder.retryOnWrongVersion streamId aggregateConfiguration.StateBuilder run
                         match result with
                         | Choice2Of2 failure ->
