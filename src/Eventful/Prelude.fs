@@ -19,10 +19,18 @@ type Logger internal (name : string) =
             let (message, exn) = msg.Force()
             logger.Debug(message, exn)
 
+    member this.RichWarn (msgTemplate : string) args : unit = 
+        if (logger.IsEnabled(LogEventLevel.Warning)) then
+            logger.Warning(msgTemplate, args)
+
     member this.Warn (msg : Lazy<string>) : unit = 
         if (logger.IsEnabled(LogEventLevel.Warning)) then
             let message = msg.Force()
             logger.Warning(message)
+
+    member this.RichError (msgTemplate : string) args : unit = 
+        if (logger.IsEnabled(LogEventLevel.Error)) then
+            logger.Error(msgTemplate, args)
 
     member this.Error (msg : Lazy<string>) : unit = 
         if (logger.IsEnabled(LogEventLevel.Error)) then

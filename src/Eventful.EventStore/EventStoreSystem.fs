@@ -73,14 +73,18 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         let aggregateType = handlers.StringToAggregateType aggregateTypeString
         log.RichDebug "RunWakeupHandler {@StreamId} {@AggregateType} {@Time} {@CorrelationId}" [|streamId;aggregateType;time;correlationId|]
 
-        let config = handlers.AggregateTypes.Item aggregateType
-        match config.Wakeup with
-        | Some (EventfulWakeupHandler (_, handler)) ->
-            handler streamId time
-            |> interpreter correlationId
-            |> Async.RunSynchronously
+        let config = handlers.AggregateTypes.TryFind aggregateType
+        match config with
+        | Some config -> 
+            match config.Wakeup with
+            | Some (EventfulWakeupHandler (_, handler)) ->
+                handler streamId time
+                |> interpreter correlationId
+                |> Async.RunSynchronously
+            | None ->
+                ()
         | None ->
-            ()
+            log.Error <| lazy(sprintf "Found wakeup for AggregateType %A but could not find any configuration" aggregateType)
 
     let wakeupMonitor = buildWakeupMonitor runWakeupHandler
 
