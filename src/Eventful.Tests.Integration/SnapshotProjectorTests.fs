@@ -76,6 +76,7 @@ module SnapshotProjectorTests =
     let nextWakeupStateBuilder = 
         toPendingNotificationsStateBuilder 
         |> AggregateStateBuilder.map (fun s -> s |> Map.values |> Seq.sort |> Seq.tryHead)
+        //|> AggregateStateBuilder.map (Option.map (fun dt -> DateTime.SpecifyKind(dt, DateTimeKind.Utc)))
         |> AggregateStateBuilder.map (Option.map UtcDateTime.fromDateTime)
 
     let handlers =
@@ -194,7 +195,7 @@ module SnapshotProjectorTests =
         Metadata = testMetadata
     }
 
-    let event = buildEvent DateTime.MinValue
+    let event = buildEvent (DateTime.SpecifyKind( DateTime.MinValue, DateTimeKind.Utc))
         
     [<Fact>]
     [<Trait("category", "ravendb")>]
@@ -215,8 +216,7 @@ module SnapshotProjectorTests =
             let! snapshotData = getSnapshotData
             snappyCountStateBuilder.GetState snapshotData.State |> should equal 1
         }
-        |> Async.RunSynchronously
-        ()
+        |> Async.StartAsTask
 
     [<Fact>]
     [<Trait("category", "ravendb")>]
@@ -232,8 +232,7 @@ module SnapshotProjectorTests =
             let! snapshotData = getSnapshotData
             snappyCountStateBuilder.GetState snapshotData.State |> should equal 2
         }
-        |> Async.RunSynchronously
-        ()
+        |> Async.StartAsTask
 
     [<Fact>]
     [<Trait("category", "ravendb")>]
@@ -249,14 +248,13 @@ module SnapshotProjectorTests =
             let! snapshotData = getSnapshotData
             snappyCountStateBuilder.GetState snapshotData.State |> should equal 1
         }
-        |> Async.RunSynchronously
-        ()
+        |> Async.StartAsTask
 
     [<Fact>]
     [<Trait("category", "ravendb")>]
     let ``StreamId is stored`` () =
         async {
-            let notifyTime = DateTime.Parse("1 January 2009")
+            let notifyTime = DateTime.Parse("2008-01-01 00:00:11 GMT")
             let events = 
                 buildEvent notifyTime |> Seq.singleton
 
@@ -279,7 +277,7 @@ module SnapshotProjectorTests =
     [<Trait("category", "ravendb")>]
     let ``AggregateType is stored`` () =
         async {
-            let notifyTime = DateTime.Parse("1 January 2009")
+            let notifyTime = DateTime.Parse("2008-01-01 00:00:11 GMT")
             let events = 
                 buildEvent notifyTime |> Seq.singleton
 
@@ -294,8 +292,7 @@ module SnapshotProjectorTests =
             |> Seq.head
             =? aggregateType 
         }
-        |> Async.RunSynchronously
-        ()
+        |> Async.StartAsTask
 
     [<Fact>]
     [<Trait("category", "ravendb")>]
@@ -323,6 +320,34 @@ module SnapshotProjectorTests =
 
     [<Fact>]
     [<Trait("category", "ravendb")>]
+    let ``Wakeup Is Not Returned Unless Time Is Passed`` () =
+        async {
+            let rand = new System.Random()
+            let notifyTime = 
+                DateTime.Parse("2008-01-01 00:00:11 GMT").AddMilliseconds(rand.NextDouble()*1000.0)
+                
+            let events = 
+                buildEvent notifyTime |> Seq.singleton
+
+            do! runEvents events
+
+            use dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(RavenProjectorTests.testDatabase)
+
+            let checkTime = notifyTime.AddMilliseconds(-1.0) |> UtcDateTime.fromDateTime
+            let wakeupStreams = 
+                WakeupMonitorModule.getWakeups true dbCommands (checkTime)
+                |> AsyncSeq.map (fun (_,_,wakeupTime) -> wakeupTime)
+                |> AsyncSeq.toBlockingSeq
+                |> List.ofSeq
+
+            let utcNotifyTime = (notifyTime |> UtcDateTime.fromDateTime)
+            test <@ wakeupStreams |> List.exists (fun t -> t = utcNotifyTime) |> not @>
+        }
+        |> Async.RunSynchronously
+        ()
+
+    [<Fact>]
+    [<Trait("category", "ravendb")>]
     let ``Next wakeup is computed`` () =
         async {
             let notifyTime = DateTime.Parse("2008-01-01 00:00:11 GMT")
@@ -332,7 +357,6 @@ module SnapshotProjectorTests =
             do! runEvents events
 
             let! aggregateState = getAggregateState
-            aggregateState.NextWakeup |> should equal (Some notifyTime)
+            aggregateState.NextWakeup =? (Some (notifyTime |> UtcDateTime.fromDateTime))
         }
-        |> Async.RunSynchronously
-        ()
+        |> Async.StartAsTask

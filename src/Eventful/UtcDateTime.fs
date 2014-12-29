@@ -3,11 +3,16 @@
 open System
 
 // DateTime type that is unambiguous
-type UtcDateTime = {
+[<StructuredFormatDisplay("{AsString}")>]
+type UtcDateTime = 
+    {
     // The value of this property represents the number of 
     // 100-nanosecond intervals that have elapsed since 12:00:00 midnight, January 1, 0001
-    Ticks : int64
-}
+    Ticks : int64 }
+    override x.ToString() = 
+        let dateTime = new DateTime(x.Ticks, DateTimeKind.Utc)
+        dateTime.ToString("o")
+    member m.AsString = m.ToString()
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module UtcDateTime = 

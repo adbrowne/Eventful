@@ -25,7 +25,7 @@ module WakeupMonitorModule =
             indexQuery.SortedFields <- [|new Raven.Abstractions.Data.SortedField(AggregateStatePersistence.wakeupTimeFieldName)|]
             indexQuery.Start <- start
             indexQuery.PageSize <- 200
-            indexQuery.Query <- sprintf "WakeupTime: [%s TO %s]" minWakeupTimeTicks (time |> UtcDateTime.toString)
+            indexQuery.Query <- sprintf "WakeupTime: [\"%s\" TO \"%s\"]" minWakeupTimeTicks (time |> UtcDateTime.toString)
             let! result = dbCommands.QueryAsync(AggregateStatePersistence.wakeupIndexName, indexQuery, Array.empty) |> Async.AwaitTask
             log.RichDebug "getWakeups {@Result}" [|result|]
 
