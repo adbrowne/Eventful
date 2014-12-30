@@ -28,12 +28,12 @@ type AggregateType =
     | NewArrivalsNotification = 5
 
 type BookLibraryEventMetadata = {
-    SourceMessageId: string
+    SourceMessageId: string option
     EventTime : DateTime
     AggregateType : AggregateType
 }
 with 
-    static member GetUniqueId x = Some x.SourceMessageId
+    static member GetUniqueId x = x.SourceMessageId
     static member GetAggregateType x = x.AggregateType
 
 type BookLibraryEventContext = {
@@ -58,17 +58,9 @@ module Aggregates =
         AggregateActionBuilder.fullHandler
             stateBuilder
             (fun state () cmd -> 
-                let events = 
-                    f state cmd 
-                    |> (fun evt -> (evt :> IEvent, buildMetadata))
-                    |> Seq.singleton
-
-                let uniqueId = Guid.NewGuid().ToString()
-
-                {
-                    UniqueId = uniqueId
-                    Events = events
-                }
+                f state cmd 
+                |> (fun evt -> (evt :> IEvent, buildMetadata None))
+                |> Seq.singleton
                 |> Choice1Of2
             )
         |> AggregateActionBuilder.buildCmd
@@ -81,10 +73,8 @@ module Aggregates =
 
     let inline onEvent fId sb f =
         let handler state event (context : BookLibraryEventContext) =
-            {
-                UniqueId = context.EventId.ToString()
-                Events = f state event
-            }
+            f state event
+            |> Seq.map (fun (evt, buildMetadata) -> (evt, buildMetadata (Some (context.EventId.ToString()))))
             
         Eventful.AggregateActionBuilder.onEvent fId sb handler
 

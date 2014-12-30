@@ -49,7 +49,7 @@ module StateChangeTests =
 
         let emitMultipleOf10Event before after =
             match (after % 10) with
-            | 0 -> Seq.singleton ({ MultipleOf10ReachedEvent.Id = Guid.NewGuid(); Qty = after } :> IEvent, metadataBuilder)
+            | 0 -> Seq.singleton ({ MultipleOf10ReachedEvent.Id = Guid.NewGuid(); Qty = after } :> IEvent, metadataBuilder None)
             | _ -> Seq.empty
 
         let quantityStateChangeHandler = 
@@ -145,21 +145,21 @@ module FizzBuzzStateChangeTests =
         let fizzStateChangeHandler = 
             fun before after ->
                 match after % 3 with
-                | 0 -> Seq.singleton (FizzEvent :> IEvent, metadataBuilder)
+                | 0 -> Seq.singleton (FizzEvent :> IEvent, metadataBuilder None)
                 | _ -> Seq.empty
             |> AggregateActionBuilder.buildStateChange countStateBuilder
 
         let buzzStateChangeHandler = 
             fun before after ->
                 match after % 5 with
-                | 0 -> Seq.singleton (BuzzEvent :> IEvent, metadataBuilder)
+                | 0 -> Seq.singleton (BuzzEvent :> IEvent, metadataBuilder None)
                 | _ -> Seq.empty
             |> AggregateActionBuilder.buildStateChange countStateBuilder
 
         let fizzBuzzStateChangeHandler = 
             fun before after ->
                 match after with
-                | (true, true) -> Seq.singleton (FizzBuzzEvent :> IEvent, metadataBuilder)
+                | (true, true) -> Seq.singleton (FizzBuzzEvent :> IEvent, metadataBuilder None)
                 | _ -> Seq.empty
             |> AggregateActionBuilder.buildStateChange fizzBuzzStateBuilder
 

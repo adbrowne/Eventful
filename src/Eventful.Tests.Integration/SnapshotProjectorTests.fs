@@ -111,7 +111,7 @@ module SnapshotProjectorTests =
                     p 
                     |> Map.filter (fun k v -> v |> UtcDateTime.fromDateTime = t)
                     |> Map.keys
-                    |> Seq.map (fun x -> ({ SnappyNotificationSent.SnappyId = x } :> obj, buildMetadata))
+                    |> Seq.map (fun x -> ({ SnappyNotificationSent.SnappyId = x } :> obj, buildMetadata None))
                 )
 
         EventfulHandlers.empty TestMetadata.GetAggregateType
@@ -166,7 +166,7 @@ module SnapshotProjectorTests =
     let testMetadata = 
         {
             TestMetadata.AggregateType = aggregateType
-            SourceMessageId = "ignored"
+            SourceMessageId = None
         } 
 
     let stateBuilder = (handlers.AggregateTypes.Item aggregateType).StateBuilder

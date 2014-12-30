@@ -63,7 +63,7 @@ module WakeupTests =
         let evtHandlers = Seq.empty
 
         let onWakeup (time : UtcDateTime) () =
-            Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid(); TimeRun = time |> UtcDateTime.toDateTime } :> IEvent, EventSystemTestCommon.metadataBuilder)
+            Seq.singleton ({ WakeupRunEvent.Id = Guid.NewGuid(); TimeRun = time |> UtcDateTime.toDateTime } :> IEvent, EventSystemTestCommon.metadataBuilder None)
 
         Eventful.Aggregate.toAggregateDefinition 
             "TestAggregate"

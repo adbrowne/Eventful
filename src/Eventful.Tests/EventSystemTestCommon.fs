@@ -31,16 +31,8 @@ module EventSystemTestCommon =
         AggregateActionBuilder.fullHandler
             stateBuilder
             (fun state (cmdContext : Guid) cmd -> 
-                let events = 
-                    f state cmd 
-                    |> Seq.map (fun evt -> (evt :> IEvent, metadataBuilder))
-
-                let uniqueId = cmdContext.ToString()
-
-                {
-                    UniqueId = uniqueId
-                    Events = events
-                }
+                f state cmd 
+                |> Seq.map (fun evt -> (evt :> IEvent, metadataBuilder(cmdContext.ToString() |> Some)))
                 |> Choice1Of2
             )
 

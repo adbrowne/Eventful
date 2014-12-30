@@ -28,7 +28,7 @@ module EventStreamStateBuilder =
     let ``Can build state from single event`` () : unit =
         let newMetadata () =
             { 
-                SourceMessageId = (Guid.NewGuid().ToString())
+                SourceMessageId = None
                 AggregateType =  "TestAggregate" 
             }
 
@@ -51,7 +51,7 @@ module EventStreamStateBuilder =
     let ``Can build state from multiple events`` () : unit =
         let newMetadata () =
             { 
-                SourceMessageId = (Guid.NewGuid().ToString())
+                SourceMessageId = None
                 AggregateType =  "TestAggregate" 
             }
 

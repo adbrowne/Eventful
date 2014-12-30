@@ -44,16 +44,14 @@ module BookCopy =
             for book in deliveryDocument.Books do
                 for i in [1..book.Copies] do
                     let bookCopyId = BookCopyId.New()
-                    let result = {
-                       UniqueId = sprintf "%s_%d" (evt.DeliveryId.Id.ToString()) i
-                       Events = 
+                    let uniqueId = sprintf "%s_%d" (evt.DeliveryId.Id.ToString()) i
+                    let metadata = buildBookCopyMetadata (Some uniqueId)
+                    let evt = 
                         {
                             BookCopyAddedEvent.BookCopyId = bookCopyId
                             BookId = book.BookId
                         } :> IEvent
-                        |> Seq.singleton
-                        |> Seq.map (fun evt -> (evt, buildBookCopyMetadata))
-                    }
+                    let result = (evt, metadata) |> Seq.singleton
                     yield (bookCopyId, konst result) 
         }
 

@@ -21,7 +21,7 @@ type WidgetId = {
 
 module TestEventStoreSystemHelpers =
     let emptyMetadata : Eventful.Tests.TestMetadata = { 
-        SourceMessageId = String.Empty
+        SourceMessageId = None
         AggregateType = "AggregateType" }
 
     let inline buildMetadata sourceMessageId = { 
@@ -36,17 +36,9 @@ module TestEventStoreSystemHelpers =
         AggregateActionBuilder.fullHandler
             stateBuilder
             (fun state () cmd -> 
-                let events = 
-                    f state cmd 
-                    |> (fun evt -> (evt :> obj, buildMetadata))
-                    |> Seq.singleton
-
-                let uniqueId = Guid.NewGuid().ToString()
-
-                {
-                    UniqueId = uniqueId
-                    Events = events
-                }
+                f state cmd 
+                |> (fun evt -> (evt :> obj, buildMetadata None))
+                |> Seq.singleton
                 |> Choice1Of2
             )
 
@@ -56,12 +48,11 @@ module TestEventStoreSystemHelpers =
     let inline onEvent fId s f = 
         let runEvent eventState evt ctx = 
             f eventState evt ctx
-            |> Seq.map (fun x -> (x, buildMetadata))
-            |> (fun x -> { UniqueId = ""; Events = x })
+            |> Seq.map (fun x -> (x, buildMetadata None))
             
         Eventful.AggregateActionBuilder.onEvent fId s runEvent
     let inline linkEvent fId = 
-        Eventful.AggregateActionBuilder.linkEvent fId buildMetadata
+        Eventful.AggregateActionBuilder.linkEvent fId (Some >> buildMetadata)
 
 type CreateWidgetCommand = {
     WidgetId : WidgetId

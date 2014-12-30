@@ -73,15 +73,11 @@ module Book =
     let inline bookCmdHandler f =
         cmdHandler f buildBookMetadata
 
+    // todo get a unique command id
     let addMetadata result =
        result
        |> Choice.map (fun events ->
-           let uniqueId = Guid.NewGuid().ToString()
-
-           {
-                UniqueId = uniqueId
-                Events = events |> List.map (fun evt -> (evt, buildBookMetadata))
-           }
+           (events |> Seq.map (fun evt -> (evt, buildBookMetadata None)))
        )
 
     let cmdHandlers = 
@@ -114,22 +110,19 @@ module Book =
             let! deliveryDocument = DocumentHelpers.getDeliveryDocument openSession evt.FileId
 
             for book in deliveryDocument.Books do
-                let result = {
-                   UniqueId = evt.DeliveryId.Id.ToString() 
-                   Events = 
-                    {
-                        BookAddedEvent.BookId = book.BookId
-                        Title = book.Title
-                    } :> IEvent
+                let resultingEvent = 
+                    { BookAddedEvent.BookId = book.BookId
+                      Title = book.Title }
+                let result =
+                    (resultingEvent :> IEvent, buildBookMetadata (Some (evt.DeliveryId.Id.ToString())))
                     |> Seq.singleton
-                    |> Seq.map (fun evt -> (evt, buildBookMetadata))
-                }
+
                 yield (book.BookId, konst result) 
         }
 
     let eventHandlers dbCmd =
         seq {
-            yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId) buildBookMetadata
+            yield linkEvent (fun (evt : BookCopyAddedEvent) -> evt.BookId) (Some >> buildBookMetadata)
 
             let onBookAwarded bookCopyCount (evt : BookPrizeAwardedEvent) = seq {
                 if(bookCopyCount > 10) then

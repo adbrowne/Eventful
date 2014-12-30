@@ -47,18 +47,12 @@ module AsyncCommandTests =
                     let! result = f cmdContext cmd 
                     return
                         result
-                        |> (fun evt -> (evt :> obj, metadataBuilder))
+                        |> (fun evt -> (evt :> obj, metadataBuilder (cmdContext.ToString() |> Some)))
                         |> Seq.singleton 
                 }
 
-                let uniqueId = cmdContext.ToString()
-
                 return
-                    {
-                        UniqueId = uniqueId
-                        Events = events
-                    }
-                    |> Choice1Of2
+                    Choice1Of2 events
             })
 
     let fooHandlers =    

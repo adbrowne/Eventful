@@ -31,9 +31,10 @@ module OnEventTests =
                     (fun (e : FooEvent) _ -> e.Id) 
                     StateBuilder.nullStateBuilder 
                     (fun s e c -> 
-                        ({ BarEvent.Id = e.Id } :> IEvent, metadataBuilder)
+                        let uniqueId = sprintf "FooEvent:%s" (e.Id.ToString());
+                        let metadata = metadataBuilder (Some uniqueId)
+                        ({ BarEvent.Id = e.Id } :> IEvent, metadata)
                         |> Seq.singleton
-                        |> (fun evts -> { UniqueId = sprintf "FooEvent:%s" (e.Id.ToString()); Events = evts })
                     )
         }
 
@@ -57,16 +58,14 @@ module OnEventTests =
     let ``FooEvent produces BarEvent`` () : unit =
         let thisId = Guid.NewGuid()
         let streamName = getStreamName UnitEventContext thisId
-        let commandUniqueId = Guid.NewGuid()
 
         let afterRun = 
             emptyTestSystem  
             |> TestSystem.injectEvent 
                 "fake stream" 
                 ({ FooEvent.Id = thisId } :> IEvent)
-                { 
-                    TestMetadata.AggregateType = "TestAggregate" 
-                    SourceMessageId = ""}
+                { TestMetadata.AggregateType = "TestAggregate" 
+                  SourceMessageId = None }
 
         let barCount = afterRun.EvaluateState streamName thisId barEventCounter
 
@@ -81,8 +80,8 @@ module OnEventTests =
         let event = { FooEvent.Id = thisId } :> IEvent
         let afterRun = 
             emptyTestSystem  
-            |> TestSystem.injectEvent streamName event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // first run
-            |> TestSystem.injectEvent streamName event { TestMetadata.AggregateType = "Foo"; SourceMessageId = "" } // second run
+            |> TestSystem.injectEvent streamName event { TestMetadata.AggregateType = "Foo"; SourceMessageId = (Some "") } // first run
+            |> TestSystem.injectEvent streamName event { TestMetadata.AggregateType = "Foo"; SourceMessageId = (Some "") } // second run
             |> TestSystem.runToEnd
 
         let barStateIs1 guid =
@@ -127,9 +126,8 @@ module OnEventMultiAggregateTests =
 
         let evtHandlers = seq {
             let h = (fun aggregateId s -> 
-                    ({ BarEvent.Id = aggregateId } :> IEvent, metadataBuilder)
+                    ({ BarEvent.Id = aggregateId } :> IEvent, metadataBuilder None)
                     |> Seq.singleton
-                    |> (fun evts -> { UniqueId = ""; Events = evts })
                 )
             yield 
                 AggregateActionBuilder.onEventMulti

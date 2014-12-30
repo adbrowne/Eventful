@@ -34,7 +34,7 @@ type metadataBuilder<'TMetadata> = string -> 'TMetadata
 
 type IStateChangeHandler<'TMetadata, 'TBaseEvent> =
     abstract member AddStateBuilder : IStateBlockBuilder<'TMetadata, unit> list -> IStateBlockBuilder<'TMetadata, unit> list 
-    abstract member Handler : StateSnapshot -> StateSnapshot -> seq<'TBaseEvent * metadataBuilder<'TMetadata>>
+    abstract member Handler : StateSnapshot -> StateSnapshot -> seq<'TBaseEvent * 'TMetadata>
 
 // 'TContext can either be CommandContext or EventContext
 type AggregateConfiguration<'TContext, 'TAggregateId, 'TMetadata, 'TBaseEvent> = {
@@ -108,24 +108,19 @@ module AggregateHandlers =
     let addStateChangeHandler handler (aggregateHandlers : AggregateHandlers<_,_,_,_,_>) =
         aggregateHandlers.AddStateChangeHandler handler
 
-type IHandler<'TEvent,'TId,'TCommandContext,'TEventContext when 'TId : equality> = 
+type IHandler<'TId,'TCommandContext,'TEventContext when 'TId : equality> = 
     abstract member add : AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent> -> AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>
 
 open FSharpx
 open Eventful.Validation
 
-type HandlerOutput<'TBaseEvent,'TMetadata> = {
-    UniqueId : string // used to make commands idempotent
-    Events : seq<'TBaseEvent * metadataBuilder<'TMetadata>>
-}
-
 type CommandHandler<'TCmd, 'TCommandContext, 'TCommandState, 'TAggregateId, 'TMetadata, 'TBaseEvent> = {
     GetId : 'TCommandContext -> 'TCmd -> 'TAggregateId
     StateBuilder : IStateBuilder<'TCommandState, 'TMetadata, unit>
-    Handler : 'TCommandState -> 'TCommandContext -> 'TCmd -> Async<Choice<HandlerOutput<'TBaseEvent,'TMetadata>, NonEmptyList<ValidationFailure>>>
+    Handler : 'TCommandState -> 'TCommandContext -> 'TCmd -> Async<Choice<seq<'TBaseEvent * 'TMetadata>, NonEmptyList<ValidationFailure>>>
 }
 
-type MultiEventRun<'TAggregateId,'TMetadata,'TState,'TBaseEvent when 'TAggregateId : equality> = ('TAggregateId * ('TState -> HandlerOutput<'TBaseEvent,'TMetadata>))
+type MultiEventRun<'TAggregateId,'TMetadata,'TState,'TBaseEvent when 'TAggregateId : equality> = ('TAggregateId * ('TState -> seq<'TBaseEvent * 'TMetadata>))
 
 open Eventful.Validation
 
@@ -134,30 +129,25 @@ module AggregateActionBuilder =
 
     let log = createLogger "Eventful.AggregateActionBuilder"
 
-    let fullHandlerAsync<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
+    let fullHandlerAsync<'TId, 'TState,'TCmd, 'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
             StateBuilder = StateBuilder.withUnitKey stateBuilder
             Handler = f
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
-    let fullHandler<'TId, 'TState,'TCmd,'TEvent, 'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
+    let fullHandler<'TId, 'TState,'TCmd,'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TId>)
             StateBuilder = StateBuilder.withUnitKey stateBuilder
             Handler = (fun a b c ->  f a b c |> Async.returnM)
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
-    let simpleHandler<'TAggregateId, 'TState, 'TCmd, 'TCommandContext, 'TMetadata, 'TBaseEvent> stateBuilder (f : 'TCmd -> (string * 'TBaseEvent * metadataBuilder<'TMetadata>)) =
-        let makeResult (uniqueId, evt : 'TBaseEvent, metadata) = { 
-            UniqueId = uniqueId 
-            Events =  (evt, metadata) |> Seq.singleton 
-        }
-
+    let simpleHandler<'TAggregateId, 'TState, 'TCmd, 'TCommandContext, 'TMetadata, 'TBaseEvent> stateBuilder (f : 'TCmd -> ('TBaseEvent * 'TMetadata)) =
         {
             GetId = (fun _ -> MagicMapper.magicId<'TAggregateId>)
             StateBuilder = stateBuilder
-            Handler = (fun _ _ -> f >> makeResult >> Success >> Async.returnM)
+            Handler = (fun _ _ -> f >> Seq.singleton >> Success >> Async.returnM)
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata, 'TBaseEvent> 
 
     let toChoiceValidator cmd r =
@@ -166,7 +156,7 @@ module AggregateActionBuilder =
         else
             NonEmptyList.create (r |> Seq.head) (r |> Seq.tail |> List.ofSeq) |> Failure
 
-    let untypedGetId<'TId,'TCmd,'TEvent,'TState, 'TCommandContext, 'TMetadata, 'TValidatedState, 'TBaseEvent> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) (context : 'TCommandContext) (cmd:obj) =
+    let untypedGetId<'TId,'TCmd,'TState, 'TCommandContext, 'TMetadata, 'TValidatedState, 'TBaseEvent> (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) (context : 'TCommandContext) (cmd:obj) =
         match cmd with
         | :? 'TCmd as cmd ->
             sb.GetId context cmd
@@ -195,20 +185,14 @@ module AggregateActionBuilder =
         return! writeToStream stream expectedVersion eventStreamEvents
     }
        
-    let fillOutMetadata uniqueId =
-        LazyList.map (fun (evt, buildMetadata) -> 
-            let metadata = buildMetadata uniqueId 
-            (evt, metadata)
-        )
 
-    let addStateChangeEvents blockBuilders uniqueId snapshot stateChangeHandlers events = 
+    let addStateChangeEvents blockBuilders snapshot stateChangeHandlers events = 
         let applyEventToSnapshot (event, metadata) snapshot = 
             AggregateStateBuilder.applyToSnapshot blockBuilders () event (snapshot.LastEventNumber + 1) metadata snapshot
 
         let runStateChangeHandlers beforeSnapshot afterSnapshot =
             LazyList.map (fun (h:IStateChangeHandler<_, _>) -> h.Handler beforeSnapshot afterSnapshot |> LazyList.ofSeq)
             >> LazyList.concat
-            >> fillOutMetadata uniqueId
         
         let generator (beforeSnapshot, events) = maybe {
             let! (x,xs) = LazyList.tryUncons events
@@ -223,6 +207,17 @@ module AggregateActionBuilder =
         
         LazyList.unfold generator (snapshot, events)
 
+    let anyNewUniqueIdsAlreadyExist getUniqueId snapshot events =
+        let existingUniqueIds = (uniqueIdBuilder getUniqueId).GetState snapshot.State
+        let newUniqueIds = 
+            events
+            |> Seq.map snd
+            |> Seq.map getUniqueId
+            |> Seq.collect (Option.toList)
+            |> Set.ofSeq
+
+        existingUniqueIds |> Set.intersect newUniqueIds |> Set.isEmpty |> not
+        
     let inline runHandler 
         getUniqueId
         blockBuilders
@@ -239,17 +234,15 @@ module AggregateActionBuilder =
 
             return! 
                 match result with
-                | Choice1Of2 (r : HandlerOutput<'TBaseEvent,'TMetadata>) -> 
+                | Choice1Of2 (handlerEvents : seq<'TBaseEvent * 'TMetadata>) -> 
                     eventStream {
-                        let uniqueIds = (uniqueIdBuilder getUniqueId).GetState snapshot.State
-                        if uniqueIds |> Set.contains r.UniqueId then
+                        if (anyNewUniqueIdsAlreadyExist getUniqueId snapshot handlerEvents) then
                             return Choice2Of2 RunFailure<_>.AlreadyProcessed
                         else
                             let events = 
-                                r.Events
+                                handlerEvents
                                 |> LazyList.ofSeq
-                                |> fillOutMetadata r.UniqueId
-                                |> addStateChangeEvents blockBuilders r.UniqueId snapshot stateChangeHandlers
+                                |> addStateChangeEvents blockBuilders snapshot stateChangeHandlers
                                 |> List.ofSeq
 
                             let! writeResult = writeEvents streamId snapshot.LastEventNumber events
@@ -380,7 +373,7 @@ module AggregateActionBuilder =
     let buildCmd (sb : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent>) : ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent> = 
         ToInterface sb
 
-    let buildStateChange (stateBuilder : IStateBuilder<'TState,'TMetadata,unit>) (handler : 'TState -> 'TState -> seq<'TBaseEvent * metadataBuilder<'TMetadata>>) = {
+    let buildStateChange (stateBuilder : IStateBuilder<'TState,'TMetadata,unit>) (handler : 'TState -> 'TState -> seq<'TBaseEvent * 'TMetadata>) = {
         new IStateChangeHandler<'TMetadata, 'TBaseEvent> with
             member this.AddStateBuilder builders = AggregateStateBuilder.combineHandlers stateBuilder.GetBlockBuilders builders
             member this.Handler beforeSnapshot afterSnapshot =
@@ -433,28 +426,16 @@ module AggregateActionBuilder =
                     |> AggregateStateBuilder.toStreamProgram resultingStream ()
                 let state = stateBuilder.GetState stateSnapshot.State
 
-                let getUniqueId = aggregateConfig.GetUniqueId
-                let uniqueIds = (uniqueIdBuilder getUniqueId).GetState stateSnapshot.State
-
-                let { UniqueId = uniqueId; Events = evts } = handler state
+                let evts = handler state
 
                 let evts = 
-                    if uniqueIds |> Set.contains uniqueId then
+                    if (anyNewUniqueIdsAlreadyExist aggregateConfig.GetUniqueId stateSnapshot evts) then
                         log.Debug <| lazy(sprintf "Duplicate event detected: %s %d" event.StreamId event.EventNumber)
                         Seq.empty
                     else
                         evts
 
-                let resultingEvents = 
-                    evts
-                    |> Seq.map (fun (event, buildMetadata) ->
-                        let metadata =  
-                            buildMetadata uniqueId
-                        (event, metadata)
-                    )
-                    |> Seq.toList
-
-                let! result = writeEvents resultingStream stateSnapshot.LastEventNumber resultingEvents
+                let! result = writeEvents resultingStream stateSnapshot.LastEventNumber (evts |> List.ofSeq)
 
                 return 
                     match result with
@@ -465,7 +446,7 @@ module AggregateActionBuilder =
             }
         )
 
-    let getEventInterfaceForOnEvent<'TOnEvent, 'TEvent, 'TId, 'TState, 'TMetadata, 'TCommandContext, 'TEventContext,'TBaseEvent,'TKey when 'TId : equality> (stateBuilder: IStateBuilder<_,_,'TKey>) (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState,'TBaseEvent>>) = 
+    let getEventInterfaceForOnEvent<'TOnEvent, 'TId, 'TState, 'TMetadata, 'TCommandContext, 'TEventContext,'TBaseEvent,'TKey when 'TId : equality> (stateBuilder: IStateBuilder<_,_,'TKey>) (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TState,'TBaseEvent>>) = 
         let evtType = typeof<'TOnEvent>
         if evtType = typeof<obj> then
             failwith "Event handler registered for type object. You might need to specify a type explicitely."
@@ -490,12 +471,12 @@ module AggregateActionBuilder =
     let linkEvent<'TLinkEvent,'TId,'TCommandContext,'TEventContext,'TMetadata, 'TBaseEvent when 'TId : equality> fId (metadata : metadataBuilder<'TMetadata>) = 
         getEventInterfaceForLink<'TLinkEvent,'TId,'TMetadata,'TCommandContext,'TEventContext, 'TBaseEvent> fId metadata
 
-    let onEventMultiAsync<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey when 'TId : equality> 
+    let onEventMultiAsync<'TOnEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey when 'TId : equality> 
         (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TKey>)  
         (fId : ('TOnEvent * 'TEventContext) -> AsyncSeq<MultiEventRun<'TId,'TMetadata,'TEventState,'TBaseEvent>>) = 
-        getEventInterfaceForOnEvent<'TOnEvent,'TEvent,'TId,'TEventState, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey> stateBuilder fId
+        getEventInterfaceForOnEvent<'TOnEvent,'TId,'TEventState, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey> stateBuilder fId
 
-    let onEventMulti<'TOnEvent,'TEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey when 'TId : equality> 
+    let onEventMulti<'TOnEvent,'TEventState,'TId, 'TMetadata, 'TCommandContext,'TEventContext,'TBaseEvent,'TKey when 'TId : equality> 
         (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TKey>)  
         (fId : ('TOnEvent * 'TEventContext) -> seq<MultiEventRun<'TId,'TMetadata,'TEventState,'TBaseEvent>>) = 
         onEventMultiAsync stateBuilder (fId >> AsyncSeq.ofSeq)
@@ -503,7 +484,7 @@ module AggregateActionBuilder =
     let onEvent<'TOnEvent,'TEventState,'TId,'TMetadata,'TEventContext,'TBaseEvent, 'TKey when 'TId : equality> 
         (fId : 'TOnEvent -> 'TEventContext -> 'TId) 
         (stateBuilder : IStateBuilder<'TEventState, 'TMetadata, 'TKey>) 
-        (runEvent : 'TEventState -> 'TOnEvent -> 'TEventContext -> HandlerOutput< 'TBaseEvent, 'TMetadata>) = 
+        (runEvent : 'TEventState -> 'TOnEvent -> 'TEventContext -> seq<'TBaseEvent * 'TMetadata>) = 
         
         let runEvent' = fun evt eventCtx state ->
             runEvent state evt eventCtx
@@ -565,18 +546,13 @@ module Aggregate =
     let withWakeup 
         (wakeupFold : WakeupFold<'TMetadata>) 
         (stateBuilder : IStateBuilder<'T,'TMetadata, unit>) 
-        (wakeupHandler : UtcDateTime -> 'T ->  seq<'TBaseEvent * metadataBuilder<'TMetadata>>)
+        (wakeupHandler : UtcDateTime -> 'T ->  seq<'TBaseEvent * 'TMetadata>)
         (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent,'TAggregateType>) =
 
-        let handler time t : Async<Choice<HandlerOutput<_,_>,_>> = async {
-            let result = wakeupHandler time t
-            return 
-                {
-                    HandlerOutput.UniqueId = Guid.NewGuid().ToString()
-                    Events = result
-                }
-                |> Choice1Of2
-        }
+        let handler time t : Async<Choice<seq<'TBaseEvent * 'TMetadata>,_>> =
+            wakeupHandler time t 
+            |> Choice1Of2
+            |> Async.returnM
 
         let wakeup = {
             new IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> with

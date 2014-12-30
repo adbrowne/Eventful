@@ -46,7 +46,7 @@ module TestAggregate =
 
     let inline withMetadata f cmd = 
         let cmdResult = f cmd
-        (Guid.NewGuid().ToString(), cmdResult, buildMetadata)
+        (cmdResult, buildMetadata None)
 
     let inline simpleHandler f = 
         Eventful.AggregateActionBuilder.simpleHandler stateBuilder (withMetadata f)
@@ -60,14 +60,9 @@ module TestAggregate =
         let withMetadata a b c =
             f a b c
             |> Choice.map (fun evts ->
-                let evts' = 
-                    evts 
-                    |> List.map (fun x -> (x, buildMetadata))
-                    |> List.toSeq
-                { 
-                    UniqueId = Guid.NewGuid().ToString()
-                    Events = evts'
-                }
+                evts 
+                |> List.map (fun x -> (x, buildMetadata))
+                |> List.toSeq
             )
         Eventful.AggregateActionBuilder.fullHandler s withMetadata
 
@@ -139,7 +134,7 @@ module AggregateConfigurationErrorTests =
     let ``Event handler for object returns error`` () =
         let testId = { TestId.Id = Guid.NewGuid() }
         let evtHandlers = seq {
-           yield AggregateActionBuilder.onEvent (fun _ context -> testId) StateBuilder.nullStateBuilder (fun _ _ _ -> { UniqueId = ""; Events = Seq.empty })
+           yield AggregateActionBuilder.onEvent (fun _ context -> testId) StateBuilder.nullStateBuilder (fun _ _ _ -> Seq.empty)
         }
 
         let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj,string> =

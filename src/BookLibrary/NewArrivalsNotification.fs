@@ -40,10 +40,12 @@ module NewArrivalsNotification =
     let evtHandlers = 
         seq {
             let onBookAdded () (e : BookAddedEvent) (c : BookLibraryEventContext) =
-                { 
-                    UniqueId = c.EventId.ToString() 
-                    Events = ({ PendingNotificationEvent.BookId = e.BookId; NotificationId = notificationId } :> IEvent, buildMetadata) |> Seq.singleton
-                }
+                let event = { PendingNotificationEvent.BookId = e.BookId; NotificationId = notificationId } :> IEvent
+                let metadata =
+                    c.EventId.ToString()
+                    |> Some
+                    |> buildMetadata
+                Seq.singleton (event, metadata)
            yield AggregateActionBuilder.onEvent (fun (_:BookAddedEvent) _ -> notificationId) StateBuilder.nullStateBuilder onBookAdded
         }
 
@@ -69,7 +71,7 @@ module NewArrivalsNotification =
         |> AggregateStateBuilder.map (Option.map UtcDateTime.fromDateTime)
 
     let onWakeup (_ : UtcDateTime) (pendingNotifications : Map<BookId, DateTime>) =
-        Seq.singleton ({ NewArrivalsNotificationEvent.NotificationId = notificationId; BookIds = pendingNotifications |> Map.toList |> List.map fst } :> IEvent, buildMetadata)
+        Seq.singleton ({ NewArrivalsNotificationEvent.NotificationId = notificationId; BookIds = pendingNotifications |> Map.toList |> List.map fst } :> IEvent, buildMetadata None)
 
     let handlers =
         Eventful.Aggregate.toAggregateDefinition 
@@ -107,7 +109,7 @@ module NewArrivalsNotificationTests =
         let bookStreamId = sprintf "Book-%s" (bookId.Id.ToString("N"))
         let bookAddedEvent = { BookAddedEvent.BookId = bookId; Title = "Test" } :> IEvent
         let bookAddedEventMetadata =  {
-            SourceMessageId = String.Empty
+            SourceMessageId = None
             EventTime = DateTime.UtcNow
             AggregateType = AggregateType.Book
         }
