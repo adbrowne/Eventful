@@ -122,30 +122,35 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         match handlers.EventStoreTypeToClassMap.ContainsKey event.Event.EventType with
         | true ->
             let eventType = handlers.EventStoreTypeToClassMap.Item event.Event.EventType
-            log.Debug <| lazy(sprintf "Running Handler for: %A: %A %A" event.Event.EventType event.OriginalEvent.EventStreamId event.OriginalEvent.EventNumber)
+            let correlationId = Guid.NewGuid()
+            log.RichDebug "Running Handler for: {@EventType} {@StreamId} {@EventNumber} {@CorrelationId}" [|event.Event.EventType; event.OriginalEvent.EventStreamId; event.OriginalEvent.EventNumber;correlationId|]
             async {
                 let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
                 completeTracker.Start position
-                let evt = serializer.DeserializeObj (event.Event.Data) eventType
 
-                let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>) :?> 'TMetadata
-                let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
+                try
+                    let evt = serializer.DeserializeObj (event.Event.Data) eventType
 
-                let eventStreamEvent = {
-                    PersistedEvent.StreamId = event.Event.EventStreamId
-                    EventNumber = event.Event.EventNumber
-                    EventId = eventId
-                    Body = evt
-                    Metadata = metadata
-                    EventType = event.Event.EventType
-                }
+                    let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>) :?> 'TMetadata
+                    let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
 
-                do! runEventHandlers handlers eventStreamEvent
+                    let eventStreamEvent = {
+                        PersistedEvent.StreamId = event.Event.EventStreamId
+                        EventNumber = event.Event.EventNumber
+                        EventId = eventId
+                        Body = evt
+                        Metadata = metadata
+                        EventType = event.Event.EventType
+                    }
+
+                    do! runEventHandlers handlers eventStreamEvent
+
+                    for callback in onCompleteCallbacks do
+                        callback (position, event.Event.EventStreamId, event.Event.EventNumber, eventData)
+                with | e ->
+                    log.RichError "Exception thrown while running event handler {@Exception} {@CorrelationId}" [|e;correlationId|]
 
                 completeTracker.Complete position
-
-                for callback in onCompleteCallbacks do
-                    callback (position, event.Event.EventStreamId, event.Event.EventNumber, eventData)
             }
         | false -> 
             async {
