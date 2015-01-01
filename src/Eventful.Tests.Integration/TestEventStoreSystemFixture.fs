@@ -157,6 +157,7 @@ type TestEventStoreSystemFixture () =
     let mockWakeupMonitor _ = {
         new Eventful.IWakeupMonitor with
             member x.Start () = ()
+            member x.Stop () = ()
     }
     let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj,string>(handlers, client, RunningTests.esSerializer, buildContext, nullGetSnapshot, mockWakeupMonitor)
 

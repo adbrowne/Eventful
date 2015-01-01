@@ -87,5 +87,10 @@ type WakeupMonitor
             log.RichDebug "IWakeupMonitor.Start" Array.empty
             let timerUpdated = timer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1.0))
             if not timerUpdated then
-                log.RichDebug "Failed to start timer" Array.empty
+                log.RichError "Failed to start timer" Array.empty
             ()
+
+        member x.Stop () =
+            let timerUpdated = timer.Change(-1, -1)
+            if not timerUpdated then
+                log.RichError "Failed to stop timer" Array.empty

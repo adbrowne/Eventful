@@ -114,6 +114,8 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
         }
 
     member x.Stop () = 
+        subscription.Stop()
+        wakeupMonitor.Stop()
         if timer <> null then
             timer.Dispose()
 
