@@ -8,21 +8,21 @@ open FSharpx.Choice
 open FSharpx.Option
 open Eventful.EventStream
 
-type TestSystemState<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison and 'TEventContext :> IDisposable> = {
-    Handlers : EventfulHandlers<'TCommandContext,'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType> 
+type TestSystemState<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when 'TMetadata : equality and 'TEventContext :> IDisposable> = {
+    Handlers : EventfulHandlers<'TCommandContext,'TEventContext,'TMetadata, 'TBaseEvent> 
     LastResult : CommandResult<'TBaseEvent,'TMetadata>
-    AllEvents : TestEventStore<'TMetadata, 'TAggregateType>
+    AllEvents : TestEventStore<'TMetadata>
     BuildEventContext: PersistedEvent<'TMetadata> -> 'TEventContext
     OnTimeChange : UtcDateTime -> unit
     UseSnapshots : bool
 }
 
-type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison and 'TEventContext :> IDisposable>
+type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when 'TMetadata : equality and 'TEventContext :> IDisposable>
     (
-        state : TestSystemState<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>
+        state : TestSystemState<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>
     ) =
 
-    let interpret prog (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
+    let interpret prog (testEventStore : TestEventStore<'TMetadata>) =
         TestInterpreter.interpret 
             prog 
             testEventStore 
@@ -38,7 +38,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
 
         let allEvents = TestEventStore.processPendingEvents state.BuildEventContext interpret state.Handlers allEvents
 
-        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>({ state with AllEvents = allEvents; LastResult = result })
+        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>({ state with AllEvents = allEvents; LastResult = result })
 
     // runs the command. throws on failure
     member x.RunCommand (cmd : obj) (context : 'TCommandContext) =    
@@ -57,7 +57,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
 
     member x.Run (cmds : (obj * 'TCommandContext) list) =
         cmds
-        |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) (cmd, context) -> s.RunCommand cmd context) x
+        |> List.fold (fun (s:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) (cmd, context) -> s.RunCommand cmd context) x
 
     member x.InjectEvent (streamId) (evt : 'TBaseEvent) (metadata : 'TMetadata) =
         let eventType = state.Handlers.ClassToEventStoreTypeMap.Item (evt.GetType())
@@ -71,7 +71,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         let allEvents' =
             state.AllEvents |> TestEventStore.addEvent streamId fakeEvent
             |> TestEventStore.processPendingEvents state.BuildEventContext interpret state.Handlers 
-        new TestSystem<_,_,_,_,_>({ state with AllEvents = allEvents' })
+        new TestSystem<_,_,_,_>({ state with AllEvents = allEvents' })
 
     member x.RunToEnd () = 
         let allEvents' = TestEventStore.runToEnd state.OnTimeChange state.BuildEventContext interpret state.Handlers state.AllEvents 
@@ -80,12 +80,12 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
                 CommandSuccess.Events = List.empty
                 Position = None } 
             |> Choice1Of2
-        new TestSystem<_,_,_,_,_>({ state with LastResult = result'; AllEvents = allEvents' })
+        new TestSystem<_,_,_,_>({ state with LastResult = result'; AllEvents = allEvents' })
 
-    member x.Wakeup (wakeupTime : UtcDateTime) (streamId : string) (aggregateType : 'TAggregateType) =
+    member x.Wakeup (wakeupTime : UtcDateTime) (streamId : string) (aggregateType : string) =
         let allEvents' =
             TestEventStore.runWakeup wakeupTime streamId aggregateType interpret state.Handlers state.AllEvents 
-        new TestSystem<_,_,_,_,_>({ state with AllEvents = allEvents' })
+        new TestSystem<_,_,_,_>({ state with AllEvents = allEvents' })
 
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
         let streamEvents = 
@@ -114,9 +114,9 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
         |> stateBuilder.GetState
 
     member x.OnTimeChange onTimeChange =
-        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>({ state with OnTimeChange = onTimeChange })
+        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>({ state with OnTimeChange = onTimeChange })
 
-    static member EmptyNoSnapshots buildEventContext (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent, 'TAggregateType>) =
+    static member EmptyNoSnapshots buildEventContext (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent>) =
         let emptySuccess = {
             CommandSuccess.Events = List.empty
             Position = None
@@ -129,9 +129,9 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
             OnTimeChange = (fun _ -> ()) 
             UseSnapshots = false
         }
-        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(state)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>(state)
 
-    static member Empty buildEventContext (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent, 'TAggregateType>) =
+    static member Empty buildEventContext (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent>) =
         let emptySuccess = {
             CommandSuccess.Events = List.empty
             Position = None
@@ -144,18 +144,18 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAgg
             OnTimeChange = (fun _ -> ()) 
             UseSnapshots = true
         }
-        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>(state)
+        new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>(state)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestSystem = 
-    let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommand x c
-    let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunCommandNoThrow x c
-    let runToEnd (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) = y.RunToEnd()
-    let injectEvent stream event metadata (testSystem : TestSystem<_,_,_,_,_>) =
+    let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) = y.RunCommand x c
+    let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) = y.RunCommandNoThrow x c
+    let runToEnd (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) = y.RunToEnd()
+    let injectEvent stream event metadata (testSystem : TestSystem<_,_,_,_>) =
         testSystem.InjectEvent stream event metadata
-    let wakeup (wakeupTime : UtcDateTime) (streamId : string) (aggregateType : 'TAggregateType) (testSystem : TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) =
+    let wakeup (wakeupTime : UtcDateTime) (streamId : string) (aggregateType : string) (testSystem : TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) =
         testSystem.Wakeup wakeupTime streamId aggregateType 
-    let getStreamEvents streamId (system:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent, 'TAggregateType>) =
+    let getStreamEvents streamId (system:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) =
         system.AllEvents.Events
         |> Map.tryFind streamId
         |> Option.getOrElse Vector.empty

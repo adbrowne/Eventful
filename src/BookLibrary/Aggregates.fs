@@ -34,7 +34,7 @@ type BookLibraryEventMetadata = {
 }
 with 
     static member GetUniqueId x = x.SourceMessageId
-    static member GetAggregateType x = x.AggregateType
+    static member GetAggregateType x = x.AggregateType.ToString()
 
 type BookLibraryEventContext = {
     Metadata : BookLibraryEventMetadata
@@ -78,4 +78,17 @@ module Aggregates =
             
         Eventful.AggregateActionBuilder.onEvent fId sb handler
 
-    let toAggregateDefinition = Eventful.Aggregate.toAggregateDefinition
+    let toAggregateDefinition 
+        (aggregateType : AggregateType)
+        getCommandStreamName
+        getEventStreamName
+        cmdHandlers
+        evtHandlers
+        = 
+        Eventful.Aggregate.toAggregateDefinition
+            (aggregateType.ToString())
+            BookLibraryEventMetadata.GetUniqueId
+            getCommandStreamName
+            getEventStreamName
+            cmdHandlers
+            evtHandlers

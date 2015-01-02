@@ -36,9 +36,8 @@ module Delivery =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition 
+        Aggregates.toAggregateDefinition 
             AggregateType.Delivery 
-            BookLibraryEventMetadata.GetUniqueId
             getStreamName 
             getEventStreamName 
             cmdHandlers 

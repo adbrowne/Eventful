@@ -38,7 +38,7 @@ module SnapshotTests =
         |> StateBuilder.aggregateStateHandler (fun (s,e:FooEvent,(_:TestMetadata)) -> s + e.Value)
         |> StateBuilder.toInterface
 
-    let fooHandlers : AggregateDefinition<Guid, _, _, _, _, _> =    
+    let fooHandlers : AggregateDefinition<Guid,_,_,_,_> =    
         let cmdHandlers = seq {
             yield 
                 cmdHandlerS
@@ -74,7 +74,7 @@ module SnapshotTests =
     let ``Behavior is the same with and without snapshots`` (cmds : FooCmd list) =
         let getEvents testSystem = 
             cmds
-            |> List.fold (fun (s : TestSystem<_,_,_,_,_>) cmd -> s.RunCommand cmd (Guid.NewGuid())) testSystem
+            |> List.fold (fun (s : TestSystem<_,_,_,_>) cmd -> s.RunCommand cmd (Guid.NewGuid())) testSystem
             |> TestSystem.getStreamEvents "Foo"
             |> Vector.map (function
                 | Event eventData ->

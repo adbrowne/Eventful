@@ -54,7 +54,7 @@ module TestHelpers =
                 member x.Visit<'TCmd> t = Arb.from<'TCmd> |> toObjArb
          }
 
-    let getCommandsForAggregate (aggregateDefinition: AggregateDefinition<_,_,_,_,_,_>) (fieldName, fieldValue) : Arbitrary<obj seq> =
+    let getCommandsForAggregate (aggregateDefinition: AggregateDefinition<_,_,_,_,_>) (fieldName, fieldValue) : Arbitrary<obj seq> =
         let commandTypes : seq<Arbitrary<obj>> =
             aggregateDefinition.Handlers.CommandHandlers
             |> Seq.map (fun x -> x.Visitable.Receive () getArbVisitor)

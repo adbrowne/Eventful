@@ -37,9 +37,8 @@ module Award =
         }
 
     let handlers () =
-        Eventful.Aggregate.toAggregateDefinition 
+        Aggregates.toAggregateDefinition 
             AggregateType.Award 
-            BookLibraryEventMetadata.GetUniqueId
             getStreamName 
             getEventStreamName 
             cmdHandlers 

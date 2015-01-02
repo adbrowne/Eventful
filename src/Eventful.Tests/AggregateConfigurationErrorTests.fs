@@ -117,7 +117,7 @@ module AggregateConfigurationErrorTests =
 
            yield TestAggregate.buildCmdHandler testCommand }
 
-        let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj,string> =
+        let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj> =
             toAggregateDefinition 
                 "testaggregate" 
                 TestMetadata.GetUniqueId
@@ -137,7 +137,7 @@ module AggregateConfigurationErrorTests =
            yield AggregateActionBuilder.onEvent (fun _ context -> testId) StateBuilder.nullStateBuilder (fun _ _ _ -> Seq.empty)
         }
 
-        let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj,string> =
+        let buildAggregate () : AggregateDefinition<TestId, Guid, Guid, TestMetadata,obj> =
             toAggregateDefinition 
                 "testaggregate" 
                 TestMetadata.GetUniqueId

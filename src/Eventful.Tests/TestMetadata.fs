@@ -11,4 +11,4 @@ with
     static member GetUniqueId x = x.SourceMessageId
     static member GetAggregateType x = x.AggregateType
 
-type TestAggregateDefinition<'TCommandContext,'TEventContext> = AggregateDefinition<Guid, 'TCommandContext, 'TEventContext, TestMetadata,IEvent, string>
+type TestAggregateDefinition<'TCommandContext,'TEventContext> = AggregateDefinition<Guid, 'TCommandContext, 'TEventContext, TestMetadata,IEvent>

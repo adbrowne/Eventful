@@ -7,9 +7,9 @@ open System
 open FSharpx
 open FSharpx.Collections
 
-type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType when 'TMetadata : equality and 'TEventContext :> System.IDisposable and 'TAggregateType : comparison> 
+type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent when 'TMetadata : equality and 'TEventContext :> System.IDisposable> 
     ( 
-        handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>,
+        handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>,
         client : Client,
         serializer: ISerializer,
         getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext,
@@ -58,7 +58,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
                 log.ErrorWithException <| lazy(sprintf "Exception in event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
         }
 
-    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'TAggregateType>) (persistedEvent : PersistedEvent<'TMetadata>) =
+    let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>) (persistedEvent : PersistedEvent<'TMetadata>) =
         async {
             do! 
                 handlers
@@ -68,9 +68,8 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent,'
                 |> Async.Ignore
         }
 
-    let runWakeupHandler streamId aggregateTypeString time =
+    let runWakeupHandler streamId aggregateType time =
         let correlationId = Guid.NewGuid()
-        let aggregateType = handlers.StringToAggregateType aggregateTypeString
         log.RichDebug "RunWakeupHandler {@StreamId} {@AggregateType} {@Time} {@CorrelationId}" [|streamId;aggregateType;time;correlationId|]
 
         let config = handlers.AggregateTypes.TryFind aggregateType

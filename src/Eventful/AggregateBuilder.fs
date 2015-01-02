@@ -497,18 +497,18 @@ module AggregateActionBuilder =
             )
         onEventMulti stateBuilder handler
 
-type AggregateDefinition<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TAggregateId : equality and 'TAggregateType : comparison> = {
+type AggregateDefinition<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent when 'TAggregateId : equality> = {
     GetUniqueId : 'TMetadata -> string option
     GetCommandStreamName : 'TCommandContext -> 'TAggregateId -> string
     GetEventStreamName : 'TEventContext -> 'TAggregateId -> string
     Handlers : AggregateHandlers<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent>
-    AggregateType : 'TAggregateType
+    AggregateType : string
     Wakeup : IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> option
 }
 
 module Aggregate = 
     let aggregateDefinitionFromHandlers
-        (aggregateType : 'TAggregateType)
+        (aggregateType : string)
         (getUniqueId : 'TMetadata -> string option)
         (getCommandStreamName : 'TCommandContext -> 'TAggregateId -> string)
         (getEventStreamName : 'TEventContext -> 'TAggregateId -> string) 
@@ -522,8 +522,8 @@ module Aggregate =
                 Wakeup = None
             }
 
-    let toAggregateDefinition<'TEvents, 'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType when 'TAggregateId : equality and 'TAggregateType : comparison>
-        (aggregateType : 'TAggregateType)
+    let toAggregateDefinition<'TEvents, 'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent when 'TAggregateId : equality>
+        (aggregateType : string)
         (getUniqueId : 'TMetadata -> string option)
         (getCommandStreamName : 'TCommandContext -> 'TAggregateId -> string)
         (getEventStreamName : 'TEventContext -> 'TAggregateId -> string) 
@@ -547,7 +547,7 @@ module Aggregate =
         (wakeupFold : WakeupFold<'TMetadata>) 
         (stateBuilder : IStateBuilder<'T,'TMetadata, unit>) 
         (wakeupHandler : UtcDateTime -> 'T ->  seq<'TBaseEvent * 'TMetadata>)
-        (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent,'TAggregateType>) =
+        (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent>) =
 
         let handler time t : Async<Choice<seq<'TBaseEvent * 'TMetadata>,_>> =
             wakeupHandler time t 

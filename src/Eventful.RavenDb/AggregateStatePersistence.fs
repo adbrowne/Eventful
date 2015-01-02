@@ -150,7 +150,7 @@ module AggregateStatePersistence =
     let buildProjector 
         (getPersistedEvent : 'TMessage -> PersistedEvent<'TMetadata> option)
         (serializer :  ISerializer)
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent,'TAggregateType>) =
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent>) =
 
         let matchingKeys = 
             getPersistedEvent
@@ -174,7 +174,7 @@ module AggregateStatePersistence =
 
             match handlers.AggregateTypes |> Map.tryFind aggregateType with
             | Some aggregateConfig -> 
-                (persistedEvents, handlers.AggregateTypeToString aggregateType, aggregateConfig)
+                (persistedEvents, aggregateType, aggregateConfig)
             | None -> 
                 failwith <| sprintf "Could not find configuration for aggregateType: %A" aggregateType
 

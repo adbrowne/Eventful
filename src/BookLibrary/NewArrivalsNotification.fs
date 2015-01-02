@@ -74,9 +74,8 @@ module NewArrivalsNotification =
         Seq.singleton ({ NewArrivalsNotificationEvent.NotificationId = notificationId; BookIds = pendingNotifications |> Map.toList |> List.map fst } :> IEvent, buildMetadata None)
 
     let handlers =
-        Eventful.Aggregate.toAggregateDefinition 
-            AggregateType.NewArrivalsNotification 
-            BookLibraryEventMetadata.GetUniqueId
+        Aggregates.toAggregateDefinition 
+            AggregateType.NewArrivalsNotification
             getStreamName 
             getEventStreamName 
             Seq.empty

@@ -135,9 +135,8 @@ module Book =
         }
 
     let handlers dbCmd =
-        Eventful.Aggregate.toAggregateDefinition 
+        Aggregates.toAggregateDefinition 
             AggregateType.Book 
-            BookLibraryEventMetadata.GetUniqueId
             getStreamName 
             getEventStreamName 
             cmdHandlers 

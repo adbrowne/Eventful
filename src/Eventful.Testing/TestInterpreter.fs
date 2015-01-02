@@ -12,13 +12,13 @@ module TestInterpreter =
 
     let rec interpret 
         (prog : EventStreamProgram<'T,_>)
-        (eventStore : TestEventStore<'TMetadata, 'TAggregateType>) 
+        (eventStore : TestEventStore<'TMetadata>) 
         (useSnapshots : bool)
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
         (values : Map<EventToken,(obj * 'TMetadata)>) 
         (writes : Vector<string * int * EventStreamEvent<'TMetadata>>)
-        : (TestEventStore<'TMetadata, 'TAggregateType> * 'T)= 
+        : (TestEventStore<'TMetadata> * 'T)= 
         match prog with
         | FreeEventStream (GetEventStoreTypeToClassMap ((), f)) ->
             let next = f eventStoreTypeToClassMap

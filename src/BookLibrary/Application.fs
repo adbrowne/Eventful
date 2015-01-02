@@ -22,15 +22,16 @@ module SetupHelpers =
         System.Reflection.Assembly.GetExecutingAssembly()
         |> Eventful.Utils.getLoadableTypes
 
-    let handlers openSession : EventfulHandlers<_,_,_,IEvent,_> =
-        EventfulHandlers.empty BookLibraryEventMetadata.GetAggregateType
+    let toString x = x.ToString()
+
+    let handlers openSession : EventfulHandlers<_,_,_,IEvent> =
+        EventfulHandlers.empty (BookLibraryEventMetadata.GetAggregateType >> toString)
         |> EventfulHandlers.addAggregate (Book.handlers openSession)
         |> EventfulHandlers.addAggregate (BookCopy.handlers openSession)
         |> EventfulHandlers.addAggregate (Award.handlers ())
         |> EventfulHandlers.addAggregate (Delivery.handlers ())
         |> EventfulHandlers.addAggregate NewArrivalsNotification.handlers
         |> addEventTypes eventTypes
-        |> EventfulHandlers.withAggregateConversion (fun at -> Enum.GetName(typeof<AggregateType>, at)) (fun str -> Enum.Parse(typeof<AggregateType>, str) :?> AggregateType)
 
 type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
     let log = createLogger "BookLibrary.BookLibraryServiceRunner"

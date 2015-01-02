@@ -6,18 +6,18 @@ open FSharpx
 open Eventful
 open System
 
-type WakeupRecord<'TAggregateType> = {
+type WakeupRecord = {
     Time : UtcDateTime
     Stream: string
-    Type : 'TAggregateType
+    Type : string
 }
 
-type TestEventStore<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> = {
+type TestEventStore<'TMetadata when 'TMetadata : equality> = {
     Position : EventPosition
     Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>
     PendingEvents : Queue<(int * PersistedStreamEntry<'TMetadata>)>
     AggregateStateSnapShots : Map<string, StateSnapshot>
-    WakeupQueue : IPriorityQueue<WakeupRecord<'TAggregateType>>
+    WakeupQueue : IPriorityQueue<WakeupRecord>
 }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -28,14 +28,14 @@ module TestEventStore =
             Prepare = position.Commit + 1L
         }
 
-    let empty<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> : TestEventStore<'TMetadata, 'TAggregateType> = { 
+    let empty<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> : TestEventStore<'TMetadata> = { 
         Position = EventPosition.Start
         Events = Map.empty
         PendingEvents = Queue.empty 
         AggregateStateSnapShots = Map.empty
         WakeupQueue = PriorityQueue.empty false }
 
-    let tryGetEvent (store : TestEventStore<'TMetadata, 'TAggregateType>) streamId eventNumber =
+    let tryGetEvent (store : TestEventStore<'TMetadata>) streamId eventNumber =
         maybe {
             let! stream = store.Events |> Map.tryFind streamId
             let! (_, entry) = stream |> Vector.tryNth eventNumber
@@ -44,7 +44,7 @@ module TestEventStore =
                     | _ -> None
         }
 
-    let addEvent stream (streamEvent: EventStreamEvent<'TMetadata>) (store : TestEventStore<'TMetadata, 'TAggregateType>) =
+    let addEvent stream (streamEvent: EventStreamEvent<'TMetadata>) (store : TestEventStore<'TMetadata>) =
         let streamEvents = 
             match store.Events |> Map.tryFind stream with
             | Some events -> events
@@ -95,8 +95,8 @@ module TestEventStore =
     let runEventHandlers 
         buildEventContext 
         interpreter 
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent, 'TAggregateType>) 
-        (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) 
+        (testEventStore : TestEventStore<'TMetadata>) 
         (persistedEvent : PersistedEvent<'TMetadata>) =
             let handlerPrograms = 
                 EventfulHandlers.getHandlerPrograms buildEventContext persistedEvent handlers
@@ -113,8 +113,8 @@ module TestEventStore =
         body
         eventNumber
         metadata
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>)
-        (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>)
+        (testEventStore : TestEventStore<'TMetadata>) =
         let aggregateType = handlers.GetAggregateType metadata
         match handlers.AggregateTypes |> Map.tryFind aggregateType with
         | Some aggregateConfig ->
@@ -151,8 +151,8 @@ module TestEventStore =
     let updateStateSnapShot 
         eventNumber
         (persistedStreamEntry : PersistedStreamEntry<'TMetadata>) 
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>)
-        (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>)
+        (testEventStore : TestEventStore<'TMetadata>) =
         match persistedStreamEntry with
         | PersistedStreamEvent { Body = body; Metadata = metadata; StreamId = streamId } ->
             applyEventDataToSnapshot streamId body eventNumber metadata handlers testEventStore
@@ -176,8 +176,8 @@ module TestEventStore =
     let rec processPendingEvents 
         buildEventContext
         interpreter 
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
-        (testEventStore : TestEventStore<'TMetadata, 'TAggregateType>) =
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) 
+        (testEventStore : TestEventStore<'TMetadata>) =
         match testEventStore.PendingEvents with
         | Queue.Nil -> testEventStore
         | Queue.Cons ((eventNumber, streamEntry), xs) ->
@@ -193,10 +193,10 @@ module TestEventStore =
     let runWakeup
         (wakeupTime : UtcDateTime)
         (streamId : string)
-        (aggregateType : 'TAggregateType)
+        (aggregateType : string)
         interpreter 
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
-        (testEventStore :  TestEventStore<'TMetadata, 'TAggregateType>) = 
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) 
+        (testEventStore :  TestEventStore<'TMetadata>) = 
 
         maybe {
             let! aggregate = handlers.AggregateTypes |> Map.tryFind aggregateType
@@ -212,9 +212,9 @@ module TestEventStore =
         onTimeChange
         buildEventContext
         interpreter 
-        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent,'TAggregateType>) 
-        (testEventStore :  TestEventStore<'TMetadata, 'TAggregateType>)
-        : TestEventStore<'TMetadata, 'TAggregateType> =
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) 
+        (testEventStore :  TestEventStore<'TMetadata>)
+        : TestEventStore<'TMetadata> =
         let rec loop testEventStore =
             maybe {
                 let! (w,ws) =  testEventStore.WakeupQueue |> PriorityQueue.tryPop 

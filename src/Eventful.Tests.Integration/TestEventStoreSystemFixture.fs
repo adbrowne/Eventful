@@ -159,7 +159,7 @@ type TestEventStoreSystemFixture () =
             member x.Start () = ()
             member x.Stop () = ()
     }
-    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj,string>(handlers, client, RunningTests.esSerializer, buildContext, nullGetSnapshot, mockWakeupMonitor)
+    let newSystem client = new EventStoreSystem<unit,MockDisposable,Eventful.Tests.TestMetadata,obj>(handlers, client, RunningTests.esSerializer, buildContext, nullGetSnapshot, mockWakeupMonitor)
 
     let system = newSystem client
 

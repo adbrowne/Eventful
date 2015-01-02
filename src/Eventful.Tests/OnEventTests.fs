@@ -46,7 +46,7 @@ module OnEventTests =
             cmdHandlers 
             evtHandlers
 
-    let handlers : Eventful.EventfulHandlers<unit,UnitEventContext,_,IEvent,_> =
+    let handlers : Eventful.EventfulHandlers<unit,UnitEventContext,_,IEvent> =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate (fooHandlers ())
         |> StandardConventions.addEventTypes eventTypes
