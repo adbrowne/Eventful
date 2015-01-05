@@ -72,6 +72,7 @@ type BulkProjector<'TMessage, 'TAction when 'TMessage :> IBulkMessage>
         onEventComplete : 'TMessage -> Async<unit>,
         getPersistedPosition : Async<EventPosition option>,
         writeUpdatedPosition : EventPosition -> Async<bool>,
+        positionWritePeriod : int,
         maxEventQueueSize : int,
         eventWorkers : int,
         workTimeout : TimeSpan option
@@ -186,7 +187,7 @@ type BulkProjector<'TMessage, 'TAction when 'TMessage :> IBulkMessage>
     // at the moment it can be called multiple times
     member x.StartPersistingPosition () = 
         let rec loop () =  async {
-            do! Async.Sleep(5000)
+            do! Async.Sleep(positionWritePeriod)
 
             let! position = x.LastComplete()
 

@@ -53,6 +53,7 @@ module BulkNeo4jProjector =
             onEventComplete,
             getPersistedPosition,
             writeUpdatedPosition,
+            5000,
             maxEventQueueSize,
             eventWorkers,
             workTimeout)

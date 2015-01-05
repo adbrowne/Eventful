@@ -165,7 +165,8 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
                         readQueue,
                         100000, 
                         1000, 
-                        Some (TimeSpan.FromSeconds(60.0))
+                        Some (TimeSpan.FromSeconds(60.0)),
+                        5000
                     )
             bulkRavenProjector.StartWork ()
             bulkRavenProjector.StartPersistingPosition ()

@@ -25,7 +25,8 @@ module BulkRavenProjector =
             readQueue : RavenReadQueue,
             maxEventQueueSize : int,
             eventWorkers: int,
-            workTimeout : TimeSpan option
+            workTimeout : TimeSpan option,
+            positionWritePeriod
         ) =
         let fetcher = new DocumentFetcher(documentStore, databaseName, readQueue) :> IDocumentFetcher
 
@@ -64,6 +65,7 @@ module BulkRavenProjector =
             onEventComplete,
             getPersistedPosition,
             writeUpdatedPosition,
+            positionWritePeriod,
             maxEventQueueSize,
             eventWorkers,
             workTimeout)

@@ -279,7 +279,8 @@ module RavenProjectorTests =
                 readQueue,
                 1000000,
                 1000,
-                None)
+                None,
+                1000)
 
         projector
 
