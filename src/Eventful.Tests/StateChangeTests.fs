@@ -17,6 +17,12 @@ module StateChangeTests =
         Qty : int
     }
 
+    type FooRunEvent = {
+        Id : Guid
+        Qty : int
+    }
+    with interface IEvent
+
     type FooEvent = {
         Id : Guid
         Qty : int
@@ -34,7 +40,23 @@ module StateChangeTests =
         yield typeof<MultipleOf10ReachedEvent>
     }
 
-    let fooHandlers =    
+    let quantityStateBuilder =
+        StateBuilder.Empty "Quantity" 0
+        |> StateBuilder.handler (fun _ _ -> ()) (fun (qty,e:FooEvent,_) -> qty + e.Qty)
+
+    let emitMultipleOf10Event before after =
+        match (after % 10) with
+        | 0 -> Seq.singleton ({ MultipleOf10ReachedEvent.Id = Guid.NewGuid(); Qty = after } :> IEvent, metadataBuilder None)
+        | _ -> Seq.empty
+
+    let quantityStateChangeHandler = 
+        AggregateActionBuilder.buildStateChange quantityStateBuilder emitMultipleOf10Event
+
+    let emptyHandlers = 
+        AggregateHandlers.Empty
+        |> AggregateHandlers.addStateChangeHandler quantityStateChangeHandler 
+
+    let stateChangeOnCommandHandlers =
         let cmdHandlers = seq {
             yield 
                 cmdHandler
@@ -43,22 +65,9 @@ module StateChangeTests =
                 |> AggregateActionBuilder.buildCmd
         }
 
-        let quantityStateBuilder =
-            StateBuilder.Empty "Quantity" 0
-            |> StateBuilder.handler (fun _ _ -> ()) (fun (qty,e:FooEvent,_) -> qty + e.Qty)
-
-        let emitMultipleOf10Event before after =
-            match (after % 10) with
-            | 0 -> Seq.singleton ({ MultipleOf10ReachedEvent.Id = Guid.NewGuid(); Qty = after } :> IEvent, metadataBuilder None)
-            | _ -> Seq.empty
-
-        let quantityStateChangeHandler = 
-            AggregateActionBuilder.buildStateChange quantityStateBuilder emitMultipleOf10Event
-
         let handlers = 
-            AggregateHandlers.Empty
+            emptyHandlers 
             |> AggregateHandlers.addCommandHandlers cmdHandlers
-            |> AggregateHandlers.addStateChangeHandler quantityStateChangeHandler 
 
         Eventful.Aggregate.aggregateDefinitionFromHandlers
             "TestAggregate"
@@ -67,12 +76,46 @@ module StateChangeTests =
             getStreamName
             handlers
 
-    let handlers =
+    let stateChangeOnEventHandlers =
+        let cmdHandlers = seq {
+            yield 
+                cmdHandler
+                    (fun (cmd : FooCmd) -> 
+                        { FooRunEvent.Id = cmd.Id;  Qty = cmd.Qty } :> IEvent )
+                |> AggregateActionBuilder.buildCmd
+        }
+
+        let evtHandlers = seq {
+            let handler _ (evt : FooRunEvent) _ =
+                let outputEvent = { FooEvent.Id = evt.Id; Qty = evt.Qty} :> IEvent
+                let metadata = { 
+                    TestMetadata.AggregateType = "TestAggregate"
+                    TestMetadata.SourceMessageId = Some <| Guid.NewGuid().ToString() }
+
+                (outputEvent, metadata)
+                |> Seq.singleton
+            yield
+                AggregateActionBuilder.onEvent (fun (evt : FooRunEvent) _ -> evt.Id) StateBuilder.nullStateBuilder handler
+        }
+
+        let handlers = 
+            emptyHandlers 
+            |> AggregateHandlers.addCommandHandlers cmdHandlers
+            |> AggregateHandlers.addEventHandlers evtHandlers
+
+        Eventful.Aggregate.aggregateDefinitionFromHandlers
+            "TestAggregate"
+            TestMetadata.GetUniqueId
+            getCommandStreamName
+            getStreamName
+            handlers
+
+    let handlers aggregateDefinition =
         EventfulHandlers.empty TestMetadata.GetAggregateType
-        |> EventfulHandlers.addAggregate fooHandlers
+        |> EventfulHandlers.addAggregate stateChangeOnCommandHandlers
         |> StandardConventions.addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
+    let emptyTestSystem aggregateDefinition = TestSystem.Empty (konst UnitEventContext) (handlers aggregateDefinition)
 
     let multipleOf10Count : IStateBuilder<int, TestMetadata, unit> =
         StateBuilder.eventTypeCountBuilder (fun (e:MultipleOf10ReachedEvent) _ -> ())
@@ -80,14 +123,14 @@ module StateChangeTests =
 
     [<Fact>]
     [<Trait("category", "unit")>]
-    let ``When 10 is reached event is emitted`` () : unit =
+    let ``When 10 is reached event is emitted by command handler`` () : unit =
         let thisId = Guid.NewGuid()
         let streamName = getStreamName UnitEventContext thisId
 
         let commandId = Guid.NewGuid() 
 
         let afterRun = 
-            emptyTestSystem  
+            emptyTestSystem stateChangeOnCommandHandlers 
             |> TestSystem.runCommand { FooCmd.Id = thisId; Qty = 10 } commandId
             |> TestSystem.runToEnd
 
@@ -95,9 +138,26 @@ module StateChangeTests =
 
         eventCount |> should equal 1
 
-// this is normal fizz buzz as we emit all 3 events when
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``When 10 is reached event is emitted by event handler`` () : unit =
+        let thisId = Guid.NewGuid()
+        let streamName = getStreamName UnitEventContext thisId
+
+        let commandId = Guid.NewGuid() 
+
+        let afterRun = 
+            emptyTestSystem stateChangeOnEventHandlers 
+            |> TestSystem.runCommand { FooCmd.Id = thisId; Qty = 10 } commandId
+            |> TestSystem.runToEnd
+
+        let eventCount = afterRun.EvaluateState streamName () multipleOf10Count
+
+        eventCount |> should equal 1
+
+// this is not the normal fizz buzz as we emit all 3 events when
 // they are all divisable
-module FizzBuzzStateChangeTests =
+module FizzBuzzCommandStateChangeTests =
     open EventSystemTestCommon
 
     type IncrimentEvent = IncrimentEvent

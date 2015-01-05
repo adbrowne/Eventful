@@ -411,7 +411,7 @@ module AggregateActionBuilder =
     } 
 
     let processSequence
-        (aggregateConfig : AggregateConfiguration<'TEventContext,'TId,'TMetadata, 'TBaseEvent>)
+        (aggregateConfiguration : AggregateConfiguration<'TEventContext,'TId,'TMetadata, 'TBaseEvent>)
         (stateBuilder : IStateBuilder<'TState,_,_>)
         (event: PersistedEvent<'TMetadata>)
         (eventContext : 'TEventContext)  
@@ -420,29 +420,26 @@ module AggregateActionBuilder =
         handlers
         |> AsyncSeq.map (fun (id, handler) ->
             eventStream {
-                let resultingStream = aggregateConfig.GetStreamName eventContext id
-                let! stateSnapshot = 
-                    aggregateConfig.StateBuilder 
-                    |> AggregateStateBuilder.toStreamProgram resultingStream ()
-                let state = stateBuilder.GetState stateSnapshot.State
+                let resultingStream = aggregateConfiguration.GetStreamName eventContext id
+                let f snapshot = 
+                    let stateBuilder = stateBuilder |> StateBuilder.withUnitKey
+                    runHandler 
+                        aggregateConfiguration.GetUniqueId 
+                        aggregateConfiguration.StateBuilder.GetBlockBuilders
+                        aggregateConfiguration.StateChangeHandlers
+                        resultingStream 
+                        snapshot
+                        stateBuilder 
+                        (handler >> Choice1Of2 >> Async.returnM) 
 
-                let evts = handler state
-
-                let evts = 
-                    if (anyNewUniqueIdsAlreadyExist aggregateConfig.GetUniqueId stateSnapshot evts) then
-                        log.Debug <| lazy(sprintf "Duplicate event detected: %s %d" event.StreamId event.EventNumber)
-                        Seq.empty
-                    else
-                        evts
-
-                let! result = writeEvents resultingStream stateSnapshot.LastEventNumber (evts |> List.ofSeq)
+                let! result = retryOnWrongVersion resultingStream aggregateConfiguration.StateBuilder f
 
                 return 
                     match result with
-                    | WriteResult.WriteSuccess _ -> ()
-                    | WriteResult.WrongExpectedVersion -> failwith "WrongExpectedVersion writing event. TODO: retry"
-                    | WriteResult.WriteError ex -> failwith <| sprintf "WriteError writing event: %A" ex
-                    | WriteResult.WriteCancelled -> failwith "WriteCancelled writing event"
+                    | Choice1Of2 _ -> ()
+                    | Choice2Of2 AlreadyProcessed -> ()
+                    | Choice2Of2 a ->
+                        failwith <| sprintf "Event handler failed: %A" a
             }
         )
 
