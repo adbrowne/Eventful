@@ -78,7 +78,6 @@
     <Compile Include="BatchingQueue.fs" />
     <Compile Include="WorktrackingQueue.fs" />
     <Compile Include="WorktrackingQueue.CSharp.fs" />
-    <Compile Include="MagicMapper.fs" />
     <Compile Include="UnitEventContext.fs" />
     <Compile Include="EventPosition.fs" />
     <Compile Include="EventStream.fs" />
@@ -92,6 +91,7 @@
     <Compile Include="ISerializer.fs" />
     <Compile Include="BulkProjector.fs" />
     <Compile Include="WakeupMonitor.fs" />
+    <Compile Include="MagicMapper.fs" />
     <Compile Include="StandardConventions.fs" />
     <None Include="packages.config" />
     <None Include="app.config" />

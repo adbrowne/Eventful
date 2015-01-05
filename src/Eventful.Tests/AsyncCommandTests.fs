@@ -41,6 +41,7 @@ module AsyncCommandTests =
 
     let cmdHandlerAsync f =
         AggregateActionBuilder.fullHandlerAsync
+            MagicMapper.magicGetCmdId<_>
             StateBuilder.nullStateBuilder
             (fun _ (cmdContext : CommandContextWithAsyncService) cmd -> async {
                 let! events = async {

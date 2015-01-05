@@ -102,7 +102,7 @@ module Book =
                updateTitle <!> newTitle
                |> addMetadata 
            
-           yield AggregateActionBuilder.fullHandler bookTitle updateTitleHandler
+           yield AggregateActionBuilder.fullHandler MagicMapper.magicGetCmdId<_> bookTitle updateTitleHandler
                  |> AggregateActionBuilder.buildCmd
         }
 

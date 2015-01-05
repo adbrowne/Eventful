@@ -56,6 +56,7 @@ module Aggregates =
 
     let cmdHandlerS stateBuilder f buildMetadata =
         AggregateActionBuilder.fullHandler
+             MagicMapper.magicGetCmdId<'TId>
             stateBuilder
             (fun state () cmd -> 
                 f state cmd 

@@ -29,6 +29,7 @@ module EventSystemTestCommon =
 
     let multiEventCmdHandlerS stateBuilder f =
         AggregateActionBuilder.fullHandler
+            MagicMapper.magicGetCmdId<_>
             stateBuilder
             (fun state (cmdContext : Guid) cmd -> 
                 f state cmd 

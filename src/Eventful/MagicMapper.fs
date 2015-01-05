@@ -37,6 +37,8 @@ module MagicMapper =
         | Some getter -> getter item
         | None -> failwith <| sprintf "Unable to find unambiguous property %A on type: %A" typeof<'TId> objType
 
+    let magicGetCmdId<'TId> = (fun _ -> magicId<'TId>)
+
     let getWrapper<'TUnion> () =
         let cases = FSharpType.GetUnionCases(typeof<'TUnion>)
         let wrappableCases = 

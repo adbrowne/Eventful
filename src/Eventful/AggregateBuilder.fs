@@ -129,23 +129,23 @@ module AggregateActionBuilder =
 
     let log = createLogger "Eventful.AggregateActionBuilder"
 
-    let fullHandlerAsync<'TId, 'TState,'TCmd, 'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
+    let fullHandlerAsync<'TId, 'TState,'TCmd, 'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> getId (stateBuilder : IStateBuilder<_,_,'TKey>) f =
         {
-            GetId = (fun _ -> MagicMapper.magicId<'TId>)
+            GetId = getId
             StateBuilder = StateBuilder.withUnitKey stateBuilder
             Handler = f
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
-    let fullHandler<'TId, 'TState,'TCmd,'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> (stateBuilder : IStateBuilder<_,_,'TKey>) f =
+    let fullHandler<'TId, 'TState,'TCmd,'TCommandContext,'TMetadata, 'TBaseEvent,'TKey> getId (stateBuilder : IStateBuilder<_,_,'TKey>) f =
         {
-            GetId = (fun _ -> MagicMapper.magicId<'TId>)
+            GetId = getId
             StateBuilder = StateBuilder.withUnitKey stateBuilder
             Handler = (fun a b c ->  f a b c |> Async.returnM)
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TId, 'TMetadata, 'TBaseEvent> 
 
-    let simpleHandler<'TAggregateId, 'TState, 'TCmd, 'TCommandContext, 'TMetadata, 'TBaseEvent> stateBuilder (f : 'TCmd -> ('TBaseEvent * 'TMetadata)) =
+    let simpleHandler<'TAggregateId, 'TState, 'TCmd, 'TCommandContext, 'TMetadata, 'TBaseEvent> getId stateBuilder (f : 'TCmd -> ('TBaseEvent * 'TMetadata)) =
         {
-            GetId = (fun _ -> MagicMapper.magicId<'TAggregateId>)
+            GetId = getId
             StateBuilder = stateBuilder
             Handler = (fun _ _ -> f >> Seq.singleton >> Success >> Async.returnM)
         } : CommandHandler<'TCmd, 'TCommandContext, 'TState, 'TAggregateId, 'TMetadata, 'TBaseEvent> 

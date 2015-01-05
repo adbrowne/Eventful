@@ -49,7 +49,7 @@ module TestAggregate =
         (cmdResult, buildMetadata None)
 
     let inline simpleHandler f = 
-        Eventful.AggregateActionBuilder.simpleHandler stateBuilder (withMetadata f)
+        Eventful.AggregateActionBuilder.simpleHandler MagicMapper.magicGetCmdId<_> stateBuilder (withMetadata f)
     
     let inline buildCmdHandler f =
         f
@@ -64,7 +64,7 @@ module TestAggregate =
                 |> List.map (fun x -> (x, buildMetadata))
                 |> List.toSeq
             )
-        Eventful.AggregateActionBuilder.fullHandler s withMetadata
+        Eventful.AggregateActionBuilder.fullHandler MagicMapper.magicGetCmdId<_> s withMetadata
 
     let cmdHandlers = 
         seq {

@@ -34,6 +34,7 @@ module TestEventStoreSystemHelpers =
 
     let cmdBuilderS stateBuilder f =
         AggregateActionBuilder.fullHandler
+            MagicMapper.magicGetCmdId<_>
             stateBuilder
             (fun state () cmd -> 
                 f state cmd 
