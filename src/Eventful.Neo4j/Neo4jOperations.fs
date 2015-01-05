@@ -212,7 +212,7 @@ module Operations =
             |> mergeNodeIdQ "node" node
             |> updateNodeQ "node" node data
 
-    let graphActionSeqToQuery (graphClient : ICypherGraphClient) (graphName : string) actions =
+    let graphTransactionToQuery (graphClient : ICypherGraphClient) (graphName : string) (GraphTransaction actions) =
         let folder (query, isFirst) action =
             let chainIfNotFirst = if isFirst then id else chainQ
 
@@ -227,12 +227,13 @@ module Operations =
         |> Seq.fold folder (beginQ graphClient graphName, true)
         |> fst
 
-    let writeBatch (graphClient : ICypherGraphClient) (graphName : string) (actionBatches : seq<seq<GraphAction>>) =
+    let writeBatch (graphClient : ICypherGraphClient) (graphName : string) (actionBatches : seq<seq<GraphTransaction>>) =
         async {
             try
                 let queries =
                     actionBatches
-                    |> Seq.map (graphActionSeqToQuery graphClient graphName)
+                    |> Seq.concat
+                    |> Seq.map (graphTransactionToQuery graphClient graphName)
 
                 for query in queries do
                     do! executeAsyncQ query

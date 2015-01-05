@@ -26,7 +26,7 @@ type Neo4jWriteQueue
     let batchWriterThroughput = Metric.Meter("Neo4jWriteQueue Nodes Written", Unit.Items)
     let batchConflictsMeter = Metric.Meter("Neo4jWriteQueue Conflicts", Unit.Items)
 
-    let processActions graphName (actionBatches : seq<seq<GraphAction> * AsyncReplyChannel<Choice<unit, exn>>>) = async {
+    let processActions graphName (actionBatches : seq<seq<GraphTransaction> * AsyncReplyChannel<Choice<unit, exn>>>) = async {
         let sw = System.Diagnostics.Stopwatch.StartNew()
         
         let! result = Operations.writeBatch graphClient graphName (actionBatches |> Seq.map fst)
@@ -50,7 +50,7 @@ type Neo4jWriteQueue
         batchWriteTime.Record(sw.ElapsedMilliseconds, TimeUnit.Milliseconds)
     }
 
-    let queue = new BatchingQueue<string, GraphAction seq, Choice<unit, exn>>(maxBatchSize, maxQueueSize)
+    let queue = new BatchingQueue<string, GraphTransaction seq, Choice<unit, exn>>(maxBatchSize, maxQueueSize)
 
     let consumer = async {
         while true do

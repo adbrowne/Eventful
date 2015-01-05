@@ -54,15 +54,15 @@ module Neo4jOperationTests =
         let graphClient = buildGraphClientAndCleanTestGraph ()
 
         countRelationship graphClient |> should equal 0
-        runBatch graphClient [ AddRelationship relationship ]
+        runBatch graphClient [ GraphTransaction [ AddRelationship relationship ] ]
         countRelationship graphClient |> should equal 1
 
     [<Fact>]
     let ``Can remove relationship`` () : unit =
         let graphClient = buildGraphClientAndCleanTestGraph ()
 
-        runBatch graphClient [ AddRelationship relationship ]
+        runBatch graphClient [ GraphTransaction [ AddRelationship relationship ] ]
         countRelationship graphClient |> should equal 1
-        runBatch graphClient [ RemoveRelationship relationship ]
+        runBatch graphClient [  GraphTransaction [ RemoveRelationship relationship ] ]
         countRelationship graphClient |> should equal 0
         

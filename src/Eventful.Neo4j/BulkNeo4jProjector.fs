@@ -13,7 +13,7 @@ module BulkNeo4jProjector =
     let create
         (
             graphName : string,
-            projectors : IProjector<'TMessage, unit, GraphAction> seq,
+            projectors : IProjector<'TMessage, unit, GraphTransaction> seq,
             cancellationToken : CancellationToken,
             onEventComplete : 'TMessage -> Async<unit>,
             graphClient : ICypherGraphClient,
@@ -32,7 +32,7 @@ module BulkNeo4jProjector =
 
         let writeUpdatedPosition position = async {
             let writeRequests =
-                UpdateNode (positionNodeId, position)
+                GraphTransaction [ UpdateNode (positionNodeId, position) ]
                 |> Seq.singleton
 
             let! writeResult = writeQueue.Work graphName writeRequests
