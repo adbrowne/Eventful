@@ -102,7 +102,6 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
         } |> Async.StartAsTask
 
     member x.Start () =
-
         log.Debug <| lazy "Starting App"
         async {
             let! connection = getConnection eventStoreConfig
@@ -118,9 +117,12 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
             let dbCommands = documentStore.AsyncDatabaseCommands.ForDatabase(ravenConfig.Database)
 
             let webAddress = getIpAddress webConfig.Server
+
+            let suaveLogger = new SuaveEventfulLogger(Serilog.Log.Logger.ForContext("SourceContext","Suave"))
             let suaveConfig = 
                 { default_config with 
-                   Types.SuaveConfig.bindings = [Types.HttpBinding.Create (Types.Protocol.HTTP, webAddress.ToString(), webConfig.Port)] }
+                   Types.SuaveConfig.bindings = [Types.HttpBinding.Create (Types.Protocol.HTTP, webAddress.ToString(), webConfig.Port)] 
+                   logger = suaveLogger }
 
             // start web
             let (ready, listens) =

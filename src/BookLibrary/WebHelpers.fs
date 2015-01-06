@@ -6,6 +6,15 @@ open Suave
 open Suave.Http
 open Suave.Http.Successful
 
+type SuaveEventfulLogger(logger : Serilog.ILogger) =
+  interface Suave.Log.Logger with
+    member x.Log level f_line =
+      match level with
+      | _ ->
+        let line = f_line()
+        Console.WriteLine(line.message)
+        logger.Debug(line.message, [||])
+
 module WebHelpers =
     let log = createLogger "BookLibrary.WebHelpers"
     let fromJson<'TDto> (f : 'TDto -> Types.WebPart) (context : Types.HttpContext) : Types.SuaveTask<Types.HttpContext> =
