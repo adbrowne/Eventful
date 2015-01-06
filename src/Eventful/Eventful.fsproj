@@ -81,6 +81,7 @@
     <Compile Include="UnitEventContext.fs" />
     <Compile Include="EventPosition.fs" />
     <Compile Include="EventStream.fs" />
+    <Compile Include="MutliCommand.fs" />
     <Compile Include="Validation.fs" />
     <Compile Include="EventFold.fs" />
     <Compile Include="StateBuilder.fs" />
