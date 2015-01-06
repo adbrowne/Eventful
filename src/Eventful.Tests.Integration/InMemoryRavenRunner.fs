@@ -24,6 +24,8 @@ module InMemoryRavenRunner =
 
         let ravenProcess = IntegrationTests.startProcess executableAbsolutePath processArguments
 
+        IntegrationTests.logOutput ravenProcess
+
         {
             Process = ravenProcess
             HttpPort = ravenPort

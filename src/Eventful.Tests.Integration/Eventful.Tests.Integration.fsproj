@@ -124,6 +124,10 @@
       <HintPath>..\packages\FsCheck.Xunit.1.0.1\lib\net45\FsCheck.Xunit.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="FSharp.Data">
+      <HintPath>..\packages\FSharp.Data.2.1.1\lib\net40\FSharp.Data.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="FSharpx.Collections">
       <HintPath>..\packages\FSharpx.Collections.1.9.4\lib\net35\FSharpx.Collections.dll</HintPath>
       <Private>True</Private>
@@ -138,6 +142,10 @@
     </Reference>
     <Reference Include="FsUnit.Xunit">
       <HintPath>..\packages\FsUnit.xUnit.1.3.0.1\Lib\net40\FsUnit.Xunit.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="HttpClient">
+      <HintPath>..\packages\Http.fs.1.4.0\lib\net40\HttpClient.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Metrics">
@@ -189,6 +197,7 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Runtime.Caching" />
+    <Reference Include="System.Xml.Linq" />
     <Reference Include="UnionArgParser">
       <HintPath>..\packages\UnionArgParser.0.8.2\lib\net40\UnionArgParser.dll</HintPath>
       <Private>True</Private>

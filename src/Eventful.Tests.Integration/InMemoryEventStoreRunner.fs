@@ -55,6 +55,9 @@ module InMemoryEventStoreRunner =
                 if line <> null then
                     IntegrationTests.log.Debug (lazy line)
                 if line <> null && line.Contains("SystemInit") then started <- true
+
+            IntegrationTests.logOutput eventStoreProcess
+
             (testTcpPort, testHttpPort, eventStoreProcess)
         with | _ ->
             eventStoreProcess.Kill()

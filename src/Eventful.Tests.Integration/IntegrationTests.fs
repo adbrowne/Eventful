@@ -31,6 +31,15 @@ module IntegrationTests =
 
         Process.Start(startInfo)
 
+    let logOutput (p : System.Diagnostics.Process) =
+        async {
+            while true do
+                let line = p.StandardOutput.ReadLine()
+                if line <> null then
+                    log.Debug (lazy line)
+                ()
+        } |> Async.StartAsTask |> ignore
+
     let runUntilSuccess maxTries f =
         let rec loop attempt =
             try 

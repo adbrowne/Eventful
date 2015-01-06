@@ -59,6 +59,9 @@ module BookLibraryRunner =
                 if line <> null then
                     IntegrationTests.log.Debug (lazy line)
                 if line <> null && line.Contains("Press 'q' to exit") then started <- true
+
+            IntegrationTests.logOutput bookLibraryProcess
+
             {
                 Process = bookLibraryProcess
                 HttpPort = httpPort
