@@ -192,6 +192,10 @@
       <HintPath>..\packages\Serilog.Sinks.Seq.1.4.76\lib\net45\Serilog.Sinks.Seq.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="suave">
+      <HintPath>..\packages\Suave.0.18.0\lib\suave.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Core" />
