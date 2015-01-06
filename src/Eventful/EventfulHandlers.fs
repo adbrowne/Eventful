@@ -4,10 +4,12 @@ open System
 open Eventful.EventStream
 open FSharpx
 open FSharpx.Collections
+open FSharp.Control
 
                                             // Source StreamId, Source Event Number, Event -> Program
 type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
 type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T, 'TMetadata>) * IRegistrationVisitable
+type EventfulMultiCommandEventHandler<'T, 'TEventContext, 'TCommandContext, 'TMetadata> = EventfulMultiCommandEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> AsyncSeq<(obj * 'TCommandContext)>)
 
 type EventfulWakeupHandler<'TMetadata> = EventfulWakeupHandler of WakeupFold<'TMetadata> * (string -> UtcDateTime -> EventStreamProgram<EventResult, 'TMetadata>)
 type EventfulStreamConfig<'TMetadata> = {
@@ -16,59 +18,51 @@ type EventfulStreamConfig<'TMetadata> = {
     GetUniqueId : 'TMetadata -> Option<string>
 }
 
-type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent>
-    (
-        commandHandlers : Map<string, EventfulCommandHandler<CommandResult<'TBaseEvent, 'TMetadata>, 'TCommandContext, 'TMetadata>>, 
-        eventHandlers : Map<string, EventfulEventHandler<EventResult, 'TEventContext, 'TMetadata> list>,
-        aggregateTypes : Map<string,EventfulStreamConfig<'TMetadata>>,
-        eventStoreTypeToClassMap : EventStoreTypeToClassMap,
-        classToEventStoreTypeMap : ClassToEventStoreTypeMap,
-        getAggregateType: 'TMetadata -> string
-    ) =
-    member x.CommandHandlers = commandHandlers
-    member x.EventHandlers = eventHandlers
-    member x.EventStoreTypeToClassMap = eventStoreTypeToClassMap
-    member x.ClassToEventStoreTypeMap = classToEventStoreTypeMap
-    member x.AggregateTypes = aggregateTypes
-    member x.GetAggregateType = getAggregateType
-
+type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent> = {
+        CommandHandlers : Map<string, EventfulCommandHandler<CommandResult<'TBaseEvent, 'TMetadata>, 'TCommandContext, 'TMetadata>>
+        EventHandlers : Map<string, EventfulEventHandler<EventResult, 'TEventContext, 'TMetadata> list>
+        MultiCommandEventHandlers : Map<string, EventfulMultiCommandEventHandler<EventResult, 'TEventContext, 'TCommandContext, 'TMetadata> list>
+        AggregateTypes : Map<string,EventfulStreamConfig<'TMetadata>>
+        EventStoreTypeToClassMap : EventStoreTypeToClassMap
+        ClassToEventStoreTypeMap : ClassToEventStoreTypeMap
+        GetAggregateType: 'TMetadata -> string }
+with
     member x.AddCommandHandler = function
         | EventfulCommandHandler(cmdType,_,_) as handler -> 
             let cmdTypeFullName = cmdType.FullName
-            let commandHandlers' = commandHandlers |> Map.add cmdTypeFullName handler
-            new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>(commandHandlers', eventHandlers, aggregateTypes, eventStoreTypeToClassMap, classToEventStoreTypeMap, getAggregateType)
+            { x with CommandHandlers = x.CommandHandlers |> Map.add cmdTypeFullName handler }
 
     member x.AddEventHandler = function
         | EventfulEventHandler(eventType,_) as handler -> 
             let evtName = eventType.Name
-            let eventHandlers' = 
-                eventHandlers |> Map.insertWith List.append evtName [handler]
-            new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>(commandHandlers, eventHandlers', aggregateTypes, eventStoreTypeToClassMap, classToEventStoreTypeMap, getAggregateType)
+            { x with EventHandlers = x.EventHandlers |> Map.insertWith List.append evtName [handler] }
+
+    member x.AddMultiCommandEventHandler = function
+        | EventfulMultiCommandEventHandler(eventType,_) as handler -> 
+            let evtName = eventType.Name
+            { x with MultiCommandEventHandlers = x.MultiCommandEventHandlers |> Map.insertWith List.append evtName [handler] }
 
     member x.AddAggregateType aggregateType config  = 
-        let aggregateTypes' = aggregateTypes |> Map.add aggregateType config
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>(commandHandlers, eventHandlers, aggregateTypes', eventStoreTypeToClassMap, classToEventStoreTypeMap, getAggregateType)
+        { x with AggregateTypes = x.AggregateTypes |> Map.add aggregateType config }
 
     member x.AddEventStoreTypeToClassMapping (eventStoreType : string) (evtType : Type) =
-        let eventStoreTypeToClassMap' = eventStoreTypeToClassMap |> PersistentHashMap.add eventStoreType evtType 
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>(commandHandlers, eventHandlers, aggregateTypes, eventStoreTypeToClassMap', classToEventStoreTypeMap, getAggregateType)
+        { x with EventStoreTypeToClassMap = x.EventStoreTypeToClassMap |> PersistentHashMap.add eventStoreType evtType }
 
     member x.AddClassToEventStoreTypeMap (evtType : Type) (eventStoreType : string) =
-        let classToEventStoreTypeMap' = classToEventStoreTypeMap |> PersistentHashMap.add evtType eventStoreType 
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>(commandHandlers, eventHandlers, aggregateTypes, eventStoreTypeToClassMap, classToEventStoreTypeMap', getAggregateType)
+        { x with ClassToEventStoreTypeMap = x.ClassToEventStoreTypeMap |> PersistentHashMap.add evtType eventStoreType }
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module EventfulHandlers = 
     let log = createLogger "Eventful.EventfulHandlers"
 
-    let empty getAggregateType = 
-        new EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>(
-            Map.empty, 
-            Map.empty, 
-            Map.empty, 
-            PersistentHashMap.empty, 
-            PersistentHashMap.empty,
-            getAggregateType)
+    let empty getAggregateType = {
+        CommandHandlers = Map.empty
+        EventHandlers = Map.empty
+        MultiCommandEventHandlers = Map.empty
+        AggregateTypes = Map.empty
+        EventStoreTypeToClassMap = FSharpx.Collections.PersistentHashMap.empty
+        ClassToEventStoreTypeMap = FSharpx.Collections.PersistentHashMap.empty
+        GetAggregateType = getAggregateType }
 
     let addCommandHandlers config (commandHandlers : ICommandHandler<_,_, _,_> list) eventfulHandlers =
         commandHandlers
@@ -79,6 +73,11 @@ module EventfulHandlers =
         eventHandlers
         |> Seq.map (fun x -> EventfulEventHandler(x.EventType, x.Handler config))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) h -> s.AddEventHandler h) eventfulHandlers
+
+    let addMultiCommandEventHandlers (multiCommandEventHandlers : IMultiCommandEventHandler<_,_,_> list) eventfulHandlers =
+        multiCommandEventHandlers
+        |> Seq.map (fun x -> EventfulMultiCommandEventHandler(x.EventType, x.Handler))
+        |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) h -> s.AddMultiCommandEventHandler h) eventfulHandlers
 
     let addAggregateType aggregateType config (eventfulHandlers : EventfulHandlers<_,_,_,_>) =
         eventfulHandlers.AddAggregateType aggregateType config
@@ -151,6 +150,7 @@ module EventfulHandlers =
         |> addCommandHandlers commandConfig aggregateDefinition.Handlers.CommandHandlers
         |> addEventHandlers eventConfig aggregateDefinition.Handlers.EventHandlers
         |> addAggregateType aggregateDefinition.AggregateType aggregateConfig
+        |> addMultiCommandEventHandlers aggregateDefinition.Handlers.MultiCommandEventHandlers
 
     let getHandlerPrograms buildEventContext (persistedEvent : PersistedEvent<'TMetadata>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) =
         let toProgram (EventfulEventHandler (_, handler)) = 
@@ -158,6 +158,16 @@ module EventfulHandlers =
             handler context persistedEvent
 
         eventfulHandlers.EventHandlers
+        |> Map.tryFind (persistedEvent.Body.GetType().Name)
+        |> Option.map (List.map toProgram)
+        |> Option.getOrElse []
+
+    let getMulitCommandEventHandlers buildEventContext (persistedEvent : PersistedEvent<'TMetadata>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) =
+        let toProgram (EventfulMultiCommandEventHandler (_, handler)) = 
+            use context = buildEventContext persistedEvent
+            handler context persistedEvent
+        
+        eventfulHandlers.MultiCommandEventHandlers
         |> Map.tryFind (persistedEvent.Body.GetType().Name)
         |> Option.map (List.map toProgram)
         |> Option.getOrElse []

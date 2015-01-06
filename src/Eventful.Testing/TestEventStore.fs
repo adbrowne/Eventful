@@ -5,6 +5,7 @@ open FSharpx.Option
 open FSharpx
 open Eventful
 open System
+open FSharp.Control
 
 type WakeupRecord = {
     Time : UtcDateTime
@@ -19,6 +20,9 @@ type TestEventStore<'TMetadata when 'TMetadata : equality> = {
     AggregateStateSnapShots : Map<string, StateSnapshot>
     WakeupQueue : IPriorityQueue<WakeupRecord>
 }
+
+type IInterpreter<'TMetadata when 'TMetadata : equality> = 
+    abstract member Run<'A> : EventStream.EventStreamProgram<'A,'TMetadata> -> TestEventStore<'TMetadata> -> (TestEventStore<'TMetadata> * 'A)
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module TestEventStore =
@@ -94,13 +98,34 @@ module TestEventStore =
 
     let runEventHandlers 
         buildEventContext 
-        interpreter 
+        (interpreter : IInterpreter<'TMetadata>) 
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) 
         (testEventStore : TestEventStore<'TMetadata>) 
         (persistedEvent : PersistedEvent<'TMetadata>) =
             let handlerPrograms = 
                 EventfulHandlers.getHandlerPrograms buildEventContext persistedEvent handlers
-            handlerPrograms |> Seq.fold (runHandlerForEvent interpreter) testEventStore
+            handlerPrograms 
+            |> Seq.fold (runHandlerForEvent interpreter.Run) testEventStore
+
+    let runMultiCommandEventHandler handlers interpreter (testEventStore : TestEventStore<'TMetadata>)  (commands : AsyncSeq<(obj * 'TCommandContext)>) =
+        let runCommand state (cmd:obj, context:'TCommandContext) =
+           let program = EventfulHandlers.getCommandProgram context cmd handlers
+           let (s,result) = interpreter program state
+           s
+        commands
+        |> AsyncSeq.fold runCommand testEventStore
+        |> Async.RunSynchronously
+
+    let runMultiCommandEventHandlers 
+        buildEventContext 
+        (interpreter : IInterpreter<'TMetadata>)  
+        (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) 
+        (persistedEvent : PersistedEvent<'TMetadata>) 
+        (testEventStore : TestEventStore<'TMetadata>) =
+            let handlerPrograms = 
+                EventfulHandlers.getMulitCommandEventHandlers buildEventContext persistedEvent handlers
+            handlerPrograms 
+            |> Seq.fold (runMultiCommandEventHandler handlers interpreter.Run) testEventStore
 
     let getCurrentState streamId testEventStore =
 
@@ -159,7 +184,7 @@ module TestEventStore =
         | PersistedStreamLink  { LinkedBody = body; LinkedMetadata = metadata; LinkedStreamId = streamId } ->
             applyEventDataToSnapshot streamId body eventNumber metadata handlers testEventStore
 
-    let runEvent buildEventContext interpreter handlers testEventStore streamEntry =
+    let runEvent buildEventContext (interpreter : IInterpreter<'TMetadata>) handlers testEventStore streamEntry =
         match streamEntry with
         | PersistedStreamEvent persistedEvent ->
             runEventHandlers 
@@ -168,6 +193,12 @@ module TestEventStore =
                 handlers 
                 testEventStore 
                 persistedEvent
+            |> runMultiCommandEventHandlers
+                buildEventContext 
+                interpreter 
+                handlers 
+                persistedEvent
+                
         | PersistedStreamLink _ -> 
            testEventStore
 
@@ -211,7 +242,7 @@ module TestEventStore =
     let rec runToEnd 
         onTimeChange
         buildEventContext
-        interpreter 
+        (interpreter : IInterpreter<'TMetadata>)  
         (handlers : EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent>) 
         (testEventStore :  TestEventStore<'TMetadata>)
         : TestEventStore<'TMetadata> =
@@ -224,7 +255,7 @@ module TestEventStore =
                          w.Time
                          w.Stream
                          w.Type
-                         interpreter
+                         (interpreter.Run)
                          handlers
                          { testEventStore with WakeupQueue = ws }
                         |> processPendingEvents buildEventContext interpreter handlers

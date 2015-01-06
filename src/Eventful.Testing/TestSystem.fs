@@ -32,11 +32,17 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
             Map.empty 
             Vector.empty
 
+    let interpreter = {
+        new IInterpreter<'TMetadata> with
+            member x.Run program testEventStore = 
+                interpret program testEventStore
+    }
+
     member x.RunCommandNoThrow (cmd : obj) (context : 'TCommandContext) =    
         let program = EventfulHandlers.getCommandProgram context cmd state.Handlers
         let (allEvents, result) = interpret program state.AllEvents
 
-        let allEvents = TestEventStore.processPendingEvents state.BuildEventContext interpret state.Handlers allEvents
+        let allEvents = TestEventStore.processPendingEvents state.BuildEventContext interpreter state.Handlers allEvents
 
         new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>({ state with AllEvents = allEvents; LastResult = result })
 
@@ -70,11 +76,11 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
 
         let allEvents' =
             state.AllEvents |> TestEventStore.addEvent streamId fakeEvent
-            |> TestEventStore.processPendingEvents state.BuildEventContext interpret state.Handlers 
+            |> TestEventStore.processPendingEvents state.BuildEventContext interpreter state.Handlers 
         new TestSystem<_,_,_,_>({ state with AllEvents = allEvents' })
 
     member x.RunToEnd () = 
-        let allEvents' = TestEventStore.runToEnd state.OnTimeChange state.BuildEventContext interpret state.Handlers state.AllEvents 
+        let allEvents' = TestEventStore.runToEnd state.OnTimeChange state.BuildEventContext interpreter state.Handlers state.AllEvents 
         let result' = 
             {
                 CommandSuccess.Events = List.empty

@@ -59,6 +59,10 @@ type IEventHandler<'TAggregateId,'TMetadata, 'TEventContext,'TBaseEvent when 'TA
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
     abstract member Handler : AggregateConfiguration<'TEventContext, 'TAggregateId, 'TMetadata, 'TBaseEvent> -> 'TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<EventResult,'TMetadata>>
 
+type IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext> = 
+     abstract member EventType : Type
+     abstract member Handler : 'TEventContext -> PersistedEvent<'TMetadata> -> AsyncSeq<(obj * 'TCommandContext)>
+
 type IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> =
     abstract member WakeupFold : WakeupFold<'TMetadata>
                             //streamId -> getUniqueId                   -> time     -> program
@@ -67,28 +71,51 @@ type IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> =
 type AggregateCommandHandlers<'TAggregateId,'TCommandContext,'TMetadata, 'TBaseEvent> = seq<ICommandHandler<'TAggregateId,'TCommandContext,'TMetadata, 'TBaseEvent>>
 type AggregateEventHandlers<'TAggregateId,'TMetadata, 'TEventContext,'TBaseEvent  when 'TAggregateId : equality> = seq<IEventHandler<'TAggregateId, 'TMetadata, 'TEventContext,'TBaseEvent >>
 
+type AggregateHandlerState<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent when 'TId : equality> = {
+    commandHandlers : list<ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent>> 
+    eventHandlers : list<IEventHandler<'TId,'TMetadata, 'TEventContext,'TBaseEvent>>
+    stateChangeHandlers : list<IStateChangeHandler<'TMetadata, 'TBaseEvent>>
+    multiCommandEventHandlers : list<IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext>>
+}
+with 
+    static member Empty = 
+        { commandHandlers = List.empty
+          eventHandlers = List.empty
+          stateChangeHandlers = List.empty
+          multiCommandEventHandlers = List.empty }
+
 type AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent when 'TId : equality> private 
     (
-        commandHandlers : list<ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent>>, 
-        eventHandlers : list<IEventHandler<'TId,'TMetadata, 'TEventContext,'TBaseEvent>>,
-        stateChangeHandlers : list<IStateChangeHandler<'TMetadata, 'TBaseEvent>>
+        state : AggregateHandlerState<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent> 
     ) =
-    member x.CommandHandlers = commandHandlers
-    member x.EventHandlers = eventHandlers
-    member x.StateChangeHandlers = stateChangeHandlers
+    member x.CommandHandlers = state.commandHandlers
+    member x.EventHandlers = state.eventHandlers
+    member x.StateChangeHandlers = state.stateChangeHandlers
+    member x.MultiCommandEventHandlers = state.multiCommandEventHandlers
     member x.AddCommandHandler handler = 
-        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>(handler::commandHandlers, eventHandlers,stateChangeHandlers)
+        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>({ state with commandHandlers = handler::state.commandHandlers})
     member x.AddEventHandler handler = 
-        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>(commandHandlers, handler::eventHandlers,stateChangeHandlers)
+        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>({ state with eventHandlers = handler::state.eventHandlers})
     member x.AddStateChangeHandler handler = 
-        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>(commandHandlers, eventHandlers,handler::stateChangeHandlers)
+        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>({ state with stateChangeHandlers = handler::state.stateChangeHandlers})
+    member x.AddMultiCommandEventHandler handler = 
+        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>({ state with multiCommandEventHandlers = handler::state.multiCommandEventHandlers})
     member x.Combine (y:AggregateHandlers<_,_,_,_,_>) =
         new AggregateHandlers<_,_,_,_,_>(
-            List.append commandHandlers y.CommandHandlers, 
-            List.append eventHandlers y.EventHandlers,
-            List.append stateChangeHandlers y.StateChangeHandlers)
+            { 
+                commandHandlers = List.append state.commandHandlers y.CommandHandlers
+                eventHandlers = List.append state.eventHandlers y.EventHandlers
+                stateChangeHandlers = List.append state.stateChangeHandlers y.StateChangeHandlers
+                multiCommandEventHandlers = List.append state.multiCommandEventHandlers y.MultiCommandEventHandlers
+            })
 
-    static member Empty = new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>(List.empty, List.empty, List.empty)
+    static member Empty =
+        let state = 
+            { commandHandlers = List.empty
+              eventHandlers = List.empty
+              stateChangeHandlers = List.empty
+              multiCommandEventHandlers = List.empty } 
+        new AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>(state)
 
 module AggregateHandlers =
     let addCommandHandler handler (aggregateHandlers : AggregateHandlers<_,_,_,_,_>) =
@@ -107,6 +134,9 @@ module AggregateHandlers =
 
     let addStateChangeHandler handler (aggregateHandlers : AggregateHandlers<_,_,_,_,_>) =
         aggregateHandlers.AddStateChangeHandler handler
+
+    let addMultiCommandEventHandler handler (aggregateHandlers : AggregateHandlers<_,_,_,_,_>) =
+        aggregateHandlers.AddMultiCommandEventHandler handler
 
 type IHandler<'TId,'TCommandContext,'TEventContext when 'TId : equality> = 
     abstract member add : AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent> -> AggregateHandlers<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBaseEvent>
@@ -493,6 +523,16 @@ module AggregateActionBuilder =
                 (aggId, h) |> Seq.singleton
             )
         onEventMulti stateBuilder handler
+
+    let multiCommandEventHandler (f : 'TOnEvent -> 'TEventContext -> AsyncSeq<obj * 'TCommandContext>) =
+        {
+            new IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext> with 
+                member this.EventType = typeof<'TOnEvent>
+                member this.Handler eventContext evt =
+                    let typedEvent = evt.Body :?> 'TOnEvent
+
+                    f typedEvent eventContext
+        }
 
 type AggregateDefinition<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent when 'TAggregateId : equality> = {
     GetUniqueId : 'TMetadata -> string option
