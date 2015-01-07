@@ -68,6 +68,7 @@
     <Compile Include="Client.fs" />
     <Compile Include="ProcessingTracker.fs" />
     <Compile Include="EventStreamInterpreter.fs" />
+    <Compile Include="MultiCommandInterpreter.fs" />
     <Compile Include="EventStoreSystem.fs" />
     <Compile Include="MultiTenancyEventStoreSubscriber.fs" />
   </ItemGroup>

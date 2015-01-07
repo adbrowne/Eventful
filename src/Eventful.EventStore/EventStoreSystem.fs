@@ -48,6 +48,19 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
             getSnapshot 
             program
 
+    let runCommand context cmd =  async {
+        let correlationId = Guid.NewGuid()
+        log.RichDebug "Running command: {@Command} {@CorrelationId}" [|cmd;correlationId|]
+        let sw = System.Diagnostics.Stopwatch.StartNew()
+        let program = EventfulHandlers.getCommandProgram context cmd handlers
+        let! result = 
+            interpreter correlationId program
+
+        sw.Stop()
+        log.RichDebug "Command complete: {@Command} {@Result} {@CorrelationId} {Elapsed:000} ms" [|cmd;result;correlationId;sw.ElapsedMilliseconds|]
+        return result
+    }
+
     let runHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>) program =
         let correlationId = Guid.NewGuid()
         async {
@@ -58,12 +71,29 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
                 log.ErrorWithException <| lazy(sprintf "Exception in event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
         }
 
+    let runMultiCommandHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>) program =
+        let correlationId = Guid.NewGuid()
+        async {
+            try
+                do! MultiCommandInterpreter.interpret program (flip runCommand)
+            with | e ->
+                log.ErrorWithException <| lazy(sprintf "Exception in mulit command event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
+        }
+
     let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>) (persistedEvent : PersistedEvent<'TMetadata>) =
         async {
-            do! 
+            let regularEventHandlers = 
                 handlers
                 |> EventfulHandlers.getHandlerPrograms getEventContextFromMetadata persistedEvent
                 |> List.map (runHandlerForEvent persistedEvent)
+
+            let multiCommandEventHandlers =
+                handlers
+                |> EventfulHandlers.getMulitCommandEventHandlers getEventContextFromMetadata persistedEvent
+                |> List.map (runMultiCommandHandlerForEvent persistedEvent)
+
+            do! 
+                List.append regularEventHandlers multiCommandEventHandlers
                 |> Async.Parallel
                 |> Async.Ignore
         }
@@ -160,19 +190,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
                 completeTracker.Complete position
             }
 
-    member x.RunCommand (context:'TCommandContext) (cmd : obj) =
-        async {
-            let correlationId = Guid.NewGuid()
-            log.RichDebug "Running command: {@Command} {@CorrelationId}" [|cmd;correlationId|]
-            let sw = System.Diagnostics.Stopwatch.StartNew()
-            let program = EventfulHandlers.getCommandProgram context cmd handlers
-            let! result = 
-                interpreter correlationId program
-
-            sw.Stop()
-            log.RichDebug "Command complete: {@Command} {@Result} {@CorrelationId} {Elapsed:000} ms" [|cmd;result;correlationId;sw.ElapsedMilliseconds|]
-            return result
-        }
+    member x.RunCommand (context:'TCommandContext) (cmd : obj) = runCommand context cmd
 
     member x.LastEventProcessed = lastEventProcessed
 

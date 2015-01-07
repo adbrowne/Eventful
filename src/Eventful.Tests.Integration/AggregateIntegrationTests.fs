@@ -21,6 +21,7 @@ type AggregateIntegrationTests () =
 
     let mutable system : EventStoreSystem<unit, MockDisposable, TestMetadata, obj> option = None
     let mutable connection : EventStore.ClientAPI.IEventStoreConnection = null
+    let mutable eventStoreAccess : InMemoryEventStoreRunner.EventStoreAccess option = None
 
     let streamPositionMap : Map<string, int> ref = ref Map.empty
     let lastPosition : EventPosition ref = ref EventPosition.Start
@@ -36,6 +37,11 @@ type AggregateIntegrationTests () =
     let eventCounterStateBuilder =
         StateBuilder.Empty "eventCount" 0
         |> StateBuilder.handler (fun (e : WidgetCreatedEvent) (m : TestMetadata) -> e.WidgetId)  (fun (s, (e : WidgetCreatedEvent),m) -> s + 1)
+        |> (fun x -> x :> IStateBuilder<_, _, _>)
+
+    let lastWidgetIdStateBuilder =
+        StateBuilder.Empty "LastWidgetId" None
+        |> StateBuilder.handler (fun (e : WidgetCreatedEvent) (m : TestMetadata) -> e.WidgetId)  (fun (s, (e : WidgetCreatedEvent),m) -> Some e.WidgetId)
         |> (fun x -> x :> IStateBuilder<_, _, _>)
 
     [<Fact>]
@@ -164,7 +170,50 @@ type AggregateIntegrationTests () =
 
         } |> Async.RunSynchronously
 
+    [<Fact>]
+    [<Trait("category", "eventstore")>]
+    let ``Can run multi command event`` () : unit =
+        streamPositionMap := Map.empty
+        let newEvent (position, streamId, eventNumber, a:EventStreamEventData<TestMetadata>) =
+            IntegrationTests.log.Error <| lazy(sprintf "Received event %s" a.EventType)
+            streamPositionMap := !streamPositionMap |> Map.add streamId eventNumber
+
+        async {
+            let system = system.Value
+            system.AddOnCompleteEvent newEvent
+
+            let widgetId = { WidgetId.Id = Guid.NewGuid() }
+
+            let! _ = 
+                system.RunCommand
+                    ()
+                    { 
+                        MultiCommandCommand.WidgetId = widgetId; 
+                        Name = "Mine"
+                    }
+
+            // MultiCommandCommand -> MutliCommandEvent -> Runs CreateWidgetCommand -> Produces WidgetCreatedEvent 
+
+            let expectedStreamName = sprintf "Widget-%s" (widgetId.Id.ToString("N"))
+
+            let expectedEvent = {
+                WidgetCreatedEvent.WidgetId = widgetId
+                Name = "Mine"
+            }
+
+            do! waitFor (fun () -> !streamPositionMap |> Map.tryFind expectedStreamName |> Option.getOrElse (-1) >= 0)
+
+            let eventStoreAccess = eventStoreAccess.Value
+            let lastWidgetIdProgram =  lastWidgetIdStateBuilder |> AggregateStateBuilder.toStreamProgram expectedStreamName widgetId
+            let! { State = count } = system.RunStreamProgram lastWidgetIdProgram
+            lastWidgetIdStateBuilder.GetState count =? Some widgetId
+
+            return ()
+
+        } |> Async.RunSynchronously
+
     interface Xunit.IUseFixture<TestEventStoreSystemFixture> with
         member x.SetFixture(fixture) =
             system <- Some fixture.System
             connection <- fixture.Connection
+            eventStoreAccess <- Some fixture.EventStoreAccess

@@ -168,10 +168,13 @@ module EventfulHandlers =
             use context = buildEventContext persistedEvent
             handler context persistedEvent
         
-        eventfulHandlers.MultiCommandEventHandlers
-        |> Map.tryFind (persistedEvent.Body.GetType().Name)
-        |> Option.map (List.map toProgram)
-        |> Option.getOrElse []
+        let result = 
+            eventfulHandlers.MultiCommandEventHandlers
+            |> Map.tryFind (persistedEvent.Body.GetType().Name)
+            |> Option.map (List.map toProgram)
+            |> Option.getOrElse []
+
+        result
 
     let getCommandProgram (context:'TCommandContext) (cmd:obj) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) =
         let cmdType = cmd.GetType()

@@ -1,19 +1,12 @@
 ﻿namespace Eventful.Tests.Integration
 
-open Xunit
 open System
-open EventStore.ClientAPI
-open FsUnit.Xunit
 open FSharpx
 open Eventful
-open Eventful.EventStream
 open Eventful.EventStore
 open Eventful.Aggregate
 open Eventful.AggregateActionBuilder
-open Eventful.Testing
 open Eventful.Tests
-
-open FSharpx.Option
 
 type WidgetId = {
     Id : Guid
@@ -65,6 +58,16 @@ type WidgetCreatedEvent = {
     Name : string
 }
 
+type MultiCommandCommand = {
+    WidgetId : WidgetId
+    Name : string
+}
+
+type MultiCommandEvent = {
+    WidgetId : WidgetId
+    Name : string
+}
+
 open TestEventStoreSystemHelpers
 
 type MockDisposable = {
@@ -89,7 +92,7 @@ type TestEventStoreSystemFixture () =
         seq {
                let addWidget (cmd : CreateWidgetCommand) =
                    { 
-                       WidgetId = cmd.WidgetId
+                       WidgetCreatedEvent.WidgetId = cmd.WidgetId
                        Name = cmd.Name } 
 
                yield addWidget
@@ -121,7 +124,38 @@ type TestEventStoreSystemFixture () =
             Seq.empty 
             widgetCounterEventHandlers
 
-    let aggregateThatThrowsrEventHandlers =
+    let multiCommandAggregateCmdHandlers = seq {
+        let handler (cmd : MultiCommandCommand) =
+                       { 
+                           MultiCommandEvent.WidgetId = cmd.WidgetId
+                           Name = cmd.Name } 
+
+        yield handler
+             |> cmdHandler
+             |> buildCmd 
+    }
+
+    let bigMultiHandler (evt : MultiCommandEvent) eventContext =
+        Eventful.MultiCommand.multiCommand {
+            let cmd = { CreateWidgetCommand.WidgetId = evt.WidgetId; Name = evt.Name} :> obj
+            let! result = Eventful.MultiCommand.runCommand cmd ()
+            ()
+        }
+
+    let multiCommandAggregateHandlers = 
+        AggregateHandlers.Empty
+        |> AggregateHandlers.addCommandHandlers multiCommandAggregateCmdHandlers
+        |> AggregateHandlers.addMultiCommandEventHandler (AggregateActionBuilder.multiCommandEventHandler bigMultiHandler)
+
+    let multiCommandAggregate =
+        aggregateDefinitionFromHandlers
+            "MultiCommand"
+            TestMetadata.GetUniqueId
+            (getStreamName "MultiCommand")
+            (getEventStreamName "MultiCommand")
+            multiCommandAggregateHandlers
+
+    let aggregateThatThrowsEventHandlers =
         seq {
                 let nullStateBuilder = StateBuilder.nullStateBuilder |> StateBuilder.toInterface
                 let getId (evt : WidgetCreatedEvent) _ = evt.WidgetId
@@ -129,6 +163,7 @@ type TestEventStoreSystemFixture () =
                     failwith "Some random exception"
                 yield onEvent getId nullStateBuilder handler
             }
+
     let aggregateThatThrows =
         toAggregateDefinition
             "AggregateThatThrows"
@@ -136,14 +171,16 @@ type TestEventStoreSystemFixture () =
             (getStreamName "AggregateThatThrows") 
             (getEventStreamName "AggregateThatThrows") 
             Seq.empty 
-            aggregateThatThrowsrEventHandlers
+            aggregateThatThrowsEventHandlers
 
     let handlers =
         EventfulHandlers.empty TestMetadata.GetAggregateType
         |> EventfulHandlers.addAggregate widgetHandlers
         |> EventfulHandlers.addAggregate widgetCounterAggregate
         |> EventfulHandlers.addAggregate aggregateThatThrows
+        |> EventfulHandlers.addAggregate multiCommandAggregate
         |> StandardConventions.addEventType typeof<WidgetCreatedEvent>
+        |> StandardConventions.addEventType typeof<MultiCommandEvent>
 
     let eventContexts = new System.Collections.Concurrent.ConcurrentQueue<MockDisposable>()
 
@@ -173,6 +210,7 @@ type TestEventStoreSystemFixture () =
 
     member x.Connection = eventStoreProcess.Connection
     member x.System = system
+    member x.EventStoreAccess = eventStoreProcess
 
     interface IDisposable with
         member this.Dispose () =
