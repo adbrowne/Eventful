@@ -2,34 +2,37 @@
 
 open FSharpx
 
-module MutliCommand = 
+module MultiCommand = 
     type MultiCommandLanguage<'N,'TCommandContext,'TResult> =
-    | RunCommand of obj * 'TCommandContext * ('TResult -> Async<'N>)
+    | RunCommand of (Async<(obj * 'TCommandContext * ('TResult -> 'N))>)
     | NotYetDone of (unit -> 'N)
     and 
-        FreeMutliCommand<'F,'R,'TCommandContext,'TResult> = 
-        | FreeMutliCommand of MultiCommandLanguage<FreeMutliCommand<'F,'R,'TCommandContext,'TResult>,'TCommandContext,'TResult>
+        FreeMultiCommand<'F,'R,'TCommandContext,'TResult> = 
+        | FreeMultiCommand of MultiCommandLanguage<FreeMultiCommand<'F,'R,'TCommandContext,'TResult>,'TCommandContext,'TResult>
         | Pure of 'R
     and
-        MutliCommandProgram<'A,'TCommandContext,'TResult> = FreeMutliCommand<obj,'A,'TCommandContext,'TResult>
+        MultiCommandProgram<'A,'TCommandContext,'TResult> = FreeMultiCommand<obj,'A,'TCommandContext,'TResult>
 
     let fmap f command = 
         match command with
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
-        | RunCommand (cmd, cmdContext, next) -> 
-            RunCommand (cmd, cmdContext, (fun x -> next x |> Async.map f))
+        | RunCommand asyncBlock -> 
+            RunCommand (asyncBlock |> Async.map (fun (cmd, cmdCtx, next) -> (cmd, cmdCtx, next >> f)))
 
     let empty = Pure ()
 
-    let liftF command = FreeMutliCommand (fmap Pure command)
+    let liftF command = FreeMultiCommand (fmap Pure command)
 
     let runCommand cmd cmdContext = 
-        RunCommand (cmd, cmdContext, id) |> liftF
+        RunCommand ((cmd, cmdContext, id) |> Async.returnM) |> liftF
+
+    let runCommandAsync (getCmd : Async<(obj * 'TCommandContext)>) = 
+        RunCommand (getCmd |> Async.map (fun (cmd, ctx) -> (cmd, ctx, id))) |> liftF
 
     let rec bind f v =
         match v with
-        | FreeMutliCommand x -> FreeMutliCommand (fmap (bind f) x)
+        | FreeMultiCommand x -> FreeMultiCommand (fmap (bind f) x)
         | Pure r -> f r
 
     // Return the final value wrapped in the Free type.
@@ -42,7 +45,7 @@ module MutliCommand =
         else result ()
 
     // The delay operator.
-    let delay (func : unit -> FreeMutliCommand<'a,'b,'TCommandContext,'TResult>) : FreeMutliCommand<'a,'b,'TCommandContext,'TResult> = 
+    let delay (func : unit -> FreeMultiCommand<'a,'b,'TCommandContext,'TResult>) : FreeMultiCommand<'a,'b,'TCommandContext,'TResult> = 
         let notYetDone = NotYetDone (fun () -> ()) |> liftF
         bind func notYetDone
 
@@ -60,9 +63,9 @@ module MutliCommand =
 
     type MultiCommandBuilder() =
         member x.Zero() = Pure ()
-        member x.Return(r:'R) : FreeMutliCommand<'F,'R,'TCommandContext,'TResult> = Pure r
-        member x.ReturnFrom(r:FreeMutliCommand<'F,'R,'TCommandContext,'TResult>) : FreeMutliCommand<'F,'R,'TCommandContext,'TResult> = r
-        member x.Bind (inp : FreeMutliCommand<'F,'R,'TCommandContext,'TResult>, body : ('R -> FreeMutliCommand<'F,'U,'TCommandContext,'TResult>)) : FreeMutliCommand<'F,'U,'TCommandContext,'TResult>  = bind body inp
+        member x.Return(r:'R) : FreeMultiCommand<'F,'R,'TCommandContext,'TResult> = Pure r
+        member x.ReturnFrom(r:FreeMultiCommand<'F,'R,'TCommandContext,'TResult>) : FreeMultiCommand<'F,'R,'TCommandContext,'TResult> = r
+        member x.Bind (inp : FreeMultiCommand<'F,'R,'TCommandContext,'TResult>, body : ('R -> FreeMultiCommand<'F,'U,'TCommandContext,'TResult>)) : FreeMultiCommand<'F,'U,'TCommandContext,'TResult>  = bind body inp
         member x.Combine(expr1, expr2) = combine expr1 expr2
         member x.For(a, f) = forLoop a f 
         member x.While(func, body) = whileLoop func body

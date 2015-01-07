@@ -107,14 +107,12 @@ module TestEventStore =
             handlerPrograms 
             |> Seq.fold (runHandlerForEvent interpreter.Run) testEventStore
 
-    let runMultiCommandEventHandler handlers interpreter (testEventStore : TestEventStore<'TMetadata>)  (commands : AsyncSeq<(obj * 'TCommandContext)>) =
-        let runCommand state (cmd:obj, context:'TCommandContext) =
-           let program = EventfulHandlers.getCommandProgram context cmd handlers
-           let (s,result) = interpreter program state
-           s
-        commands
-        |> AsyncSeq.fold runCommand testEventStore
-        |> Async.RunSynchronously
+    let runMultiCommandEventHandler handlers (interpreter : IInterpreter<'TMetadata>) (testEventStore : TestEventStore<'TMetadata>)  (commands : Eventful.MultiCommand.MultiCommandProgram<unit,'TCommandContext,CommandResult<'TBaseType,'TMetadata>>) =
+        let runCommand (cmd : obj) (cmdCtx : 'TCommandContext) (eventStore : TestEventStore<'TMetadata>) : (TestEventStore<'TMetadata> * CommandResult<'TBaseType,'TMetadata>) =
+           let program = EventfulHandlers.getCommandProgram cmdCtx cmd handlers
+           interpreter.Run program eventStore
+
+        TestMultiCommandInterpreter.interpret commands runCommand testEventStore
 
     let runMultiCommandEventHandlers 
         buildEventContext 
@@ -125,7 +123,7 @@ module TestEventStore =
             let handlerPrograms = 
                 EventfulHandlers.getMulitCommandEventHandlers buildEventContext persistedEvent handlers
             handlerPrograms 
-            |> Seq.fold (runMultiCommandEventHandler handlers interpreter.Run) testEventStore
+            |> Seq.fold (runMultiCommandEventHandler handlers interpreter) testEventStore
 
     let getCurrentState streamId testEventStore =
 

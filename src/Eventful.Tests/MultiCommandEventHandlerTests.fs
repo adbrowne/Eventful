@@ -2,6 +2,7 @@
 
 open System
 open Eventful
+open Eventful.MultiCommand
 open Eventful.Testing
 open FSharpx
 
@@ -31,7 +32,7 @@ module MultiCommandEventHandlerTests =
         yield typeof<BarEvent>
     }
 
-    let fooHandlers () =    
+    let fooHandlers multiCmdHandler =    
         let cmdHandlers = seq {
             yield 
                 (fun (cmd:FooCmd) -> 
@@ -41,12 +42,6 @@ module MultiCommandEventHandlerTests =
                 |> cmdHandler
                 |> AggregateActionBuilder.buildCmd
         }
-
-        let multiCmdHandler (e : BarEvent) (eventContext : UnitEventContext)  =
-            asyncSeq {
-                let cmd = { FooCmd.Id = e.Id } :> obj
-                yield (cmd, Guid.NewGuid())
-            }
 
         let handlers =
              AggregateHandlers.Empty
@@ -60,12 +55,12 @@ module MultiCommandEventHandlerTests =
             getStreamName 
             handlers
 
-    let handlers : Eventful.EventfulHandlers<Guid,UnitEventContext,_,IEvent> =
+    let handlers multiCmdHandler : Eventful.EventfulHandlers<Guid,UnitEventContext,_,IEvent> =
         EventfulHandlers.empty TestMetadata.GetAggregateType
-        |> EventfulHandlers.addAggregate (fooHandlers ())
+        |> EventfulHandlers.addAggregate (fooHandlers multiCmdHandler)
         |> StandardConventions.addEventTypes eventTypes
 
-    let emptyTestSystem = TestSystem.Empty (konst UnitEventContext) handlers
+    let emptyTestSystem multiCmdHandler = TestSystem.Empty (konst UnitEventContext) (handlers multiCmdHandler)
 
     let fooEventCounter : IStateBuilder<int, TestMetadata, Guid> =
         StateBuilder.eventTypeCountBuilder (fun (e:FooEvent) _ -> e.Id)
@@ -77,8 +72,43 @@ module MultiCommandEventHandlerTests =
         let thisId = Guid.NewGuid()
         let streamName = getStreamName UnitEventContext thisId
 
+        let multiCmdHandler (e : BarEvent) (eventContext : UnitEventContext) =
+            Eventful.MultiCommand.multiCommand {
+                let cmd = { FooCmd.Id = e.Id } :> obj
+                let! a = runCommand cmd (Guid.NewGuid())
+                return ()
+            }
+
         let afterRun = 
-            emptyTestSystem  
+            emptyTestSystem multiCmdHandler 
+            |> TestSystem.injectEvent 
+                "fake stream" 
+                ({ BarEvent.Id = thisId } :> IEvent)
+                { TestMetadata.AggregateType = "TestAggregate" 
+                  SourceMessageId = None }
+
+        let fooCount = afterRun.EvaluateState streamName thisId fooEventCounter
+
+        fooCount |> should equal 1
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``BarEvent produces FooCmd and then FooEvent Async`` () : unit =
+        let thisId = Guid.NewGuid()
+        let streamName = getStreamName UnitEventContext thisId
+
+        let multiCmdHandler (e : BarEvent) (eventContext : UnitEventContext) =
+            Eventful.MultiCommand.multiCommand {
+                let cmd = { FooCmd.Id = e.Id } :> obj
+                let! a = 
+                    (cmd, (Guid.NewGuid()))
+                    |> Async.returnM
+                    |> runCommandAsync
+                return ()
+            }
+
+        let afterRun = 
+            emptyTestSystem multiCmdHandler 
             |> TestSystem.injectEvent 
                 "fake stream" 
                 ({ BarEvent.Id = thisId } :> IEvent)

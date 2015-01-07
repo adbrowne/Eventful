@@ -2,6 +2,7 @@
 
 open System
 open Eventful.EventStream
+open Eventful.MultiCommand
 open FSharpx
 open FSharpx.Collections
 open FSharp.Control
@@ -9,7 +10,7 @@ open FSharp.Control
                                             // Source StreamId, Source Event Number, Event -> Program
 type EventfulEventHandler<'T, 'TEventContext, 'TMetadata> = EventfulEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<'T, 'TMetadata>>)
 type EventfulCommandHandler<'T, 'TCommandContext, 'TMetadata> = EventfulCommandHandler of Type * ('TCommandContext -> obj -> EventStreamProgram<'T, 'TMetadata>) * IRegistrationVisitable
-type EventfulMultiCommandEventHandler<'T, 'TEventContext, 'TCommandContext, 'TMetadata> = EventfulMultiCommandEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> AsyncSeq<(obj * 'TCommandContext)>)
+type EventfulMultiCommandEventHandler<'T, 'TEventContext, 'TCommandContext, 'TMetadata, 'TBaseEvent> = EventfulMultiCommandEventHandler of Type * ('TEventContext -> PersistedEvent<'TMetadata> -> MultiCommandProgram<unit,'TCommandContext,CommandResult<'TBaseEvent,'TMetadata>>)
 
 type EventfulWakeupHandler<'TMetadata> = EventfulWakeupHandler of WakeupFold<'TMetadata> * (string -> UtcDateTime -> EventStreamProgram<EventResult, 'TMetadata>)
 type EventfulStreamConfig<'TMetadata> = {
@@ -21,7 +22,7 @@ type EventfulStreamConfig<'TMetadata> = {
 type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent> = {
         CommandHandlers : Map<string, EventfulCommandHandler<CommandResult<'TBaseEvent, 'TMetadata>, 'TCommandContext, 'TMetadata>>
         EventHandlers : Map<string, EventfulEventHandler<EventResult, 'TEventContext, 'TMetadata> list>
-        MultiCommandEventHandlers : Map<string, EventfulMultiCommandEventHandler<EventResult, 'TEventContext, 'TCommandContext, 'TMetadata> list>
+        MultiCommandEventHandlers : Map<string, EventfulMultiCommandEventHandler<EventResult, 'TEventContext, 'TCommandContext, 'TMetadata, 'TBaseEvent> list>
         AggregateTypes : Map<string,EventfulStreamConfig<'TMetadata>>
         EventStoreTypeToClassMap : EventStoreTypeToClassMap
         ClassToEventStoreTypeMap : ClassToEventStoreTypeMap
@@ -74,7 +75,7 @@ module EventfulHandlers =
         |> Seq.map (fun x -> EventfulEventHandler(x.EventType, x.Handler config))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) h -> s.AddEventHandler h) eventfulHandlers
 
-    let addMultiCommandEventHandlers (multiCommandEventHandlers : IMultiCommandEventHandler<_,_,_> list) eventfulHandlers =
+    let addMultiCommandEventHandlers (multiCommandEventHandlers : IMultiCommandEventHandler<_,_,_,_> list) eventfulHandlers =
         multiCommandEventHandlers
         |> Seq.map (fun x -> EventfulMultiCommandEventHandler(x.EventType, x.Handler))
         |> Seq.fold (fun (s:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) h -> s.AddMultiCommandEventHandler h) eventfulHandlers

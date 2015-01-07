@@ -7,6 +7,7 @@ open FSharpx.Collections
 open FSharp.Control
 
 open Eventful.EventStream
+open Eventful.MultiCommand
 
 type CommandSuccess<'TBaseEvent, 'TMetadata> = {
     Events : (string * 'TBaseEvent * 'TMetadata) list
@@ -59,9 +60,9 @@ type IEventHandler<'TAggregateId,'TMetadata, 'TEventContext,'TBaseEvent when 'TA
                     // AggregateType -> Source Stream -> Source EventNumber -> Event -> -> Program
     abstract member Handler : AggregateConfiguration<'TEventContext, 'TAggregateId, 'TMetadata, 'TBaseEvent> -> 'TEventContext -> PersistedEvent<'TMetadata> -> Async<EventStreamProgram<EventResult,'TMetadata>>
 
-type IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext> = 
+type IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext, 'TBaseEvent> = 
      abstract member EventType : Type
-     abstract member Handler : 'TEventContext -> PersistedEvent<'TMetadata> -> AsyncSeq<(obj * 'TCommandContext)>
+     abstract member Handler : 'TEventContext -> PersistedEvent<'TMetadata> -> MultiCommandProgram<unit,'TCommandContext,CommandResult<'TBaseEvent,'TMetadata>>
 
 type IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> =
     abstract member WakeupFold : WakeupFold<'TMetadata>
@@ -75,7 +76,7 @@ type AggregateHandlerState<'TId,'TCommandContext,'TEventContext,'TMetadata,'TBas
     commandHandlers : list<ICommandHandler<'TId,'TCommandContext,'TMetadata, 'TBaseEvent>> 
     eventHandlers : list<IEventHandler<'TId,'TMetadata, 'TEventContext,'TBaseEvent>>
     stateChangeHandlers : list<IStateChangeHandler<'TMetadata, 'TBaseEvent>>
-    multiCommandEventHandlers : list<IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext>>
+    multiCommandEventHandlers : list<IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext, 'TBaseEvent>>
 }
 with 
     static member Empty = 
@@ -524,9 +525,9 @@ module AggregateActionBuilder =
             )
         onEventMulti stateBuilder handler
 
-    let multiCommandEventHandler (f : 'TOnEvent -> 'TEventContext -> AsyncSeq<obj * 'TCommandContext>) =
+    let multiCommandEventHandler (f : 'TOnEvent -> 'TEventContext -> MultiCommandProgram<unit,'TCommandContext,CommandResult<'TBaseEvent,'TMetadata>>) =
         {
-            new IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext> with 
+            new IMultiCommandEventHandler<'TMetadata, 'TEventContext,'TCommandContext, 'TBaseEvent> with 
                 member this.EventType = typeof<'TOnEvent>
                 member this.Handler eventContext evt =
                     let typedEvent = evt.Body :?> 'TOnEvent
