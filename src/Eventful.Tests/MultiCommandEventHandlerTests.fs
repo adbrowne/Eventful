@@ -99,7 +99,7 @@ module MultiCommandEventHandlerTests =
 
         let multiCmdHandler (e : BarEvent) (eventContext : UnitEventContext) =
             Eventful.MultiCommand.multiCommand {
-                let cmd = { FooCmd.Id = e.Id } :> obj
+                let! cmd = runAsync (async { return  { FooCmd.Id = e.Id } :> obj })
                 let! a = 
                     (cmd, (Guid.NewGuid()))
                     |> Async.returnM

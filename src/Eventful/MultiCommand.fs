@@ -5,6 +5,7 @@ open FSharpx
 module MultiCommand = 
     type MultiCommandLanguage<'N,'TCommandContext,'TResult> =
     | RunCommand of (Async<(obj * 'TCommandContext * ('TResult -> 'N))>)
+    | RunAsync of Async<obj> * (obj -> 'N)
     | NotYetDone of (unit -> 'N)
     and 
         FreeMultiCommand<'F,'R,'TCommandContext,'TResult> = 
@@ -19,6 +20,8 @@ module MultiCommand =
             NotYetDone (fun () -> f (delay()))
         | RunCommand asyncBlock -> 
             RunCommand (asyncBlock |> Async.map (fun (cmd, cmdCtx, next) -> (cmd, cmdCtx, next >> f)))
+        | RunAsync (asyncBlock, next)-> 
+            RunAsync (asyncBlock, next >> f)
 
     let empty = Pure ()
 
@@ -29,6 +32,9 @@ module MultiCommand =
 
     let runCommandAsync (getCmd : Async<(obj * 'TCommandContext)>) = 
         RunCommand (getCmd |> Async.map (fun (cmd, ctx) -> (cmd, ctx, id))) |> liftF
+
+    let runAsync (asyncBlock : Async<'TResult>) = 
+        RunAsync (asyncBlock |> Async.map (fun x -> x :> obj), (fun x -> x :?> 'TResult)) |> liftF
 
     let rec bind f v =
         match v with

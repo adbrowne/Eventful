@@ -18,6 +18,10 @@ module MultiCommandInterpreter =
                     let! result = runCommand cmd cmdCtx
                     return! loop <| next result
                 }
+            | FreeMultiCommand (RunAsync (asyncBlock, next)) -> async {
+                    let! result = asyncBlock
+                    return! loop <| next result
+                }
             | FreeMultiCommand (NotYetDone g) ->
                 async {
                     let next = g ()

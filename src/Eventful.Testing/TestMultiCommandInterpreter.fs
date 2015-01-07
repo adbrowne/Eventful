@@ -20,6 +20,10 @@ module TestMultiCommandInterpreter =
                 let (eventStore', result) = runCommand cmd cmdCtx eventStore
                 next result
                 |> loop eventStore'
+            | FreeMultiCommand (RunAsync (asyncBlock, next)) ->
+                let result = asyncBlock |> Async.RunSynchronously
+                next result
+                |> loop eventStore
             | FreeMultiCommand (NotYetDone g) ->
                 let next = g ()
                 loop eventStore next 
