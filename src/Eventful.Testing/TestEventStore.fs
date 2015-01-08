@@ -91,8 +91,9 @@ module TestEventStore =
             Position = eventPosition 
             PendingEvents = store.PendingEvents |> Queue.conj (eventNumber, persistedStreamEntry)}
 
-    let runHandlerForEvent interpreter testEventStore program  =
-        let program = program |> Async.RunSynchronously
+    let runHandlerForEvent persistedEvent buildEventContext interpreter testEventStore program  =
+        use context = buildEventContext persistedEvent
+        let program = program context |> Async.RunSynchronously
         interpreter program testEventStore
         |> fst
 
@@ -103,16 +104,17 @@ module TestEventStore =
         (testEventStore : TestEventStore<'TMetadata>) 
         (persistedEvent : PersistedEvent<'TMetadata>) =
             let handlerPrograms = 
-                EventfulHandlers.getHandlerPrograms buildEventContext persistedEvent handlers
+                EventfulHandlers.getHandlerPrograms persistedEvent handlers
             handlerPrograms 
-            |> Seq.fold (runHandlerForEvent interpreter.Run) testEventStore
+            |> Seq.fold (runHandlerForEvent persistedEvent buildEventContext interpreter.Run) testEventStore
 
-    let runMultiCommandEventHandler handlers (interpreter : IInterpreter<'TMetadata>) (testEventStore : TestEventStore<'TMetadata>)  (commands : Eventful.MultiCommand.MultiCommandProgram<unit,'TCommandContext,CommandResult<'TBaseType,'TMetadata>>) =
+    let runMultiCommandEventHandler persistedEvent buildEventContext handlers (interpreter : IInterpreter<'TMetadata>) (testEventStore : TestEventStore<'TMetadata>)  (commands : 'TEventContext -> Eventful.MultiCommand.MultiCommandProgram<unit,'TCommandContext,CommandResult<'TBaseType,'TMetadata>>) =
         let runCommand (cmd : obj) (cmdCtx : 'TCommandContext) (eventStore : TestEventStore<'TMetadata>) : (TestEventStore<'TMetadata> * CommandResult<'TBaseType,'TMetadata>) =
            let program = EventfulHandlers.getCommandProgram cmdCtx cmd handlers
            interpreter.Run program eventStore
+        use context = buildEventContext persistedEvent
 
-        TestMultiCommandInterpreter.interpret commands runCommand testEventStore
+        TestMultiCommandInterpreter.interpret (commands context) runCommand testEventStore
 
     let runMultiCommandEventHandlers 
         buildEventContext 
@@ -121,9 +123,9 @@ module TestEventStore =
         (persistedEvent : PersistedEvent<'TMetadata>) 
         (testEventStore : TestEventStore<'TMetadata>) =
             let handlerPrograms = 
-                EventfulHandlers.getMulitCommandEventHandlers buildEventContext persistedEvent handlers
+                EventfulHandlers.getMultiCommandEventHandlers persistedEvent handlers
             handlerPrograms 
-            |> Seq.fold (runMultiCommandEventHandler handlers interpreter) testEventStore
+            |> Seq.fold (runMultiCommandEventHandler persistedEvent buildEventContext handlers interpreter) testEventStore
 
     let getCurrentState streamId testEventStore =
 

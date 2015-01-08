@@ -153,20 +153,18 @@ module EventfulHandlers =
         |> addAggregateType aggregateDefinition.AggregateType aggregateConfig
         |> addMultiCommandEventHandlers aggregateDefinition.Handlers.MultiCommandEventHandlers
 
-    let getHandlerPrograms buildEventContext (persistedEvent : PersistedEvent<'TMetadata>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) =
+    let getHandlerPrograms (persistedEvent : PersistedEvent<'TMetadata>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) =
         let toProgram (EventfulEventHandler (_, handler)) = 
-            use context = buildEventContext persistedEvent
-            handler context persistedEvent
+            (fun context -> handler context persistedEvent)
 
         eventfulHandlers.EventHandlers
         |> Map.tryFind (persistedEvent.Body.GetType().Name)
         |> Option.map (List.map toProgram)
         |> Option.getOrElse []
 
-    let getMulitCommandEventHandlers buildEventContext (persistedEvent : PersistedEvent<'TMetadata>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) =
+    let getMultiCommandEventHandlers (persistedEvent : PersistedEvent<'TMetadata>) (eventfulHandlers:EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata,'TBaseEvent>) =
         let toProgram (EventfulMultiCommandEventHandler (_, handler)) = 
-            use context = buildEventContext persistedEvent
-            handler context persistedEvent
+            (fun context -> handler context persistedEvent)
         
         let result = 
             eventfulHandlers.MultiCommandEventHandlers

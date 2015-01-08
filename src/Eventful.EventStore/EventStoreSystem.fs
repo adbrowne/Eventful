@@ -61,21 +61,23 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
         return result
     }
 
-    let runHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>) program =
+    let runHandlerForEvent buildContext (persistedEvent : PersistedEvent<'TMetadata>) program =
         let correlationId = Guid.NewGuid()
         async {
             try
-                let! program = program
+                use context = buildContext persistedEvent
+                let! program = program context
                 return! interpreter correlationId program
             with | e ->
                 log.ErrorWithException <| lazy(sprintf "Exception in event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
         }
 
-    let runMultiCommandHandlerForEvent (persistedEvent : PersistedEvent<'TMetadata>) program =
+    let runMultiCommandHandlerForEvent buildContext (persistedEvent : PersistedEvent<'TMetadata>) program =
         let correlationId = Guid.NewGuid()
         async {
             try
-                do! MultiCommandInterpreter.interpret program (flip runCommand)
+                use context = buildContext persistedEvent
+                do! MultiCommandInterpreter.interpret (program context) (flip runCommand)
             with | e ->
                 log.ErrorWithException <| lazy(sprintf "Exception in mulit command event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
         }
@@ -84,13 +86,14 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
         async {
             let regularEventHandlers = 
                 handlers
-                |> EventfulHandlers.getHandlerPrograms getEventContextFromMetadata persistedEvent
-                |> List.map (runHandlerForEvent persistedEvent)
+                |> EventfulHandlers.getHandlerPrograms persistedEvent
+                |> List.map (runHandlerForEvent getEventContextFromMetadata persistedEvent)
 
+            let blah = runMultiCommandHandlerForEvent getEventContextFromMetadata persistedEvent
             let multiCommandEventHandlers =
                 handlers
-                |> EventfulHandlers.getMulitCommandEventHandlers getEventContextFromMetadata persistedEvent
-                |> List.map (runMultiCommandHandlerForEvent persistedEvent)
+                |> EventfulHandlers.getMultiCommandEventHandlers persistedEvent
+                |> List.map (runMultiCommandHandlerForEvent getEventContextFromMetadata persistedEvent)
 
             do! 
                 List.append regularEventHandlers multiCommandEventHandlers
