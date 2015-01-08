@@ -10,6 +10,7 @@ module MultiCommand =
     and 
         FreeMultiCommand<'F,'R,'TCommandContext,'TResult> = 
         | FreeMultiCommand of MultiCommandLanguage<FreeMultiCommand<'F,'R,'TCommandContext,'TResult>,'TCommandContext,'TResult>
+        | Exception of exn
         | Pure of 'R
     and
         MultiCommandProgram<'A,'TCommandContext,'TResult> = FreeMultiCommand<obj,'A,'TCommandContext,'TResult>
@@ -40,6 +41,7 @@ module MultiCommand =
         match v with
         | FreeMultiCommand x -> FreeMultiCommand (fmap (bind f) x)
         | Pure r -> f r
+        | Exception exn -> Exception exn
 
     // Return the final value wrapped in the Free type.
     let result value = Pure value
@@ -49,6 +51,39 @@ module MultiCommand =
     let rec whileLoop pred body =
         if pred() then body |> bind (fun _ -> whileLoop pred body)
         else result ()
+
+    type OkOrException<'T> =
+    | Ok of 'T
+    | ExceptionThrown of System.Exception
+//
+    // The catch for the computations. Stitch try/with throughout
+    // the computation, and return the overall result as an OkOrException.
+    let rec catch expr =
+        match expr with
+        | FreeMultiCommand (NotYetDone work) -> 
+            FreeMultiCommand (NotYetDone (fun () ->
+            let res = try Ok(work()) with | exn -> ExceptionThrown exn
+            match res with
+            | Ok cont -> catch cont // note, a tailcall
+            | ExceptionThrown exn -> result (Exception exn)))
+        | x -> result(x)
+
+    // The rest of the operations are boilerplate.
+    // The tryFinally operator.
+    // This is boilerplate in terms of "result", "catch", and "bind".
+    let tryFinally expr compensation =
+        catch (expr)
+        |> bind (fun res -> compensation();
+                            match res with
+                            | Exception exn -> raise exn
+                            | x -> x
+                            )
+
+    // The tryWith operator.
+    // This is boilerplate in terms of "result", "catch", and "bind".
+    let tryWith exn handler =
+        catch exn
+        |> bind (function Exception exn -> handler exn | value -> value )
 
     // The delay operator.
     let delay (func : unit -> FreeMultiCommand<'a,'b,'TCommandContext,'TResult>) : FreeMultiCommand<'a,'b,'TCommandContext,'TResult> = 
@@ -76,5 +111,7 @@ module MultiCommand =
         member x.For(a, f) = forLoop a f 
         member x.While(func, body) = whileLoop func body
         member x.Delay(func) = delay func
+        member x.TryWith(expr, handler) = tryWith expr handler
+        member x.TryFinally(expr, compensation) = tryFinally expr compensation
 
     let multiCommand = new MultiCommandBuilder()

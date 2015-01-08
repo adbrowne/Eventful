@@ -316,7 +316,7 @@ module AggregateActionBuilder =
             CommandFailure.CommandError "WriteCancelled"
             |> NonEmptyList.singleton 
         | RunFailure.WriteError ex 
-        | Exception ex ->
+        | RunFailure.Exception ex ->
             CommandFailure.CommandException (None, ex)
             |> NonEmptyList.singleton 
 

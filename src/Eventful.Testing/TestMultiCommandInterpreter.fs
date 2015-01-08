@@ -27,6 +27,8 @@ module TestMultiCommandInterpreter =
             | FreeMultiCommand (NotYetDone g) ->
                 let next = g ()
                 loop eventStore next 
+            | Exception exn ->
+                raise exn
             | Pure result ->
                 eventStore
 

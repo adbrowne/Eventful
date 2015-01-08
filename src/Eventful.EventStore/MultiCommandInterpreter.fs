@@ -3,15 +3,17 @@
 open Eventful
 open Eventful.MultiCommand
 
+open FSharpx
+
 module MultiCommandInterpreter = 
     let log = createLogger "Eventful.EventStore.MultiCommandInterpreter"
 
     let interpret 
-        (prog : MultiCommandProgram<unit,'TCommandContext,CommandResult<'TBaseType,'TMetadata>>)
+        (prog : MultiCommandProgram<'TResult,'TCommandContext,CommandResult<'TBaseType,'TMetadata>>)
         (runCommand : obj -> 'TCommandContext -> (Async<CommandResult<'TBaseType,'TMetadata>>))
-        : Async<unit> = 
+        : Async<'TResult> = 
 
-        let rec loop program : Async<unit> =
+        let rec loop program : Async<'TResult> =
             match program with
             | FreeMultiCommand (RunCommand asyncBlock) -> async {
                     let! (cmd, cmdCtx, next) = asyncBlock
@@ -27,7 +29,9 @@ module MultiCommandInterpreter =
                     let next = g ()
                     return! loop next 
                 }
-            | Pure result ->
-                async { () }
+            | Exception exn ->
+                raise exn
+            | Pure (result : 'TResult) ->
+                result |> Async.returnM
 
         loop prog 

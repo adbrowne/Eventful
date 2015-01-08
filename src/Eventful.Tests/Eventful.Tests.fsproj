@@ -129,6 +129,7 @@
     <Compile Include="EventStreamStateBuilder.fs" />
     <Compile Include="EventSystemTestCommon.fs" />
     <Compile Include="OnEventTests.fs" />
+    <Compile Include="MultiCommandBlockTests.fs" />
     <Compile Include="MultiCommandEventHandlerTests.fs" />
     <Compile Include="AsyncCommandTests.fs" />
     <Compile Include="AggregateConfigurationErrorTests.fs" />
