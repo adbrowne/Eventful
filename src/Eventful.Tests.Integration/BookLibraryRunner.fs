@@ -3,9 +3,11 @@
 open System
 open System.IO
 open System.Diagnostics
+open Eventful
 open BookLibrary
 
 module BookLibraryRunner =
+    let logger = createLogger "Eventful.Tests.Integration.BookLibraryRunner"
     type BookLibraryAccess =     
         { Process : Process
           HttpPort : int }
@@ -60,7 +62,7 @@ module BookLibraryRunner =
                     IntegrationTests.log.Debug (lazy line)
                 if line <> null && line.Contains("Press 'q' to exit") then started <- true
 
-            IntegrationTests.logOutput bookLibraryProcess
+            IntegrationTests.logOutput logger bookLibraryProcess
 
             {
                 Process = bookLibraryProcess

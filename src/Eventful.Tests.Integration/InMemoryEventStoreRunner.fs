@@ -3,10 +3,12 @@
 open System
 open System.IO
 open System.Diagnostics
+open Eventful
 open EventStore.ClientAPI
 
 module InMemoryEventStoreRunner =
- 
+    let logger = createLogger "Eventful.Tests.Integration.InMemoryEventStoreRunner"
+
     type EventStoreAccess =     
         { Process : Process
           Connection: IEventStoreConnection
@@ -56,7 +58,7 @@ module InMemoryEventStoreRunner =
                     IntegrationTests.log.Debug (lazy line)
                 if line <> null && line.Contains("SystemInit") then started <- true
 
-            IntegrationTests.logOutput eventStoreProcess
+            IntegrationTests.logOutput logger eventStoreProcess
 
             (testTcpPort, testHttpPort, eventStoreProcess)
         with | _ ->

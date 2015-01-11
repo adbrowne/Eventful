@@ -5,8 +5,10 @@ open System.IO
 open System.Diagnostics
 open Raven.Client
 open Raven.Client.Extensions
+open Eventful
 
 module InMemoryRavenRunner = 
+    let logger = createLogger "Eventful.Tests.Integration.InMemoryRavenRunner"
     type RavenAccess =     
         { Process : Process
           HttpPort : int }
@@ -24,7 +26,7 @@ module InMemoryRavenRunner =
 
         let ravenProcess = IntegrationTests.startProcess executableAbsolutePath processArguments
 
-        IntegrationTests.logOutput ravenProcess
+        IntegrationTests.logOutput logger ravenProcess
 
         {
             Process = ravenProcess
