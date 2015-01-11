@@ -65,6 +65,9 @@ module Prelude =
     let createLogger name =
         new Logger(name)
 
+    let startStopwatch () =
+        System.Diagnostics.Stopwatch.StartNew()
+
     let rec runAsyncUntilSuccess task = async {
         try
             return! task()

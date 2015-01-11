@@ -53,7 +53,14 @@ type EventStoreStreamInterpreterTests () =
             eventTypeToClassMap 
             classToEventTypeName 
             nullGetSnapshot
-            (Guid.NewGuid())
+            {
+                CorrelationId = Guid.NewGuid() |> Some
+                ContextId = Guid.NewGuid()
+                Name = "Interpreter test"
+                Stopwatch = startStopwatch()
+                ExtraTemplate = String.Empty
+                ExtraVariables = Array.empty
+            }
             program
 
     [<Fact>]

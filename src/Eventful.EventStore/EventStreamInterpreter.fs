@@ -22,7 +22,7 @@ module EventStreamInterpreter =
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
         (readSnapshot : string -> Map<string,Type> -> Async<StateSnapshot>)
-        (correlationId : Guid)
+        (startContext : ContextStartData)
         (prog : FreeEventStream<obj,'A,'TMetadata>) : Async<'A> = 
         let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * 'TMetadata>) : Async<'A> =
             match prog with
@@ -39,20 +39,22 @@ module EventStreamInterpreter =
                     return! loop next values writes
                 }
             | FreeEventStream (RunAsync asyncBlock) ->
-                log.RichDebug "RunAsync {@CorrelationId}" [|correlationId|]
                 async {
+                    log.RichDebug "Start RunAsync {@CorrelationId} {@ContextId}" [|startContext.CorrelationId;startContext.ContextId|]
+                    let sw = startStopwatch()
                     let! next = asyncBlock 
+                    log.RichDebug "Complete RunAsync {@CorrelationId} {@ContextId} {@Elaspsed}" [|startContext.CorrelationId;startContext.ContextId;sw.ElapsedMilliseconds|]
                     return! loop next values writes
                 }
             | FreeEventStream (ReadSnapshot (streamId, typeMap, f)) -> 
-                log.RichDebug "ReadSnapshot {@StreamId} {@CorrelationId}" [|streamId;correlationId|]
+                log.RichDebug "ReadSnapshot {@StreamId} {@CorrelationId} {@ContextId}" [|streamId;startContext.CorrelationId;startContext.ContextId|]
                 async {
                     let! snapshot = readSnapshot streamId typeMap
                     let next = f snapshot
                     return! loop next values writes
                 }
             | FreeEventStream (ReadFromStream (streamId, eventNumber, f)) -> 
-                log.RichDebug "ReadFromStream Start {@StreamId} {@EventNumber} {@CorrelationId}" [|streamId;eventNumber;correlationId|]
+                log.RichDebug "ReadFromStream Start {@StreamId} {@EventNumber} {@CorrelationId} {@ContextId}" [|streamId;eventNumber;startContext.CorrelationId;startContext.ContextId|]
                 let sw = System.Diagnostics.Stopwatch.StartNew()
                 async {
                     let cacheKey = getCacheKey streamId eventNumber
@@ -62,7 +64,7 @@ module EventStreamInterpreter =
                         match cachedEvent with
                         | :? ResolvedEvent as evt ->
                             sw.Stop()
-                            log.RichDebug "ReadFromStream End. Retrieved from cache {@CorrelationId}  {Elapsed:000} ms" [|correlationId;sw.ElapsedMilliseconds|]
+                            log.RichDebug "ReadFromStream End. Retrieved from cache {@CorrelationId} {@ContextId} {Elapsed:000} ms" [|startContext.CorrelationId;startContext.ContextId;sw.ElapsedMilliseconds|]
                             async { return Some evt }
                         | _ -> 
                             async {
@@ -74,7 +76,7 @@ module EventStreamInterpreter =
                                     cache.Set(cacheItem, cachePolicy)
                                 sw.Stop()
                                 let requestedEvent = events |> tryHead
-                                log.RichDebug "ReadFromStream End. Retrieved from event store {@Event}. Retrieved {@EventCount} in total. {@CorrelationId} {Elapsed:000} ms" [|requestedEvent;events.Length;correlationId;sw.ElapsedMilliseconds|]
+                                log.RichDebug "ReadFromStream End. Retrieved from event store {@Event}. Retrieved {@EventCount} in total. {@CorrelationId} {@ContextId} {Elapsed:000} ms" [|requestedEvent;events.Length;startContext.CorrelationId;startContext.ContextId;sw.ElapsedMilliseconds|]
                                 return requestedEvent
                             }
                         
@@ -100,7 +102,7 @@ module EventStreamInterpreter =
                         return! loop next values writes
                 }
             | FreeEventStream (ReadValue (token, g)) ->
-                log.RichDebug "ReadValue {@StreamId} {@EventNumber} {@EventType} {@CorrelationId}" [|token.Stream;token.Number;token.EventType;correlationId|]
+                log.RichDebug "ReadValue {@StreamId} {@EventNumber} {@EventType} {@CorrelationId} {@ContextId}" [|token.Stream;token.Number;token.EventType;startContext.CorrelationId;startContext.ContextId|]
 
                 let (data, metadata) = values.[token]
                 let dataClass = eventStoreTypeToClassMap.Item(token.EventType)
@@ -109,7 +111,7 @@ module EventStreamInterpreter =
                 let next = g (dataObj,metadataObj)
                 loop next  values writes
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->
-                log.RichDebug "WriteToStream {@StreamId} {@EventNumber} {@Events} {@CorrelationId}" [|streamId;eventNumber;events;correlationId|]
+                log.RichDebug "WriteToStream {@StreamId} {@EventNumber} {@Events} {@CorrelationId} {@ContextId}" [|streamId;eventNumber;events;startContext.CorrelationId;startContext.ContextId|]
                 let toEventData = function
                     | Event { Body = dataObj; EventType = typeString; Metadata = metadata} -> 
                         let serializedData = serializer.Serialize(dataObj)
@@ -139,7 +141,7 @@ module EventStreamInterpreter =
                 let next = g ()
                 loop next values writes
             | Pure result ->
-                log.RichDebug "Pure @{Result} {@CorrelationId}" [|result;correlationId|]
+                log.RichDebug "Pure @{Result} {@CorrelationId} {@ContextId}" [|result;startContext.CorrelationId;startContext.ContextId|]
 
                 async {
                     return result

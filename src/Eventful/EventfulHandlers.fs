@@ -26,6 +26,8 @@ type EventfulHandlers<'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent>
         AggregateTypes : Map<string,EventfulStreamConfig<'TMetadata>>
         EventStoreTypeToClassMap : EventStoreTypeToClassMap
         ClassToEventStoreTypeMap : ClassToEventStoreTypeMap
+        GetCommandCorrelationId : 'TCommandContext -> Guid option
+        GetEventCorrelationId : 'TMetadata -> Guid option
         GetAggregateType: 'TMetadata -> string }
 with
     member x.AddCommandHandler = function
@@ -63,7 +65,9 @@ module EventfulHandlers =
         AggregateTypes = Map.empty
         EventStoreTypeToClassMap = FSharpx.Collections.PersistentHashMap.empty
         ClassToEventStoreTypeMap = FSharpx.Collections.PersistentHashMap.empty
-        GetAggregateType = getAggregateType }
+        GetAggregateType = getAggregateType
+        GetCommandCorrelationId = konst None 
+        GetEventCorrelationId = konst None }
 
     let addCommandHandlers config (commandHandlers : ICommandHandler<_,_, _,_> list) eventfulHandlers =
         commandHandlers

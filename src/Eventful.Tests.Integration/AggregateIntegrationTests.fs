@@ -82,7 +82,8 @@ type AggregateIntegrationTests () =
                 let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
 
                 let countsEventProgram = eventCounterStateBuilder |> AggregateStateBuilder.toStreamProgram counterStream widgetId
-                let! snapshot = system.RunStreamProgram countsEventProgram
+                let correlationId = Guid.NewGuid() |> Some
+                let! snapshot = system.RunStreamProgram correlationId "RunStreamProgram" countsEventProgram
 
                 eventCounterStateBuilder.GetState snapshot.State |> should equal 1
                 return ()
@@ -165,7 +166,8 @@ type AggregateIntegrationTests () =
             let counterStream = sprintf "WidgetCounter-%s" (widgetId.Id.ToString("N"))
 
             let countsEventProgram = eventCounterStateBuilder |> AggregateStateBuilder.toStreamProgram counterStream widgetId
-            let! { State = count } = system.RunStreamProgram countsEventProgram
+            let correlationId = Guid.NewGuid() |> Some
+            let! { State = count } = system.RunStreamProgram correlationId "RunStreamProgram" countsEventProgram
             eventCounterStateBuilder.GetState count |> should equal 10
 
         } |> Async.RunSynchronously
@@ -205,7 +207,9 @@ type AggregateIntegrationTests () =
 
             let eventStoreAccess = eventStoreAccess.Value
             let lastWidgetIdProgram =  lastWidgetIdStateBuilder |> AggregateStateBuilder.toStreamProgram expectedStreamName widgetId
-            let! { State = count } = system.RunStreamProgram lastWidgetIdProgram
+
+            let correlationId = Guid.NewGuid() |> Some
+            let! { State = count } = system.RunStreamProgram correlationId "RunStreamProgram" lastWidgetIdProgram
             lastWidgetIdStateBuilder.GetState count =? Some widgetId
 
             return ()

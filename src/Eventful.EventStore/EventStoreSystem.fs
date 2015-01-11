@@ -38,6 +38,41 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
 
     let inMemoryCache = new System.Runtime.Caching.MemoryCache("EventfulEvents")
 
+    let logStart (correlationId : Guid option) name extraTemplate (extraVariables : obj[]) =
+        let contextId = Guid.NewGuid()
+        let startMessageTemplate = sprintf "Start %s: %s {@CorrelationId} {@ContextId}" name extraTemplate 
+        let startMessageVariables = Array.append extraVariables [|correlationId;contextId|]
+        log.RichDebug startMessageTemplate startMessageVariables
+        let sw = startStopwatch()
+        {
+            ContextStartData.ContextId = contextId
+            CorrelationId = correlationId
+            Stopwatch = sw
+            Name = name
+            ExtraTemplate = extraTemplate
+            ExtraVariables = extraVariables
+        }
+
+    let logEnd (startData : ContextStartData) = 
+        let elapsed = startData.Stopwatch.ElapsedMilliseconds 
+        let completeMessageTemplate = sprintf "Complete %s: {@CorrelationId} {@ContextId} {Elapsed:000} ms" startData.Name
+        let completeMessageVariables : obj[] = [|startData.CorrelationId;startData.ContextId;elapsed|]
+        log.RichDebug completeMessageTemplate completeMessageVariables
+
+    let logException (startData : ContextStartData) (ex) = 
+        let elapsed = startData.Stopwatch.ElapsedMilliseconds 
+        let messageTemplate = sprintf "Exception in %s: {@Exception} %s {@CorrelationId} {@ContextId} {Elapsed:000} ms" startData.Name startData.ExtraTemplate
+        let messageVariables : obj[] = 
+            seq {
+                yield (ex :> obj)
+                yield! startData.ExtraVariables |> Seq.ofArray
+                yield startData.CorrelationId :> obj
+                yield startData.ContextId :> obj
+                yield elapsed :> obj
+            }
+            |> Array.ofSeq
+        log.RichError messageTemplate messageVariables
+        
     let interpreter program = 
         EventStreamInterpreter.interpret 
             client 
@@ -48,38 +83,38 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
             getSnapshot 
             program
 
-    let runCommand context cmd =  async {
-        let correlationId = Guid.NewGuid()
-        log.RichDebug "Running command: {@Command} {@CorrelationId}" [|cmd;correlationId|]
-        let sw = System.Diagnostics.Stopwatch.StartNew()
+    let runCommand context cmd = async {
+        let correlationId = handlers.GetCommandCorrelationId context
+        let startContext = logStart correlationId "command handler" "{@Command}" [|cmd|]
         let program = EventfulHandlers.getCommandProgram context cmd handlers
         let! result = 
-            interpreter correlationId program
+            interpreter startContext program
 
-        sw.Stop()
-        log.RichDebug "Command complete: {@Command} {@Result} {@CorrelationId} {Elapsed:000} ms" [|cmd;result;correlationId;sw.ElapsedMilliseconds|]
+        logEnd startContext
         return result
     }
 
     let runHandlerForEvent buildContext (persistedEvent : PersistedEvent<'TMetadata>) program =
-        let correlationId = Guid.NewGuid()
+        let correlationId = handlers.GetEventCorrelationId persistedEvent.Metadata
         async {
+            let startContext = logStart correlationId "event handler" "{@EventType} {@StreamId} {@EventNumber}" [|persistedEvent.EventType;persistedEvent.StreamId;persistedEvent.EventNumber|]
             try
                 use context = buildContext persistedEvent
                 let! program = program context
-                return! interpreter correlationId program
+                return! interpreter startContext program
             with | e ->
-                log.ErrorWithException <| lazy(sprintf "Exception in event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
+                logException startContext e
         }
 
     let runMultiCommandHandlerForEvent buildContext (persistedEvent : PersistedEvent<'TMetadata>) program =
-        let correlationId = Guid.NewGuid()
+        let correlationId = handlers.GetEventCorrelationId persistedEvent.Metadata
         async {
+            let startContext = logStart correlationId "multi command event handler" "{@EventType} {@StreamId} {@EventNumber}" [|persistedEvent.EventType;persistedEvent.StreamId;persistedEvent.EventNumber|]
             try
                 use context = buildContext persistedEvent
                 do! MultiCommandInterpreter.interpret (program context) (flip runCommand)
             with | e ->
-                log.ErrorWithException <| lazy(sprintf "Exception in mulit command event handler: Stream: %s EventNumber: %d" persistedEvent.StreamId persistedEvent.EventNumber, e)
+                logException startContext e
         }
 
     let runEventHandlers (handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>) (persistedEvent : PersistedEvent<'TMetadata>) =
@@ -89,7 +124,6 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
                 |> EventfulHandlers.getHandlerPrograms persistedEvent
                 |> List.map (runHandlerForEvent getEventContextFromMetadata persistedEvent)
 
-            let blah = runMultiCommandHandlerForEvent getEventContextFromMetadata persistedEvent
             let multiCommandEventHandlers =
                 handlers
                 |> EventfulHandlers.getMultiCommandEventHandlers persistedEvent
@@ -102,8 +136,8 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
         }
 
     let runWakeupHandler streamId aggregateType time =
-        let correlationId = Guid.NewGuid()
-        log.RichDebug "RunWakeupHandler {@StreamId} {@AggregateType} {@Time} {@CorrelationId}" [|streamId;aggregateType;time;correlationId|]
+        let correlationId = Some <| Guid.NewGuid()
+        let startContext = logStart correlationId "multi wakeup handler" "{@StreamId} {@AggregateType} {@Time}" [|streamId;aggregateType;time|]
 
         let config = handlers.AggregateTypes.TryFind aggregateType
         match config with
@@ -111,19 +145,25 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
             match config.Wakeup with
             | Some (EventfulWakeupHandler (_, handler)) ->
                 handler streamId time
-                |> interpreter correlationId
+                |> interpreter startContext
                 |> Async.RunSynchronously
             | None ->
                 ()
         | None ->
-            log.Error <| lazy(sprintf "Found wakeup for AggregateType %A but could not find any configuration" aggregateType)
+            logException startContext (sprintf "Found wakeup for AggregateType %A but could not find any configuration" aggregateType)
 
     let wakeupMonitor = buildWakeupMonitor runWakeupHandler
 
     member x.AddOnCompleteEvent callback = 
         onCompleteCallbacks <- callback::onCompleteCallbacks
 
-    member x.RunStreamProgram program = interpreter (Guid.NewGuid()) program
+    member x.RunStreamProgram correlationId name program = 
+        async {
+            let startContext = logStart correlationId name String.Empty Array.empty 
+            let! result = interpreter startContext program
+            logEnd startContext 
+            return result
+        }
 
     member x.Start () =  async {
         try
@@ -152,12 +192,9 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
             timer.Dispose()
 
     member x.EventAppeared eventId (event : ResolvedEvent) : Async<unit> =
-        log.Debug <| lazy(sprintf "EventAppeared: %A: %A %A" event.Event.EventType event.OriginalEvent.EventStreamId event.OriginalEvent.EventNumber)
         match handlers.EventStoreTypeToClassMap.ContainsKey event.Event.EventType with
         | true ->
             let eventType = handlers.EventStoreTypeToClassMap.Item event.Event.EventType
-            let correlationId = Guid.NewGuid()
-            log.RichDebug "Running Handler for: {@EventType} {@StreamId} {@EventNumber} {@CorrelationId}" [|event.Event.EventType; event.OriginalEvent.EventStreamId; event.OriginalEvent.EventNumber;correlationId|]
             async {
                 let position = { Commit = event.OriginalPosition.Value.CommitPosition; Prepare = event.OriginalPosition.Value.PreparePosition }
                 completeTracker.Start position
@@ -166,6 +203,8 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
                     let evt = serializer.DeserializeObj (event.Event.Data) eventType
 
                     let metadata = (serializer.DeserializeObj (event.Event.Metadata) typeof<'TMetadata>) :?> 'TMetadata
+                    let correlationId = handlers.GetEventCorrelationId metadata
+                    log.RichDebug "Running Handlers for: {@EventType} {@StreamId} {@EventNumber} {@CorrelationId}" [|event.Event.EventType; event.OriginalEvent.EventStreamId; event.OriginalEvent.EventNumber;correlationId|]
                     let eventData = { Body = evt; EventType = event.Event.EventType; Metadata = metadata }
 
                     let eventStreamEvent = {
@@ -182,7 +221,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
                     for callback in onCompleteCallbacks do
                         callback (position, event.Event.EventStreamId, event.Event.EventNumber, eventData)
                 with | e ->
-                    log.RichError "Exception thrown while running event handler {@Exception} {@CorrelationId}" [|e;correlationId|]
+                    log.RichError "Exception thrown while running event handlers {@Exception} {@StreamId} {@EventNumber}}" [|e;event.Event.EventStreamId; event.Event.EventNumber|]
 
                 completeTracker.Complete position
             }
