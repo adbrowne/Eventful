@@ -4,6 +4,7 @@ open Eventful
 open Serilog
 open Xunit
 open HttpClient
+open FSharpx
 open FSharpx.Choice
 open Swensen.Unquote
 open FSharp.Data
@@ -16,6 +17,23 @@ module PerformanceSuiteTests =
         match a with
         | Some v -> Choice1Of2 v
         | None -> Choice2Of2 err
+
+    let withProxy request =
+        request
+        |> HttpClient.withProxy { Proxy.Address = "127.0.0.1"; Proxy.Credentials = ProxyCredentials.None; Port = 8888 }
+
+    let createBook apiBaseUrl title = 
+        let createUrl = (sprintf "%sbooks" apiBaseUrl) 
+
+        let getBookId (response : Response) = 
+            response.EntityBody
+            |> Option.map (fun x -> (JsonValue.Parse(x)?bookId).AsGuid())
+            
+        HttpClient.createRequest Post createUrl
+        |> withProxy
+        |> HttpClient.withBody """{ "title": "Test Book" }"""
+        |> HttpClient.getResponseAsync
+        |> Async.map getBookId
 
     [<Fact>]
     let ``Full Integration Run`` () : Task<unit> = 
@@ -39,23 +57,21 @@ module PerformanceSuiteTests =
             BookLibraryRunner.setupDatabase config
             use bookLibraryProcess = BookLibraryRunner.startNewProcess config
 
-            let apiBaseUrl = sprintf "http://localhost:%d/api/" bookLibraryProcess.HttpPort
+            log.Debug("{@RavenPort}", [|ravenProcess.HttpPort|])
+            let apiBaseUrl = sprintf "http://ipv4.fiddler:%d/api/" bookLibraryProcess.HttpPort
 
-            let createUrl = (sprintf "%sbooks" apiBaseUrl) 
+            let! bookIds = 
+                 [1..1]
+                 |> List.map (sprintf "Book %d")
+                 |> List.map (createBook apiBaseUrl)
+                 |> Async.Parallel
+                 |> Async.map List.ofArray
 
-            let createBookResult = 
-                HttpClient.createRequest Post createUrl
-                // |> HttpClient.withProxy { Proxy.Address = "localhost"; Proxy.Credentials = ProxyCredentials.None; Port = 8888 }
-                |> HttpClient.withBody """{ "title": "Test Book" }"""
-                |> HttpClient.getResponse
-                |> (fun x -> x.EntityBody)
-                |> Option.map (fun x -> (JsonValue.Parse(x)?bookId).AsGuid())
-                |> toChoice "No Body" 
-
-            test <@ match createBookResult with
-                    | Choice1Of2 bookId ->
+            test <@ match bookIds with
+                    | [bookId] ->
                         printfn "BookId: %A" bookId
                         true
                     | _ -> false @>  
 
+            ()
         } |> Async.StartAsTask
