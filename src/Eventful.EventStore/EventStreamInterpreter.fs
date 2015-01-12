@@ -15,6 +15,16 @@ module EventStreamInterpreter =
     let getCacheKey stream eventNumber =
         stream + ":" + eventNumber.ToString()
 
+    let eventStreamMetadataToEventStoreMetadata (eventStreamMetadata : EventStreamMetadata) =
+        (StreamMetadata.Build())
+        |> (fun builder -> match eventStreamMetadata.MaxAge with
+                           | Some maxAge -> builder.SetMaxAge(maxAge)
+                           | None -> builder)
+        |> (fun builder -> match eventStreamMetadata.MaxCount with
+                           | Some maxCount -> builder.SetMaxCount(maxCount)
+                           | None -> builder)
+        |> (fun builder -> builder.Build())
+
     let interpret<'A,'TMetadata when 'TMetadata : equality> 
         (eventStore : Client) 
         (cache : System.Runtime.Caching.ObjectCache)
@@ -109,7 +119,13 @@ module EventStreamInterpreter =
                 let dataObj = serializer.DeserializeObj(data) dataClass
                 let metadataObj = serializer.DeserializeObj(metadata) typeof<'TMetadata> :?> 'TMetatdata
                 let next = g (dataObj,metadataObj)
-                loop next  values writes
+                loop next values writes
+            | FreeEventStream (WriteStreamMetadata (streamId, streamMetadata, next)) ->
+                async {
+                    let eventStoreStreamMetadata = eventStreamMetadataToEventStoreMetadata streamMetadata
+                    do! eventStore.writeStreamMetadata streamId eventStoreStreamMetadata
+                    return! loop next values writes
+                }
             | FreeEventStream (WriteToStream (streamId, eventNumber, events, next)) ->
                 log.RichDebug "WriteToStream {@StreamId} {@EventNumber} {@Events} {@CorrelationId} {@ContextId}" [|streamId;eventNumber;events;startContext.CorrelationId;startContext.ContextId|]
                 let toEventData = function

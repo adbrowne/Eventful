@@ -41,6 +41,7 @@ type IStateChangeHandler<'TMetadata, 'TBaseEvent> =
 type AggregateConfiguration<'TContext, 'TAggregateId, 'TMetadata, 'TBaseEvent> = {
     /// used to make processing idempotent
     GetUniqueId : 'TMetadata -> string option
+    StreamMetadata : EventStreamMetadata
     GetStreamName : 'TContext -> 'TAggregateId -> string
     StateBuilder : IStateBuilder<Map<string,obj>, 'TMetadata, unit>
     StateChangeHandlers : LazyList<IStateChangeHandler<'TMetadata, 'TBaseEvent>>
@@ -204,7 +205,7 @@ module AggregateActionBuilder =
                 | None -> s)
         |> StateBuilder.toInterface
 
-    let writeEvents stream lastEventNumber events =  eventStream {
+    let writeEvents stream lastEventNumber streamMetadata events =  eventStream {
         let rawEventToEventStreamEvent (event, metadata) = getEventStreamEvent event metadata
         let! eventStreamEvents = EventStream.mapM rawEventToEventStreamEvent events
 
@@ -213,9 +214,12 @@ module AggregateActionBuilder =
             | -1 -> NewStream
             | x -> AggregateVersion x
 
+        if streamMetadata <> EventStreamMetadata.Default then
+            if expectedVersion = NewStream then
+                do! writeStreamMetadata stream streamMetadata
+
         return! writeToStream stream expectedVersion eventStreamEvents
     }
-       
 
     let addStateChangeEvents blockBuilders snapshot stateChangeHandlers events = 
         let applyEventToSnapshot (event, metadata) snapshot = 
@@ -251,6 +255,7 @@ module AggregateActionBuilder =
         
     let inline runHandler 
         getUniqueId
+        streamMetadata
         blockBuilders
         stateChangeHandlers
         streamId 
@@ -276,7 +281,7 @@ module AggregateActionBuilder =
                                 |> addStateChangeEvents blockBuilders snapshot stateChangeHandlers
                                 |> List.ofSeq
 
-                            let! writeResult = writeEvents streamId snapshot.LastEventNumber events
+                            let! writeResult = writeEvents streamId snapshot.LastEventNumber streamMetadata events
 
                             log.Debug <| lazy (sprintf "WriteResult: %A" writeResult)
                             
@@ -351,6 +356,7 @@ module AggregateActionBuilder =
                 let f snapshot = 
                    runHandler 
                         aggregateConfiguration.GetUniqueId 
+                        aggregateConfiguration.StreamMetadata
                         aggregateConfiguration.StateBuilder.GetBlockBuilders
                         aggregateConfiguration.StateChangeHandlers
                         stream 
@@ -456,6 +462,7 @@ module AggregateActionBuilder =
                     let stateBuilder = stateBuilder |> StateBuilder.withUnitKey
                     runHandler 
                         aggregateConfiguration.GetUniqueId 
+                        aggregateConfiguration.StreamMetadata
                         aggregateConfiguration.StateBuilder.GetBlockBuilders
                         aggregateConfiguration.StateChangeHandlers
                         resultingStream 
@@ -542,6 +549,7 @@ type AggregateDefinition<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMeta
     Handlers : AggregateHandlers<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata, 'TBaseEvent>
     AggregateType : string
     Wakeup : IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> option
+    StreamMetadata : EventStreamMetadata
 }
 
 module Aggregate = 
@@ -558,6 +566,7 @@ module Aggregate =
                 GetEventStreamName = getEventStreamName
                 Handlers = handlers
                 Wakeup = None
+                StreamMetadata = EventStreamMetadata.Default
             }
 
     let toAggregateDefinition<'TEvents, 'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent when 'TAggregateId : equality>
@@ -601,7 +610,15 @@ module Aggregate =
                             // ensure that the handler is only run if the state matches the time
                             let nextWakeupTimeFromState = wakeupFold.GetState streamState.State
                             if Some time = nextWakeupTimeFromState then
-                                AggregateActionBuilder.runHandler aggregateConfiguration.GetUniqueId aggregateConfiguration.StateBuilder.GetBlockBuilders aggregateConfiguration.StateChangeHandlers streamId streamState stateBuilder (handler time)
+                                AggregateActionBuilder.runHandler 
+                                    aggregateConfiguration.GetUniqueId 
+                                    aggregateConfiguration.StreamMetadata 
+                                    aggregateConfiguration.StateBuilder.GetBlockBuilders 
+                                    aggregateConfiguration.StateChangeHandlers 
+                                    streamId 
+                                    streamState 
+                                    stateBuilder 
+                                    (handler time)
                             else
                                 // if the time is out of date just return success with no events
                                 eventStream {
@@ -619,3 +636,8 @@ module Aggregate =
                     }
         }
         { aggregateDefinition with Wakeup = Some wakeup }
+
+    let withStreamMetadata 
+        (streamMetadata : EventStreamMetadata) 
+        (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent>) =
+        { aggregateDefinition with StreamMetadata = streamMetadata } 

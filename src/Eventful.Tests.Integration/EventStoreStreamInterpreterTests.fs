@@ -2,6 +2,7 @@
 
 open Xunit
 open System
+open System.Threading.Tasks
 open FsUnit.Xunit
 open Eventful
 open Eventful.EventStream
@@ -10,6 +11,7 @@ open Eventful.Testing
 open FSharpx.Collections
 open Eventful.Tests
 open FSharpx
+open Swensen.Unquote
 
 type MyEvent = {
     Name : string
@@ -230,6 +232,42 @@ type EventStoreStreamInterpreterTests () =
 
             readResult |> should equal (Some event.Name)
         } |> Async.RunSynchronously
+
+
+    [<Fact>]
+    [<Trait("category", "eventstore")>]
+    let ``Set MaxCount in stream metadata`` () : Task<unit> =
+        async {
+            let client = new Client(connection)
+
+            let run program = run client program
+
+            let stream = "MyStream-" + (newId())
+
+            do! run <| writeStreamMetadata stream { EventStreamMetadata.Default with MaxCount = Some 1 }
+
+            let! writtenMetadata = client.getStreamMetadata stream
+
+            let expectedMaxCount = Nullable(1)
+            writtenMetadata.StreamMetadata.MaxCount =? Nullable(1)
+        } |> Async.StartAsTask
+
+    [<Fact>]
+    [<Trait("category", "eventstore")>]
+    let ``Set MaxAge in stream metadata`` () : Task<unit> =
+        async {
+            let client = new Client(connection)
+
+            let run program = run client program
+
+            let stream = "MyStream-" + (newId())
+
+            do! run <| writeStreamMetadata stream { EventStreamMetadata.Default with MaxAge = Some (TimeSpan.FromDays(1.)) }
+
+            let! writtenMetadata = client.getStreamMetadata stream
+
+            writtenMetadata.StreamMetadata.MaxAge =? Nullable(TimeSpan.FromDays(1.))
+        } |> Async.StartAsTask
 
     interface Xunit.IUseFixture<EventStoreFixture> with
         member x.SetFixture(fixture) =

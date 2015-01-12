@@ -46,6 +46,10 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
 
         new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>({ state with AllEvents = allEvents; LastResult = result })
 
+    member x.GetStreamMetadata (streamId : string) =
+        state.AllEvents.StreamMetadata
+        |> Map.tryFind streamId
+
     // runs the command. throws on failure
     member x.RunCommand (cmd : obj) (context : 'TCommandContext) =    
         let system = x.RunCommandNoThrow cmd context
@@ -156,6 +160,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
 module TestSystem = 
     let runCommand x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) = y.RunCommand x c
     let runCommandNoThrow x c (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) = y.RunCommandNoThrow x c
+    let getStreamMetadata streamId (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) = y.GetStreamMetadata streamId
     let runToEnd (y:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) = y.RunToEnd()
     let injectEvent stream event metadata (testSystem : TestSystem<_,_,_,_>) =
         testSystem.InjectEvent stream event metadata

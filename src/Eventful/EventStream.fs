@@ -28,6 +28,12 @@ type EventStreamEventData<'TMetadata> = {
     Metadata : 'TMetadata
 }
 
+type EventStreamMetadata = {
+    MaxCount : int option
+    MaxAge : TimeSpan option
+}
+with static member Default = { MaxCount = None; MaxAge = None }
+
 type EventStoreTypeToClassMap = FSharpx.Collections.PersistentHashMap<string, Type>
 type ClassToEventStoreTypeMap = FSharpx.Collections.PersistentHashMap<Type, string>
 
@@ -84,12 +90,13 @@ module EventStream =
     type EventStreamLanguage<'N,'TMetadata> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
     | ReadSnapshot of string * Map<string, Type> * (StateSnapshot -> 'N)
-    | GetEventStoreTypeToClassMap of unit *  (EventStoreTypeToClassMap -> 'N)
-    | GetClassToEventStoreTypeMap of unit *  (ClassToEventStoreTypeMap -> 'N)
+    | GetEventStoreTypeToClassMap of unit * (EventStoreTypeToClassMap -> 'N)
+    | GetClassToEventStoreTypeMap of unit * (ClassToEventStoreTypeMap -> 'N)
     | ReadValue of EventToken *  ((obj * 'TMetadata) -> 'N)
     | RunAsync of Async<'N>
     | LogMessage of LogMessageLevel * string * obj[] * 'N
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
+    | WriteStreamMetadata of string * EventStreamMetadata * 'N
     | NotYetDone of (unit -> 'N)
     and 
         FreeEventStream<'F,'R,'TMetadata> = 
@@ -114,6 +121,8 @@ module EventStream =
             WriteToStream (stream, expectedVersion, events, (next >> f))
         | LogMessage (logLevel, messageTemplate, data, next) -> 
             LogMessage (logLevel, messageTemplate, data, f next)
+        | WriteStreamMetadata (stream, streamMetadata, next) ->
+            WriteStreamMetadata (stream, streamMetadata, f next)
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
         | RunAsync asyncBlock -> 
@@ -136,6 +145,8 @@ module EventStream =
         ReadValue(eventToken, id) |> liftF
     let writeToStream stream number events = 
         WriteToStream(stream, number, events, id) |> liftF
+    let writeStreamMetadata stream streamMetadata = 
+        WriteStreamMetadata(stream, streamMetadata, ()) |> liftF
     let logMessage logLevel messageTemplate data = 
         LogMessage (logLevel, messageTemplate, data, ()) |> liftF
     let runAsync (a : Async<'a>) : FreeEventStream<'f2,'a,'m> =  

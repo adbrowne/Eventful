@@ -3,7 +3,7 @@
 open FSharp.Control
 open EventStore.ClientAPI
 open System
-open FSharpx.Collections
+open FSharpx
 open Eventful
 
 /// simple F# wrapper around EventStore functions
@@ -85,6 +85,14 @@ type Client (connection : IEventStoreConnection) =
         let! (finalSlice : AllEventsSlice) = connection.ReadAllEventsBackwardAsync(position, 1, false, null)
         let nextPosition = finalSlice.NextPosition
         return nextPosition }
+
+    member x.writeStreamMetadata streamId (streamMetadata : StreamMetadata) = 
+        connection.SetStreamMetadataAsync(streamId, ExpectedVersion.Any, streamMetadata) 
+        |> Async.AwaitTask
+        |> Async.map (konst ())
+
+    member x.getStreamMetadata streamId = 
+        connection.GetStreamMetadataAsync streamId |> Async.AwaitTask
 
     member x.ensureMetadata streamId (data : StreamMetadata) = async {
         let! (metadata : StreamMetadataResult) = (connection.GetStreamMetadataAsync(streamId) |> Async.AwaitTask)

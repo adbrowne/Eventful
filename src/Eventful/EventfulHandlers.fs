@@ -130,6 +130,7 @@ module EventfulHandlers =
         let commandConfig = {
             AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder 
             GetUniqueId = aggregateDefinition.GetUniqueId
+            StreamMetadata = aggregateDefinition.StreamMetadata
             GetStreamName = aggregateDefinition.GetCommandStreamName
             StateChangeHandlers = stateChangeHandlers
         }
@@ -137,6 +138,7 @@ module EventfulHandlers =
         let eventConfig = {
             AggregateConfiguration.StateBuilder = combinedAggregateStateBuilder
             GetUniqueId = aggregateDefinition.GetUniqueId
+            StreamMetadata = aggregateDefinition.StreamMetadata
             GetStreamName = aggregateDefinition.GetEventStreamName
             StateChangeHandlers = stateChangeHandlers
         }

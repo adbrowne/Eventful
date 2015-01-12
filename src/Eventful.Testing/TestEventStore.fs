@@ -16,6 +16,7 @@ type WakeupRecord = {
 type TestEventStore<'TMetadata when 'TMetadata : equality> = {
     Position : EventPosition
     Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>
+    StreamMetadata : Map<string,Vector<EventStreamMetadata>>
     PendingEvents : Queue<(int * PersistedStreamEntry<'TMetadata>)>
     AggregateStateSnapShots : Map<string, StateSnapshot>
     WakeupQueue : IPriorityQueue<WakeupRecord>
@@ -35,6 +36,7 @@ module TestEventStore =
     let empty<'TMetadata, 'TAggregateType when 'TMetadata : equality and 'TAggregateType : comparison> : TestEventStore<'TMetadata> = { 
         Position = EventPosition.Start
         Events = Map.empty
+        StreamMetadata = Map.empty
         PendingEvents = Queue.empty 
         AggregateStateSnapShots = Map.empty
         WakeupQueue = PriorityQueue.empty false }
