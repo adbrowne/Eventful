@@ -115,9 +115,7 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
 
         loop ParallelInOrderTransformerState<'TInput, 'TOutput>.Zero)
 
-    member x.Process(input: 'TInput, onComplete : 'TOutput -> Async<unit>) : Async<unit> =
-        async {
-            while((transformerAgent.CurrentQueueLength + !transformerQueue) > maxItems) do
-                do! Async.Sleep(10)
-            transformerAgent.Post <| EnqueueMsg (input, onComplete)
-        }
+    member x.Process(input: 'TInput, onComplete : 'TOutput -> Async<unit>) =
+        while((transformerAgent.CurrentQueueLength + !transformerQueue) > maxItems) do
+            System.Threading.Thread.Sleep(10)
+        transformerAgent.Post <| EnqueueMsg (input, onComplete)

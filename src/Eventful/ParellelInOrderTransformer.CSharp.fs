@@ -15,4 +15,4 @@ type ParallelInOrderTransformer<'TInput,'TOutput>
     let transformer = new Eventful.ParallelInOrderTransformer<'TInput, 'TOutput>((fun i -> work.Invoke(i) |> Async.AwaitTask), maxItems, workers)
 
     member x.Process(input: 'TInput, onComplete : System.Func<'TOutput, Task>) : unit =
-        transformer.Process(input, (fun o -> onComplete.Invoke(o) |> Async.AwaitIAsyncResult |> Async.Ignore)) |> Async.RunSynchronously
+        transformer.Process(input, (fun o -> onComplete.Invoke(o) |> Async.AwaitIAsyncResult |> Async.Ignore))
