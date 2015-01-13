@@ -3,6 +3,7 @@
 open Eventful
 open System
 open Xunit
+open System.Threading
 open System.Threading.Tasks
 open FsUnit.Xunit
 
@@ -17,16 +18,15 @@ module ParallelInOrderTransformerTests =
 
         let received = ref List.empty
 
-        let callback i = async {
-            do! Async.Sleep (rnd.Next(10))
+        let callback i =
+            Thread.Sleep(rnd.Next(10))
             lock monitor (fun () ->
                 received := (i::(!received ))
             )
-        }
 
-        let runItem i = async {
-            do! Async.Sleep(rnd.Next(10))
-            return i }
+        let runItem i = 
+            Thread.Sleep(rnd.Next(10))
+            i
 
         let transformer = new ParallelInOrderTransformer<int,int>(runItem, 50, 5)
 
@@ -47,14 +47,12 @@ module ParallelInOrderTransformerTests =
 
         let received = ref List.empty
 
-        let callback i = async {
+        let callback i = 
             lock monitor (fun () ->
                 received := (i::(!received ))
             )
-        }
 
-        let runItem i = async {
-            return i }
+        let runItem = id
 
         let transformer = new ParallelInOrderTransformer<int,int>(runItem, 50, 5)
 
@@ -90,11 +88,13 @@ module ParallelInOrderTransformerPerfTests =
         for i in [1..itemCount] do
             eventHandler i |> Async.RunSynchronously
 
+        let queueTime = stopwatch.Elapsed.TotalSeconds
+
         completeTask.Wait()
 
         stopwatch.Stop()
 
-        printfn "%d events in %f seconds %f" !eventCount stopwatch.Elapsed.TotalSeconds (float !eventCount / stopwatch.Elapsed.TotalSeconds)
+        printfn "%d events in %f seconds %f queueTime: %f" !eventCount stopwatch.Elapsed.TotalSeconds (float !eventCount / stopwatch.Elapsed.TotalSeconds) queueTime
         ()
         
     [<Fact>]
@@ -107,16 +107,13 @@ module ParallelInOrderTransformerPerfTests =
 
         runTest eventHandler (Task.FromResult(true))
 
-    let noWork x = async {
-        return x
-    }
+    let noWork = id
 
     let onComplete (tcs : TaskCompletionSource<bool>) i =
         let newValue = System.Threading.Interlocked.Increment eventCount
             
         if newValue= itemCount - 1 then
             tcs.SetResult true
-        async.Zero()
             
     [<Fact>]
     [<Trait("category", "performance")>]
@@ -135,10 +132,13 @@ module ParallelInOrderTransformerPerfTests =
 
         runTest eventHandler tcs.Task
 
-    let realWork x = async {
-        let sum = [1L..10000L] |> Seq.sum
-        return x
-    }
+    let realWork x = 
+        let sum = ref 0L
+        let i = ref 1
+        while(!i < 10000) do
+            i := !i + 1
+            sum := !sum + (int64 !i)
+        x
 
     [<Fact>]
     [<Trait("category", "performance")>]

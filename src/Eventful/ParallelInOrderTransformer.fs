@@ -6,70 +6,66 @@ open System.Collections.Concurrent
 type internal ParallelInOrderTransformerQueueItem<'TInput, 'TOutput> = {
     Index : int64
     Input : 'TInput
-    OnComplete : ('TOutput -> Async<unit>)
+    OnComplete : ('TOutput -> unit)
 }
 
 type internal ParallelInOrderTransformerCompleteItem<'TOutput> = {
     Index : int64
     Output : 'TOutput
-    OnComplete : ('TOutput -> Async<unit>)
+    OnComplete : ('TOutput -> unit)
 }
 
-
-type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutput>, ?maxItems : int, ?workerCount : int) =
+type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?maxItems : int, ?workerCount : int) =
     let log = createLogger <| sprintf "Eventful.ParallelInOrderTransformer<%s,%s>" typeof<'TInput>.Name typeof<'TOutput>.Name
     let currentIndex = ref -1L
 
     let maxItems = 
         match maxItems with
         | Some x -> x
-        | None -> 100
+        | None -> 100000
 
     let workerCount = 
         match workerCount with
         | Some x -> x
-        | None -> 10
+        | None -> 4
 
-    let runAgent (agent : Agent<_>) = 
-        let completeQueue = new System.Collections.Generic.SortedDictionary<int64,ParallelInOrderTransformerCompleteItem<'TOutput>>()
+    let completeQueue = new BlockingCollection<ParallelInOrderTransformerCompleteItem<'TOutput>>(maxItems)
 
-        let rec completeQueueItems nextIndex = async {
-            let (nextFound, nextValue) = completeQueue.TryGetValue nextIndex
+    let completeWorkerLoop (o : obj) : unit =
+        let pendingQueue = new System.Collections.Generic.SortedDictionary<int64,ParallelInOrderTransformerCompleteItem<'TOutput>>()
+
+        let rec completeQueueItems nextIndex = 
+            let (nextFound, nextValue) = pendingQueue.TryGetValue nextIndex
             if nextFound then
-                do! nextValue.OnComplete nextValue.Output
-                completeQueue.Remove nextIndex |> ignore
-                return! completeQueueItems (nextIndex + 1L)
+                nextValue.OnComplete nextValue.Output
+                pendingQueue.Remove nextIndex |> ignore
+                completeQueueItems (nextIndex + 1L)
             else
-                return nextIndex
-        }
+                nextIndex
 
-        let rec loop nextIndex = async {
-            let! (item : ParallelInOrderTransformerCompleteItem<'TOutput>) = agent.Receive()
-            if item.Index = nextIndex then
-                do! item.OnComplete item.Output
-                let! nextIndex = completeQueueItems (nextIndex + 1L)
-                return! loop nextIndex
-            else
-                completeQueue.Add(item.Index, item)
-                return! loop nextIndex
-        }
-        loop 0L
+        let nextIndex = ref 0L
 
-    let orderingAgent = newAgent "NewParallelTransformer" log runAgent
-
+        for item in completeQueue.GetConsumingEnumerable() do
+            async {
+                if item.Index = !nextIndex then
+                    item.OnComplete item.Output
+                    let newIndex = completeQueueItems (!nextIndex  + 1L)
+                    nextIndex := newIndex
+                else
+                    pendingQueue.Add(item.Index, item)
+            } |> Async.RunSynchronously
+        
     let queue = new BlockingCollection<ParallelInOrderTransformerQueueItem<'TInput, 'TOutput>>(maxItems)
 
     let workerLoop (o : obj) : unit =
         for item in queue.GetConsumingEnumerable() do
-            async {
-                let! output = work item.Input 
-                orderingAgent.Post 
-                    {
-                        ParallelInOrderTransformerCompleteItem.Index = item.Index
-                        Output = output
-                        OnComplete = item.OnComplete
-                    }
-            } |> Async.RunSynchronously
+            let output = work item.Input 
+            completeQueue.Add
+                {
+                    ParallelInOrderTransformerCompleteItem.Index = item.Index
+                    Output = output
+                    OnComplete = item.OnComplete
+                }
 
     let threads = 
         [1..workerCount]
@@ -79,7 +75,11 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
         threads
         |> List.iter (fun t -> t.Start())
 
-    member x.Process (input : 'TInput, onComplete : 'TOutput -> Async<unit>) = 
+    do
+        let completeQueueWorker = new System.Threading.Thread(new System.Threading.ParameterizedThreadStart(completeWorkerLoop))
+        completeQueueWorker.Start()
+
+    member x.Process (input : 'TInput, onComplete : 'TOutput -> unit) = 
         let index = System.Threading.Interlocked.Increment currentIndex
         queue.Add 
             { Index = index
@@ -91,4 +91,5 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> Async<'TOutp
             // will make GetConsumingEnumerable finish
             // which means worker threads stop
             queue.CompleteAdding() 
+            completeQueue.CompleteAdding()
             queue.Dispose()
