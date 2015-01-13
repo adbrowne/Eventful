@@ -122,10 +122,10 @@ type AggregateIntegrationTests () =
 
             let client = new Client(connection)
 
-            let! storedPosition = ProcessingTracker.readPosition client
+            let! storedPosition = ProcessingTracker.readPosition client system.PositionStream
 
             !lastPosition >? EventPosition.Start
-            storedPosition >=? Some !lastPosition
+            storedPosition.Position >=? !lastPosition
         } |> Async.RunSynchronously
 
     [<Fact>]

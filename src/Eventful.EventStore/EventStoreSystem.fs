@@ -18,6 +18,10 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
     ) =
 
     let log = createLogger "Eventful.EventStoreSystem"
+    [<Literal>]
+    let positionStream = "EventStoreProcessPosition"
+    let mutable positionStreamVersion = 0
+    let mutable lastPositionUpdate = EventPosition.Start
 
     let mutable lastEventProcessed : EventPosition = EventPosition.Start
     let mutable onCompleteCallbacks : List<EventPosition * string * int * EventStreamEventData<'TMetadata> -> unit> = List.empty
@@ -25,14 +29,21 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
     let mutable subscription : EventStoreAllCatchUpSubscription = null
     let completeTracker = new LastCompleteItemAgent<EventPosition>()
 
+    let updatePositionLock = obj()
     let updatePosition _ = async {
         try
-            let! lastComplete = completeTracker.LastComplete()
-            log.Debug <| lazy ( sprintf "Updating position %A" lastComplete )
-            match lastComplete with
-            | Some position ->
-                ProcessingTracker.setPosition client position |> Async.RunSynchronously
-            | None -> () 
+            return!
+                lock updatePositionLock 
+                    (fun () -> 
+                        async {
+                            let! lastComplete = completeTracker.LastComplete()
+                            log.Debug <| lazy ( sprintf "Updating position %A" lastComplete )
+                            match lastComplete with
+                            | Some position when position <> lastPositionUpdate ->
+                                let! positionResult = ProcessingTracker.setPosition client positionStream positionStreamVersion position
+                                positionStreamVersion <-  positionResult
+                                lastPositionUpdate <- position
+                            | _ -> () })
         with | e ->
             log.ErrorWithException <| lazy("failure updating position", e)}
 
@@ -154,6 +165,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
 
     let wakeupMonitor = buildWakeupMonitor runWakeupHandler
 
+    member x.PositionStream = positionStream
     member x.AddOnCompleteEvent callback = 
         onCompleteCallbacks <- callback::onCompleteCallbacks
 
@@ -167,18 +179,21 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
 
     member x.Start () =  async {
         try
-            let! position = ProcessingTracker.readPosition client |> Async.map (Option.map EventPosition.toEventStorePosition)
-            let! nullablePosition = match position with
-                                    | Some position -> async { return  Nullable(position) }
-                                    | None -> 
-                                        log.Debug <| lazy("No event position found. Starting from current head.")
-                                        async {
-                                            let! nextPosition = client.getNextPosition ()
-                                            return Nullable(nextPosition) }
+            let! currentEventStorePosition = ProcessingTracker.readPosition client positionStream
+            positionStreamVersion <- currentEventStorePosition.StreamVersion
+            let! nullablePosition = 
+                match positionStreamVersion with
+                | ExpectedVersion.NoStream ->
+                    log.Debug <| lazy("No event position found. Starting from current head.")
+                    async {
+                        let! nextPosition = client.getNextPosition ()
+                        return Nullable(nextPosition) }
+                | _ -> 
+                    async { return Nullable(currentEventStorePosition.Position |> EventPosition.toEventStorePosition) }
 
             let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
             timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)
-            subscription <- client.subscribe position x.EventAppeared (fun () -> log.Debug <| lazy("Live"))
+            subscription <- client.subscribe (nullablePosition |> Nullable.toOption) x.EventAppeared (fun () -> log.Debug <| lazy("Live"))
             wakeupMonitor.Start() 
         with | e ->
             log.ErrorWithException <| lazy("Exception starting EventStoreSystem",e)
