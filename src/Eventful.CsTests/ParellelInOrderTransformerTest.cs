@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -14,9 +15,9 @@ namespace Eventful.CsTests
         {
             var rnd = new Random();
 
-            var tranformer = new CSharp.ParallelInOrderTransformer<int, int>(async v =>
+            var tranformer = new CSharp.ParallelInOrderTransformer<int, int>(v =>
                 {
-                    await Task.Delay(rnd.Next(10));
+                    Thread.Sleep(rnd.Next(10));
                     return v;
                 }, 50, 5);
 
