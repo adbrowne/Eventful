@@ -23,11 +23,12 @@ namespace Eventful.CsTests
 
             var list = new List<int>();
 
-            foreach(var i in Enumerable.Range(1, 100))
+            const int itemCount = 10;
+            foreach(var i in Enumerable.Range(1, itemCount))
             {
-                tranformer.Process(i, async result =>
+                tranformer.Process(i, result =>
                     {
-                        await Task.Delay(rnd.Next(10));
+                        Thread.Sleep(rnd.Next(10));
                         lock (list)
                         {
                             list.Add(result);
@@ -35,13 +36,14 @@ namespace Eventful.CsTests
                     });
             }
 
-            while (list.Count < 100)
+            while (list.Count < itemCount)
             {
                 await Task.Delay(100);
             }
 
-            Assert.Equal(100, list.Count);
-            foreach (var item in list.Zip(Enumerable.Range(1, 100), (a, b) => a == b))
+            Assert.Equal(itemCount, list.Count);
+            var zippedList = list.Zip(Enumerable.Range(1, itemCount), (a, b) => a == b);
+            foreach (var item in zippedList)
             {
                 Assert.True(item);
             }

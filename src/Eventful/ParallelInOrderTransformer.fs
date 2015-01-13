@@ -46,14 +46,12 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?m
         let nextIndex = ref 0L
 
         for item in completeQueue.GetConsumingEnumerable() do
-            async {
-                if item.Index = !nextIndex then
-                    item.OnComplete item.Output
-                    let newIndex = completeQueueItems (!nextIndex  + 1L)
-                    nextIndex := newIndex
-                else
-                    pendingQueue.Add(item.Index, item)
-            } |> Async.RunSynchronously
+            if item.Index = !nextIndex then
+                item.OnComplete item.Output
+                let newIndex = completeQueueItems (!nextIndex  + 1L)
+                nextIndex := newIndex
+            else
+                pendingQueue.Add(item.Index, item)
         
     let queue = new BlockingCollection<ParallelInOrderTransformerQueueItem<'TInput, 'TOutput>>(maxItems)
 
