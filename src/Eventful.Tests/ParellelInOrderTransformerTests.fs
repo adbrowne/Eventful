@@ -133,11 +133,7 @@ module ParallelInOrderTransformerPerfTests =
         runTest eventHandler tcs.Task
 
     let realWork x = 
-        let sum = ref 0L
-        let i = ref 1
-        while(!i < 10000) do
-            i := !i + 1
-            sum := !sum + (int64 !i)
+        let sum = [1L..10000L] |> Seq.sum
         x
 
     [<Fact>]
