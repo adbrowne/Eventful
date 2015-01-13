@@ -75,3 +75,80 @@ module ParallelInOrderTransformerTests =
         } |> (fun f -> Async.RunSynchronously(f, 5000))
 
         !received |> List.length |> should equal (200)
+
+module ParallelInOrderTransformerPerfTests =
+    let itemCount = 100000
+    
+    let eventCount = ref 0
+    let result = ref 0
+
+    let runTest eventHandler (completeTask : Task<bool>) =
+        let stopwatch = System.Diagnostics.Stopwatch.StartNew()
+
+        eventCount := 0
+
+        for i in [1..itemCount] do
+            eventHandler i |> Async.RunSynchronously
+
+        completeTask.Wait()
+
+        stopwatch.Stop()
+
+        printfn "%d events in %f seconds %f" !eventCount stopwatch.Elapsed.TotalSeconds (float !eventCount / stopwatch.Elapsed.TotalSeconds)
+        ()
+        
+    [<Fact>]
+    [<Trait("category", "performance")>]
+    let ``Direct incriment`` () = 
+        let eventHandler i =
+            async { 
+                eventCount := !eventCount + 1 
+            }
+
+        runTest eventHandler (Task.FromResult(true))
+
+    let noWork x = async {
+        return x
+    }
+
+    let onComplete (tcs : TaskCompletionSource<bool>) i =
+        let newValue = System.Threading.Interlocked.Increment eventCount
+            
+        if newValue= itemCount - 1 then
+            tcs.SetResult true
+        async.Zero()
+            
+    [<Fact>]
+    [<Trait("category", "performance")>]
+    let ``Run in parallel no work`` () = 
+
+        let work x = async {
+            return x
+        }
+
+        let transformer = new Eventful.ParallelInOrderTransformer<int,int>(noWork)
+
+        let tcs = new TaskCompletionSource<bool>()
+        let eventHandler item =
+            transformer.Process (item, onComplete tcs)
+            async.Zero()
+
+        runTest eventHandler tcs.Task
+
+    let realWork x = async {
+        let sum = [1L..10000L] |> Seq.sum
+        return x
+    }
+
+    [<Fact>]
+    [<Trait("category", "performance")>]
+    let ``Run in parallel with work`` () = 
+
+        let transformer = new Eventful.ParallelInOrderTransformer<int,int>(realWork)
+        let tcs = new TaskCompletionSource<bool>()
+
+        let eventHandler item =
+            transformer.Process (item, onComplete tcs)
+            async.Zero()
+
+        runTest eventHandler  tcs.Task

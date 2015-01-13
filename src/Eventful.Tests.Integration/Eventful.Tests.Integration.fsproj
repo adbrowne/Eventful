@@ -68,7 +68,6 @@
     <Compile Include="EventStoreFixture.fs" />
     <Compile Include="RavenDbPlay.fs" />
     <Compile Include="RunningTests.fs" />
-    <Compile Include="InOrderTransformerPerfTests.fs" />
     <Compile Include="EventStoreStreamInterpreterTests.fs" />
     <Compile Include="TestEventStoreSystemFixture.fs" />
     <Compile Include="AggregateIntegrationTests.fs" />
