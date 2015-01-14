@@ -20,7 +20,6 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
     let log = createLogger "Eventful.EventStoreSystem"
     [<Literal>]
     let positionStream = "EventStoreProcessPosition"
-    let mutable positionStreamVersion = 0
     let mutable lastPositionUpdate = EventPosition.Start
 
     let mutable lastEventProcessed : EventPosition = EventPosition.Start
@@ -40,8 +39,7 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
                             log.Debug <| lazy ( sprintf "Updating position %A" lastComplete )
                             match lastComplete with
                             | Some position when position <> lastPositionUpdate ->
-                                let! positionResult = ProcessingTracker.setPosition client positionStream positionStreamVersion position
-                                positionStreamVersion <-  positionResult
+                                do! ProcessingTracker.setPosition client positionStream position
                                 lastPositionUpdate <- position
                             | _ -> () })
         with | e ->
@@ -179,17 +177,17 @@ type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent w
 
     member x.Start () =  async {
         try
+            do! ProcessingTracker.ensureTrackingStreamMetadata client positionStream
             let! currentEventStorePosition = ProcessingTracker.readPosition client positionStream
-            positionStreamVersion <- currentEventStorePosition.StreamVersion
             let! nullablePosition = 
-                match positionStreamVersion with
-                | ExpectedVersion.NoStream ->
+                match currentEventStorePosition with
+                | x when x = EventPosition.Start ->
                     log.Debug <| lazy("No event position found. Starting from current head.")
                     async {
                         let! nextPosition = client.getNextPosition ()
                         return Nullable(nextPosition) }
                 | _ -> 
-                    async { return Nullable(currentEventStorePosition.Position |> EventPosition.toEventStorePosition) }
+                    async { return Nullable(currentEventStorePosition |> EventPosition.toEventStorePosition) }
 
             let timeBetweenPositionSaves = TimeSpan.FromSeconds(5.0)
             timer <- new System.Threading.Timer((updatePosition >> Async.RunSynchronously), null, TimeSpan.Zero, timeBetweenPositionSaves)

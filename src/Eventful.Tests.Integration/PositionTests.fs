@@ -17,11 +17,11 @@ type PositionTests () =
             let client = new Client(connection)
 
             let streamId = "SomeStream"
-            let! version = ProcessingTracker.setPosition client streamId -1 { Commit = commitPosition; Prepare = preparePosition}
+            let! version = ProcessingTracker.setPosition client streamId { Commit = commitPosition; Prepare = preparePosition}
 
             let! position = ProcessingTracker.readPosition client streamId
 
-            match position.Position with
+            match position with
             | { Commit = commit; Prepare = prepare } when commit = commitPosition && prepare = preparePosition -> Assert.True(true)
             | p -> Assert.True(false, (sprintf "Unexpected position %A" p))
         } |> Async.RunSynchronously
