@@ -29,17 +29,17 @@ module ProcessingTracker =
         |> (fun x -> x.ToString())
         |> Encoding.UTF8.GetBytes
 
-    let ensureTrackingStreamMetadata (client : Client) streamId = async {
+    let ensureTrackingStreamMetadata (client : EventStoreClient) streamId = async {
         let! existingMetadata = client.getStreamMetadata streamId
         if (existingMetadata.StreamMetadata.MaxCount <> Nullable(1)) then
             let streamMetadata = EventStore.ClientAPI.StreamMetadata.Create(Nullable(1))
             do! client.writeStreamMetadata streamId streamMetadata
     }
 
-    let ensureTrackingStreamMetadataAsync (client : Client) streamId =
+    let ensureTrackingStreamMetadataAsync (client : EventStoreClient) streamId =
         ensureTrackingStreamMetadata client streamId |> Async.StartAsTask
         
-    let readPosition (client : Client) streamId = async {
+    let readPosition (client : EventStoreClient) streamId = async {
         let! (position, _) = client.readStreamHead streamId
         return 
             match position with
@@ -51,7 +51,7 @@ module ProcessingTracker =
     let readPositionAsync client streamId =
         readPosition client streamId |> Async.StartAsTask
 
-    let setPosition (client : Client) streamId (position : EventPosition) = async {
+    let setPosition (client : EventStoreClient) streamId (position : EventPosition) = async {
         let jsonBytes = serializePosition position
         let eventData = new EventData(Guid.NewGuid(), "ProcessPosition", true, jsonBytes, null)
         let! writeResult = client.append streamId ExpectedVersion.Any [|eventData|]

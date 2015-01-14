@@ -120,7 +120,7 @@ type AggregateIntegrationTests () =
 
             do! Async.Sleep 6000 // wait for a bit more than one position save
 
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let! storedPosition = ProcessingTracker.readPosition client system.PositionStream
 

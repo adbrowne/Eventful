@@ -191,7 +191,7 @@ type TestEventStoreSystemFixture () =
 
     let nullGetSnapshot streamId typeMap = StateSnapshot.Empty |> Async.returnM
 
-    let client = new Client(eventStoreProcess.Connection)
+    let client = new EventStoreClient(eventStoreProcess.Connection)
     let mockWakeupMonitor _ = {
         new Eventful.IWakeupMonitor with
             member x.Start () = ()

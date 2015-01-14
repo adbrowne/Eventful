@@ -69,7 +69,7 @@ type EventStoreStreamInterpreterTests () =
     [<Trait("category", "eventstore")>]
     let ``Write and read Event`` () : unit =
         async {
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let run program = run client program
 
@@ -107,7 +107,7 @@ type EventStoreStreamInterpreterTests () =
     [<Trait("category", "eventstore")>]
     let ``Write and read sequence`` () : unit =
         async {
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let run program = run client program
 
@@ -151,7 +151,7 @@ type EventStoreStreamInterpreterTests () =
     [<Trait("category", "eventstore")>]
     let ``Wrong Expected Version is Returned`` () : unit =
         async {
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let run program = run client program
 
@@ -172,7 +172,7 @@ type EventStoreStreamInterpreterTests () =
     [<Trait("category", "eventstore")>]
     let ``Write Position is returned`` () : unit =
         async {
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let run program = run client program
 
@@ -200,7 +200,7 @@ type EventStoreStreamInterpreterTests () =
     [<Trait("category", "eventstore")>]
     let ``Create a link`` () : unit =
         async {
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let run program = run client program
 
@@ -238,7 +238,7 @@ type EventStoreStreamInterpreterTests () =
     [<Trait("category", "eventstore")>]
     let ``Set MaxCount in stream metadata`` () : Task<unit> =
         async {
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let run program = run client program
 
@@ -256,7 +256,7 @@ type EventStoreStreamInterpreterTests () =
     [<Trait("category", "eventstore")>]
     let ``Set MaxAge in stream metadata`` () : Task<unit> =
         async {
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let run program = run client program
 

@@ -39,7 +39,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
     let ravenConfig = applicationConfig.Raven
     let eventStoreConfig = applicationConfig.EventStore
 
-    let mutable client : Client option = None
+    let mutable client : EventStoreClient option = None
     let mutable eventStoreSystem : BookLibraryEventStoreSystem option = None
 
     let getIpAddress server = 
@@ -87,7 +87,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
     let initializedSystem documentStore eventStoreConfig = 
         async {
             let! conn = getConnection eventStoreConfig
-            let client = new Client(conn)
+            let client = new EventStoreClient(conn)
             let system = buildEventStoreSystem documentStore client
             return new BookLibrarySystem(system)
         } |> Async.StartAsTask
@@ -105,7 +105,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
         log.Debug <| lazy "Starting App"
         async {
             let! connection = getConnection eventStoreConfig
-            let c = new Client(connection)
+            let c = new EventStoreClient(connection)
 
             let documentStore = SetupHelpers.buildDocumentStore ravenConfig
 

@@ -10,7 +10,7 @@ open FSharpx.Collections
 type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent when 'TMetadata : equality and 'TEventContext :> System.IDisposable> 
     ( 
         handlers : EventfulHandlers<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent>,
-        client : Client,
+        client : EventStoreClient,
         serializer: ISerializer,
         getEventContextFromMetadata : PersistedEvent<'TMetadata> -> 'TEventContext,
         getSnapshot,

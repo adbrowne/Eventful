@@ -14,7 +14,7 @@ type PositionTests () =
         async {
             let commitPosition = 1234L
             let preparePosition = 5678L
-            let client = new Client(connection)
+            let client = new EventStoreClient(connection)
 
             let streamId = "SomeStream"
             let! version = ProcessingTracker.setPosition client streamId { Commit = commitPosition; Prepare = preparePosition}

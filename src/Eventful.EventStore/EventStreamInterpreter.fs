@@ -26,7 +26,7 @@ module EventStreamInterpreter =
         |> (fun builder -> builder.Build())
 
     let interpret<'A,'TMetadata when 'TMetadata : equality> 
-        (eventStore : Client) 
+        (eventStore : EventStoreClient) 
         (cache : System.Runtime.Caching.ObjectCache)
         (serializer : ISerializer)
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)

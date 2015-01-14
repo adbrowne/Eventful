@@ -7,7 +7,7 @@ open FSharpx
 open Eventful
 
 /// simple F# wrapper around EventStore functions
-type Client (connection : IEventStoreConnection) =
+type EventStoreClient (connection : IEventStoreConnection) =
     let log = createLogger "Eventful.EventStore.Client"
 
     let readSlice
