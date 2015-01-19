@@ -54,7 +54,7 @@ module BulkProjector =
 
     let funcTaskToAsync (func : Func<Task>) =
         if func = null then async.Zero()
-        else func.Invoke() |> voidTaskAsAsync
+        else async { return! func.Invoke() |> voidTaskAsAsync }
 
     let createProjector<'TKey, 'TMessage, 'TContext, 'TAction when 'TKey : comparison> (matchingKeys : Func<'TMessage, 'TKey seq>) (processEvents : Func<'TContext, 'TKey, 'TMessage seq, Task<'TAction seq * Func<Task>>>) =
         { MatchingKeys = fun message -> matchingKeys.Invoke(message)
