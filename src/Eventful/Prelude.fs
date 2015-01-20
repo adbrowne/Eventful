@@ -28,6 +28,11 @@ type Logger internal (name : string) =
             let message = msg.Force()
             logger.Warning(message)
 
+    member this.WarnWithException (msg : Lazy<string * System.Exception>) : unit = 
+        if (logger.IsEnabled(LogEventLevel.Warning)) then
+            let (message, exn) = msg.Force()
+            logger.Warning(message + " {@Exception}", exn)
+
     member this.RichError (msgTemplate : string) args : unit = 
         if (logger.IsEnabled(LogEventLevel.Error)) then
             logger.Error(msgTemplate, args)
