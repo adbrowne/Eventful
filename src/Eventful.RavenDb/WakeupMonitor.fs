@@ -26,22 +26,26 @@ module WakeupMonitorModule =
             indexQuery.Start <- start
             indexQuery.PageSize <- 200
             indexQuery.Query <- sprintf "WakeupTime: [\"%s\" TO \"%s\"]" minWakeupTimeTicks (time |> UtcDateTime.toString)
-            let! result = dbCommands.QueryAsync(AggregateStatePersistence.wakeupIndexName, indexQuery, Array.empty) |> Async.AwaitTask
-            log.RichDebug "getWakeups {@Result}" [|result|]
+            try
+                let! result = dbCommands.QueryAsync(AggregateStatePersistence.wakeupIndexName, indexQuery, Array.empty) |> Async.AwaitTask
+                log.RichDebug "getWakeups {@Result}" [|result|]
 
-            if result.IsStale && waitForNonStale then
-                yield! loop start
-            else 
-                for result in result.Results do
-                    let streamId = (result.Item "StreamId").Value<string>()
-                    let wakeupToken = result.Item AggregateStatePersistence.wakeupTimeFieldName
-                    let wakeupTime = wakeupToken.Value<string>() |> UtcDateTime.fromString
-                    let aggregateType = (result.Item "AggregateType").Value<string>()
-                    log.RichDebug "Waking up {@StreamId} {@AggregateType} {@Time}" [|streamId;aggregateType;wakeupTime|]
-                    yield (streamId, aggregateType, wakeupTime)
+                if result.IsStale && waitForNonStale then
+                    yield! loop start
+                else 
+                    for result in result.Results do
+                        let streamId = (result.Item "StreamId").Value<string>()
+                        let wakeupToken = result.Item AggregateStatePersistence.wakeupTimeFieldName
+                        let wakeupTime = wakeupToken.Value<string>() |> UtcDateTime.fromString
+                        let aggregateType = (result.Item "AggregateType").Value<string>()
+                        log.RichDebug "Waking up {@StreamId} {@AggregateType} {@Time}" [|streamId;aggregateType;wakeupTime|]
+                        yield (streamId, aggregateType, wakeupTime)
                 
-                if result.TotalResults > result.SkippedResults + result.Results.Count then
-                    yield! loop (start + result.Results.Count)
+                    if result.TotalResults > result.SkippedResults + result.Results.Count then
+                        yield! loop (start + result.Results.Count)
+            with
+            | :? AggregateException as ex ->
+                log.WarnWithException(lazy ("Error querying wake up indexes", upcast ex))
         }
 
         loop 0
