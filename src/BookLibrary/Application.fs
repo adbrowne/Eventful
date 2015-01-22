@@ -168,7 +168,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
                         100000, 
                         1000, 
                         Some (TimeSpan.FromSeconds(60.0)),
-                        5000
+                        TimeSpan.FromSeconds 5.0
                     )
             bulkRavenProjector.StartWork ()
             bulkRavenProjector.StartPersistingPosition ()
