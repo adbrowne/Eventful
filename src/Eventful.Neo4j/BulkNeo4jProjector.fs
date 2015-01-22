@@ -20,7 +20,8 @@ module BulkNeo4jProjector =
             writeQueue : Neo4jWriteQueue,
             maxEventQueueSize : int,
             eventWorkers : int,
-            workTimeout : TimeSpan option
+            workTimeout : TimeSpan option,
+            positionWritePeriod
         ) =
         let executor actions =
             writeQueue.Work graphName actions
@@ -53,7 +54,7 @@ module BulkNeo4jProjector =
             onEventComplete,
             getPersistedPosition,
             writeUpdatedPosition,
-            5000,
+            positionWritePeriod,
             maxEventQueueSize,
             eventWorkers,
             workTimeout)
