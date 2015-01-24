@@ -1,7 +1,7 @@
 source https://nuget.org/api/v2
 
 nuget FSharp.Formatting
-nuget XUnit 
+nuget XUnit
 nuget XUnit.Runners
 nuget Nuget.CommandLine
 nuget FAKE
@@ -10,5 +10,7 @@ nuget Serilog
 nuget Metrics.NET
 nuget FSharpx.Collections
 nuget FSharpx.Core
+nuget Unquote
+nuget FsCheck
 
 github fsharp/FAKE modules/Octokit/Octokit.fsx

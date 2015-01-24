@@ -2,6 +2,7 @@ NUGET
   remote: https://nuget.org/api/v2
   specs:
     FAKE (3.14.8)
+    FsCheck (1.0.4)
     FSharp.Compiler.Service (0.0.82)
     FSharp.Formatting (2.6.3)
       FSharp.Compiler.Service (>= 0.0.81)
@@ -19,6 +20,7 @@ NUGET
       Microsoft.Net.Http
     Serilog (1.4.139)
     SourceLink.Fake (0.4.2)
+    Unquote (2.2.2)
     xunit (1.9.2)
     xunit.runners (1.9.2)
 GITHUB
