@@ -1,32 +1,51 @@
 ﻿namespace Eventful
 
+open Serilog.Events
+
 type Logger internal (name : string) =
-    let logger = Common.Logging.LogManager.GetLogger(name)
+    let logger = EventfulLog.ForContext(name)
+    member this.RichDebug (msgTemplate : string) args : unit = 
+        if (logger.IsEnabled(LogEventLevel.Debug)) then
+            logger.Debug(msgTemplate, args)
+
     member this.Debug (msg : Lazy<string>) : unit = 
-        if (logger.IsDebugEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Debug)) then
             let message = msg.Force()
             logger.Debug(message)
 
     member this.DebugWithException (msg : Lazy<string * System.Exception>) : unit = 
-        if (logger.IsDebugEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Debug)) then
             let message = msg.Force()
             let (message, exn) = msg.Force()
             logger.Debug(message, exn)
 
+    member this.RichWarn (msgTemplate : string) args : unit = 
+        if (logger.IsEnabled(LogEventLevel.Warning)) then
+            logger.Warning(msgTemplate, args)
+
     member this.Warn (msg : Lazy<string>) : unit = 
-        if (logger.IsWarnEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Warning)) then
             let message = msg.Force()
-            logger.Warn(message)
+            logger.Warning(message)
+
+    member this.WarnWithException (msg : Lazy<string * System.Exception>) : unit = 
+        if (logger.IsEnabled(LogEventLevel.Warning)) then
+            let (message, exn) = msg.Force()
+            logger.Warning(message + " {@Exception}", exn)
+
+    member this.RichError (msgTemplate : string) args : unit = 
+        if (logger.IsEnabled(LogEventLevel.Error)) then
+            logger.Error(msgTemplate, args)
 
     member this.Error (msg : Lazy<string>) : unit = 
-        if (logger.IsErrorEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Error)) then
             let message = msg.Force()
             logger.Error(message)
 
     member this.ErrorWithException (msg : Lazy<string * System.Exception>) : unit = 
-        if (logger.IsErrorEnabled) then
+        if (logger.IsEnabled(LogEventLevel.Error)) then
             let (message, exn) = msg.Force()
-            logger.Error(message, exn)
+            logger.Error(message + " {@Exception}", exn)
 
 [<AutoOpen>]
 module Prelude =
@@ -50,6 +69,9 @@ module Prelude =
 
     let createLogger name =
         new Logger(name)
+
+    let startStopwatch () =
+        System.Diagnostics.Stopwatch.StartNew()
 
     let rec runAsyncUntilSuccess task = async {
         try
@@ -100,11 +122,18 @@ module Prelude =
         let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cancellationToken)
 
         task
-
+   
     open System
     open System.Threading
     open System.Threading.Tasks
 
+    let voidTaskAsAsync (task : Task) =
+        async {
+            do! task |> Async.AwaitIAsyncResult |> Async.Ignore
+            if task.IsFaulted then raise task.Exception
+            return ()
+        }
+ 
     // adapted from 
     // http://stackoverflow.com/questions/18274986/async-catch-doesnt-work-on-operationcanceledexceptions
     let startCatchCancellation(work, cancellationToken) = 
@@ -132,19 +161,24 @@ module Prelude =
         startCatchCancellation(computation, Some cancellationToken)
 
     let newAgent (name : string) (log : Logger) f  =
-        let agent= Agent.Start(f)
+        let agent = Agent.Start(f)
         agent.Error.Add(fun e -> log.ErrorWithException <| lazy(sprintf "Exception thrown by %A" name, e))
         agent
 
-open System
+    // brought here to avoid the conflict between FSharpx and FSharpx.Collections
+    let tryHead (source : seq<_>) = 
+        use e = source.GetEnumerator()
+        if e.MoveNext()
+        then Some(e.Current)
+        else None //empty list
 
-/// System.Type does not implement IComparable
-/// This is a convenient wrapper class that fixes 
-/// that by just comparing on the AssemblyQualifiedName
-type ComparableType (t : Type) =
-    member this.RealType with get() : Type = t
-    static member GetRealType (x : ComparableType) = x.RealType.AssemblyQualifiedName
-    override x.Equals y = equalsOn ComparableType.GetRealType x y
-    override x.GetHashCode() = hashOn ComparableType.GetRealType x
-    interface System.IComparable with
-        member x.CompareTo y = compareOn ComparableType.GetRealType x y
+    // from: http://msdn.microsoft.com/en-us/library/dd233248.aspx
+    let (|Integer|_|) (str: string) =
+       let mutable intvalue = 0
+       if System.Int32.TryParse(str, &intvalue) then Some(intvalue)
+       else None
+
+    let (|Integer64|_|) (str: string) =
+       let mutable intvalue = 0L
+       if System.Int64.TryParse(str, &intvalue) then Some(intvalue)
+       else None

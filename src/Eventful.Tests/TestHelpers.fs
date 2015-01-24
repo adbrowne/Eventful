@@ -29,37 +29,18 @@ module TestHelpers =
                 | _ -> false)
         )
 
-    let containException<'TMetadata> (context, exnMatcher) = 
+    let (|CommandResultContainingException|_|) (context : string) (message : string) (result: CommandResult<'TBaseEvent,'TMetadata>) =
         let matches failure = 
             match failure with
             | CommandException (c, exn) ->
-                c = context && exnMatcher(exn)
+                c = Some context && exn.Message = message
             | _ -> false
-        NHamcrest.CustomMatcher<obj>(
-            sprintf "Matches %A with exception" context, 
-            (fun a ->
-                match a with
-                | :? CommandResult<'TMetadata> as result -> 
-                    match result with
-                    | Choice2Of2 errors ->
-                        errors |> NonEmptyList.toSeq |> Seq.exists matches
-                    | _ -> false
-                | _ -> false)
-        )
 
-    let containError<'TMetadata> x = 
-        let matches msg = msg = x
-        NHamcrest.CustomMatcher<obj>(
-            sprintf "Matches %A" x, 
-            (fun a ->
-                match a with
-                | :? CommandResult<'TMetadata> as result -> 
-                    match result with
-                    | Choice2Of2 errors ->
-                        errors |> NonEmptyList.toSeq |> Seq.exists matches
-                    | _ -> false
-                | _ -> false)
-        )
+        match result with
+        | Choice2Of2 errors 
+            when errors |> NonEmptyList.toSeq |> Seq.exists matches ->
+                Some ()
+        | _ -> None
 
     let toObjArb<'a> (arb : Arbitrary<'a> ) : Arbitrary<obj> =
         Arb.convert (fun x -> x :> obj) (fun x -> x :?> 'a) arb
@@ -115,3 +96,4 @@ module TestHelpers =
                     loop (remaining - sleepTime)
 
         loop maxWaitMilliseconds
+

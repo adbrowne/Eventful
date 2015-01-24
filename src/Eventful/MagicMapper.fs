@@ -37,6 +37,8 @@ module MagicMapper =
         | Some getter -> getter item
         | None -> failwith <| sprintf "Unable to find unambiguous property %A on type: %A" typeof<'TId> objType
 
+    let magicGetCmdId<'TId> = (fun _ -> magicId<'TId>)
+
     let getWrapper<'TUnion> () =
         let cases = FSharpType.GetUnionCases(typeof<'TUnion>)
         let wrappableCases = 
@@ -44,12 +46,12 @@ module MagicMapper =
             |> Seq.map (fun case -> (case, case.GetFields()))
             |> Seq.filter (fun (_, fields) -> fields |> Seq.length = 1)
             |> Seq.map (fun (case, fields) -> (case, fields |> Seq.head))
+            |> Seq.toList
         (fun (value:obj) -> 
             let fieldType = value.GetType()
             let findMatch = 
                 wrappableCases 
-                |> Seq.filter(fun (case, field) -> field.PropertyType = fieldType)
-                |> List.ofSeq
+                |> List.filter(fun (case, field) -> field.PropertyType = fieldType)
 
             match findMatch with
             | [(case, field)] -> 

@@ -1,14 +1,23 @@
 ﻿namespace Eventful
 
 open System
+open FSharpx
 
 type ExpectedAggregateVersion =
 | Any
 | NewStream
 | AggregateVersion of int
 
+type RunFailure<'a> =
+| HandlerError of 'a
+| WrongExpectedVersion
+| WriteCancelled
+| AlreadyProcessed // idempotency check failed
+| WriteError of System.Exception
+| Exception of exn
+
 type WriteResult =
-| WriteSuccess
+| WriteSuccess of EventPosition
 | WrongExpectedVersion
 | WriteCancelled
 | WriteError of System.Exception
@@ -19,13 +28,59 @@ type EventStreamEventData<'TMetadata> = {
     Metadata : 'TMetadata
 }
 
-type EventTypeMap = Bimap<string, ComparableType>
+type EventStreamMetadata = {
+    MaxCount : int option
+    MaxAge : TimeSpan option
+}
+with static member Default = { MaxCount = None; MaxAge = None }
+
+type EventStoreTypeToClassMap = FSharpx.Collections.PersistentHashMap<string, Type>
+type ClassToEventStoreTypeMap = FSharpx.Collections.PersistentHashMap<Type, string>
+
+type StateSnapshot = {
+    LastEventNumber : int
+    State : Map<string, obj>
+}
+with static member Empty = { LastEventNumber = -1; State = Map.empty }
 
 type EventStreamEvent<'TMetadata> = 
 | Event of (EventStreamEventData<'TMetadata>)
 | EventLink of (string * int * 'TMetadata)
 
+type PersistedEventLink<'TMetadata> = {
+    StreamId : string
+    EventNumber : int
+    EventId : Guid
+    LinkedStreamId : string
+    LinkedEventNumber : int
+    LinkedBody : obj
+    LinkedEventType : string
+    LinkedMetadata : 'TMetadata
+}
+
+type PersistedEvent<'TMetadata> = {
+    StreamId : string
+    EventNumber : int
+    EventId : Guid
+    Body : obj
+    EventType : string
+    Metadata : 'TMetadata
+}
+
+type PersistedStreamEntry<'TMetadata> = 
+    | PersistedStreamEvent of PersistedEvent<'TMetadata>
+    | PersistedStreamLink of PersistedEventLink<'TMetadata>
+
+type LogMessageLevel = 
+| Debug
+| Info
+| Warn
+| Error
+
 module EventStream =
+    open FSharpx.Operators
+    open FSharpx.Collections
+
     type EventToken = {
         Stream : string
         Number : int
@@ -34,27 +89,44 @@ module EventStream =
 
     type EventStreamLanguage<'N,'TMetadata> =
     | ReadFromStream of string * int * (EventToken option -> 'N)
-    | GetEventTypeMap of unit * (EventTypeMap -> 'N)
-    | ReadValue of EventToken * ((obj * 'TMetadata) -> 'N)
+    | ReadSnapshot of string * Map<string, Type> * (StateSnapshot -> 'N)
+    | GetEventStoreTypeToClassMap of unit * (EventStoreTypeToClassMap -> 'N)
+    | GetClassToEventStoreTypeMap of unit * (ClassToEventStoreTypeMap -> 'N)
+    | ReadValue of EventToken *  ((obj * 'TMetadata) -> 'N)
+    | RunAsync of Async<'N>
+    | LogMessage of LogMessageLevel * string * obj[] * 'N
     | WriteToStream of string * ExpectedAggregateVersion * seq<EventStreamEvent<'TMetadata>> * (WriteResult -> 'N)
+    | WriteStreamMetadata of string * EventStreamMetadata * 'N
     | NotYetDone of (unit -> 'N)
+    and 
+        FreeEventStream<'F,'R,'TMetadata> = 
+        | FreeEventStream of EventStreamLanguage<FreeEventStream<'F,'R,'TMetadata>,'TMetadata>
+        | Pure of 'R
+    and
+        EventStreamProgram<'A,'TMetadata> = FreeEventStream<obj,'A,'TMetadata>
 
     let fmap f streamWorker = 
         match streamWorker with
         | ReadFromStream (stream, number, streamRead) -> 
             ReadFromStream (stream, number, (streamRead >> f))
-        | GetEventTypeMap (eventTypeMap,next) -> 
-            GetEventTypeMap (eventTypeMap, next >> f)
+        | ReadSnapshot (typeMap, stream, next) -> 
+            ReadSnapshot (typeMap, stream, (next >> f))
+        | GetEventStoreTypeToClassMap (eventStoreTypeToClassMap,next) -> 
+            GetEventStoreTypeToClassMap (eventStoreTypeToClassMap, next >> f)
+        | GetClassToEventStoreTypeMap (classToEventStoreTypeMap,next) -> 
+            GetClassToEventStoreTypeMap (classToEventStoreTypeMap, next >> f)
         | ReadValue (eventToken, readValue) -> 
             ReadValue (eventToken, readValue >> f)
         | WriteToStream (stream, expectedVersion, events, next) -> 
             WriteToStream (stream, expectedVersion, events, (next >> f))
+        | LogMessage (logLevel, messageTemplate, data, next) -> 
+            LogMessage (logLevel, messageTemplate, data, f next)
+        | WriteStreamMetadata (stream, streamMetadata, next) ->
+            WriteStreamMetadata (stream, streamMetadata, f next)
         | NotYetDone (delay) ->
             NotYetDone (fun () -> f (delay()))
-
-    type FreeEventStream<'F,'R,'TMetadata> = 
-        | FreeEventStream of EventStreamLanguage<FreeEventStream<'F,'R,'TMetadata>,'TMetadata>
-        | Pure of 'R
+        | RunAsync asyncBlock -> 
+            RunAsync <| Async.map f asyncBlock
 
     let empty = Pure ()
 
@@ -63,12 +135,22 @@ module EventStream =
 
     let readFromStream stream number = 
         ReadFromStream (stream, number, id) |> liftF
-    let getEventTypeMap unit =
-        GetEventTypeMap ((), id) |> liftF
+    let readSnapshot typeMap stream = 
+        ReadSnapshot (typeMap, stream, id) |> liftF
+    let getEventStoreTypeToClassMap unit =
+        GetEventStoreTypeToClassMap ((), id) |> liftF
+    let getClassToEventStoreTypeMap unit =
+        GetClassToEventStoreTypeMap ((), id) |> liftF
     let readValue eventToken = 
         ReadValue(eventToken, id) |> liftF
     let writeToStream stream number events = 
         WriteToStream(stream, number, events, id) |> liftF
+    let writeStreamMetadata stream streamMetadata = 
+        WriteStreamMetadata(stream, streamMetadata, ()) |> liftF
+    let logMessage logLevel messageTemplate data = 
+        LogMessage (logLevel, messageTemplate, data, ()) |> liftF
+    let runAsync (a : Async<'a>) : FreeEventStream<'f2,'a,'m> =  
+        RunAsync(a) |> liftF
 
     let rec bind f v =
         match v with
@@ -108,12 +190,22 @@ module EventStream =
         member x.Bind (inp : FreeEventStream<'F,'R,'TMetadata>, body : ('R -> FreeEventStream<'F,'U,'TMetadata>)) : FreeEventStream<'F,'U,'TMetadata>  = bind body inp
         member x.Combine(expr1, expr2) = combine expr1 expr2
         member x.For(a, f) = forLoop a f 
+        member x.While(func, body) = whileLoop func body
         member x.Delay(func) = delay func
 
     let eventStream = new EventStreamBuilder()
 
-    type EventStreamProgram<'A,'TMetadata> = FreeEventStream<obj,'A,'TMetadata>
+    let inline returnM x = returnM eventStream x
 
+    let inline (<*>) f m = applyM eventStream eventStream f m
+
+    let inline lift2 f x y = returnM f <*> x <*> y
+
+    let inline sequence s =
+        let inline cons a b = lift2 List.cons a b
+        List.foldBack cons s (returnM [])
+
+    let inline mapM f x = sequence (List.map f x)
 
     // Higher level eventstream operations
 
@@ -122,7 +214,44 @@ module EventStream =
         writeToStream stream expectedVersion writes
 
     let getEventStreamEvent evt metadata = eventStream {
-        let! eventTypeMap = getEventTypeMap ()
-        let eventType = eventTypeMap.FindValue (new ComparableType(evt.GetType()))
+        let! eventTypeMap = getClassToEventStoreTypeMap ()
+        let eventType = eventTypeMap.Item (evt.GetType())
         return EventStreamEvent.Event { Body = evt :> obj; EventType = eventType; Metadata = metadata }
+    }
+
+    let rec foldStream stream (start : int) acc init = eventStream {
+        let! item = readFromStream stream start
+
+        return!
+            match item with
+            | Some x -> 
+                eventStream { 
+                    let! evt = readValue x
+                    let newValue = acc init evt
+                    return! foldStream stream (start + 1) acc newValue
+                }
+            | None -> eventStream { return init } 
+    }
+
+    let retryOnWrongVersion f = eventStream {
+        let maxTries = 100
+        let retry = ref true
+        let count = ref 0
+        // WriteCancelled should never be used
+        let finalResult = ref (Choice2Of2 RunFailure.WriteCancelled)
+        while !retry do
+            let! result = f !count
+            match result with
+            | Choice2Of2 RunFailure.WrongExpectedVersion ->
+                count := !count + 1
+                if !count < maxTries then
+                    retry := true
+                else
+                    retry := false
+                    finalResult := (Choice2Of2 RunFailure.WrongExpectedVersion)
+            | x -> 
+                retry := false
+                finalResult := x
+
+        return !finalResult
     }

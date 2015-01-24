@@ -14,10 +14,10 @@ open Raven.Abstractions.Data
 open Raven.Json.Linq
 open FSharp.Collections.ParallelSeq
 
-type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage> 
+type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage> 
     (
         documentStore:Raven.Client.IDocumentStore, 
-        documentProcessor:DocumentProcessor<string, 'TMessage>,
+        projectors : IProjector<'TMessage, IDocumentFetcher, ProcessAction> seq,
         databaseName: string
     ) =
 
@@ -43,14 +43,24 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
 
     let mutable messages : 'TMessage list = List.Empty
 
-    let documentsWithKeys msg =
-        documentProcessor.MatchingKeys msg
-        |> Seq.map (fun k -> (k,msg))
+    let projectors =
+        BulkProjector.projectorsWithContext projectors fetcher
+        |> Seq.toArray
 
-    let accumulateItems s (key, items) = async {
-        let events = items |> Seq.map snd
-        let! writeRequests = documentProcessor.Process(key, fetcher, events).Invoke() |> Async.AwaitTask
-        return Seq.append s writeRequests
+    let documentsWithKeys msg =
+        BulkProjector.allMatchingKeys projectors msg
+
+    let accumulateItems s ((key, projectorIndex), items) = async {
+        let events = items |> Seq.map fst
+        let projector = projectors.[projectorIndex]
+
+        try
+            let! writeRequests, _ = projector.ProcessEvents key events
+            return Seq.append s writeRequests
+        with
+        | ex ->
+            log.ErrorWithException <| lazy ("Exception during ProcessEvents", ex)
+            return s
     }
 
     let printReport v =
@@ -70,7 +80,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkRavenMessage>
             // route events to documents
             |> PSeq.collect id
             // group events into groups by document
-            |> PSeq.groupBy fst
+            |> PSeq.groupBy snd
             // group items into numWorkers batches
             |> PSeq.mapi(fun i x -> (i % numWorkers,x))
             |> PSeq.groupBy fst

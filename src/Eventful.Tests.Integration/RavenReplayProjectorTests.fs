@@ -22,14 +22,15 @@ module RavenReplayProjectorTests =
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
-        let myProcessor = RavenProjectorTests.``Get Document Processor`` documentStore
+        let myProjector = RavenProjectorTests.``Get Projector`` documentStore (async.Zero())
 
         let cancellationToken = Async.DefaultCancellationToken
         let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
 
         let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
 
-        let projector = new RavenReplayProjector<SubscriberEvent>(documentStore, myProcessor, RavenProjectorTests.testDatabase) 
+        let projector =
+            new RavenReplayProjector<SubscriberEvent>(documentStore, myProjector, RavenProjectorTests.testDatabase) 
 
         let sw = System.Diagnostics.Stopwatch.StartNew()
         for event in myEvents do

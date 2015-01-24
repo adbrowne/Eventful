@@ -23,7 +23,7 @@ type MultiTenancyEventStoreSubscriber<'TWrappedEvent>
     let ignoredStreamsHash = new System.Collections.Generic.HashSet<string>(ignoredStreams)
     let ignoredEventTypesHash = new System.Collections.Generic.HashSet<string>(ignoredEventTypes)
 
-    let client = new Client(connection)
+    let client = new EventStoreClient(connection)
 
     let buffer = new BlockingQueueAgent<'TWrappedEvent>(maxQueueSize)
 

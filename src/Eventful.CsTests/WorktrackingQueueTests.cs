@@ -36,6 +36,7 @@ namespace Eventful.CsTests
         }
 
         [Fact]
+        [Trait("category", "unit")]
         public async Task TestQueue()
         {
             Assert.Equal(0, _count);

@@ -20,7 +20,7 @@ module WorktrackingQueueTests =
             if x = 0 then
                 failwith "0 is bad"
             else 
-                (x, Set.singleton x)
+                Seq.singleton (x, x)
 
         let work = (fun x _ -> async {
             lock(monitor) (fun () -> 
@@ -42,7 +42,7 @@ module WorktrackingQueueTests =
     [<Fact>]
     [<Trait("category", "performance")>]
     let ``Test speed of simple items`` () : unit =
-        let groupingFunction i = (i, (fst >> Set.singleton) i)
+        let groupingFunction i = Seq.singleton (i, fst i)
 
         let work = (fun _ _ -> Async.Sleep(10))
         let worktrackingQueue = new WorktrackingQueue<int,(int * int),(int * int)>(groupingFunction, work, 100000, 50)
@@ -58,7 +58,7 @@ module WorktrackingQueueTests =
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Items are received in order`` () : unit =
-        let groupingFunction i = (i, (fst >> Set.singleton) i)
+        let groupingFunction i = Seq.singleton (i, fst i)
 
         let monitor = new System.Object()
         let groupItems = ref Map.empty
@@ -99,7 +99,7 @@ module WorktrackingQueueTests =
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Completion function is called when item complete`` () : unit =
-        let groupingFunction i = (i, (fst >> Set.singleton) i)
+        let groupingFunction i = Seq.singleton (i, fst i)
 
         let tcs = new TaskCompletionSource<bool>()
 
@@ -120,9 +120,8 @@ module WorktrackingQueueTests =
 
     [<Fact>]
     [<Trait("category", "unit")>]
-    let ``Completion function is called immediately when an items resuls in 0 groups`` () : unit =
-        log4net.Config.XmlConfigurator.Configure()
-        let groupingFunction i = (i, Set.empty)
+    let ``Completion function is called immediately when an items results in 0 groups`` () : unit =
+        let groupingFunction _ = Seq.empty
 
         let tcs = new TaskCompletionSource<bool>()
 
@@ -144,7 +143,7 @@ module WorktrackingQueueTests =
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Can run multiple items`` () : unit =
-        let groupingFunction i = (i, (fst >> Set.singleton) i)
+        let groupingFunction i = Seq.singleton (i, fst i)
 
         let completedItem = ref ("blank", "blank")
         let complete item = async {
@@ -172,7 +171,7 @@ module WorktrackingQueueTests =
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Given item split into 2 groups When complete Then Completion function is only called once`` () : unit =
-        let groupingFunction i = (i, [1;2] |> Set.ofList)
+        let groupingFunction i = [(i, 1); (i, 2)] |> Seq.ofList
 
         let completeCount = new CounterAgent()
 
@@ -194,7 +193,7 @@ module WorktrackingQueueTests =
     [<Fact>]
     [<Trait("category", "unit")>]
     let ``Given empty queue When complete Then returns immediately`` () : unit =
-        let worktrackingQueue = new WorktrackingQueue<unit,string,string>( (fun i -> (i, Set.singleton ())),(fun _ _ -> Async.Sleep(1)), 100000, 10,(fun _ -> Async.Sleep(1)))
+        let worktrackingQueue = new WorktrackingQueue<unit,string,string>( (fun i -> Seq.singleton (i, ())),(fun _ _ -> Async.Sleep(1)), 100000, 10,(fun _ -> Async.Sleep(1)))
         worktrackingQueue.AsyncComplete() |> Async.RunSynchronously
 
 //    [<Property>]

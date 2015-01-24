@@ -17,7 +17,7 @@ type RavenWriteQueue
         cache : System.Runtime.Caching.MemoryCache
     ) =
 
-    let log = Common.Logging.LogManager.GetLogger("Eventful.RavenReadQueue")
+    let log = EventfulLog.ForContext "Eventful.RavenWriteQueue"
 
     let batchWriteTracker = Metric.Histogram("RavenWriteQueue Batch Size", Unit.Items)
     let batchWriteTime = Metric.Timer("RavenWriteQueue Timer", Unit.None)
@@ -82,8 +82,7 @@ type RavenWriteQueue
             try
                 do! (writeDocs database batch)
             with | e ->
-                if log.IsDebugEnabled then
-                    log.Debug("Exception on write",e)
+                log.Debug(e, "Exception on write")
     }
 
     let startConsumers = 

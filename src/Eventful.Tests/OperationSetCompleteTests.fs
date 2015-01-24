@@ -33,19 +33,21 @@ module OperationSetCompleteTests =
 
     [<Property>]
     [<Trait("category", "unit")>]
-    let ``When set not complete then callback is NOT run`` (input:Set<int>) =
+    let ``When set not complete then callback is NOT run`` (NonEmptySet input) =
         let isDone = ref false
 
-        let setIsNotEmpty = input |> Set.isEmpty |> not
+        let operationTracker = new OperationSetComplete<int>(input, async { isDone := true })
 
-        setIsNotEmpty ==> (fun () -> 
-            let operationTracker = new OperationSetComplete<int>(input, async { isDone := true })
+        let toRemove = input |> Set.toSeq |> Seq.head
+        let inputMissingOne = input |> Set.remove toRemove
+        for i in inputMissingOne do
+            operationTracker.Complete(i)
 
-            let toRemove = input |> Set.toSeq |> Seq.head
-            let inputMissingOne = input |> Set.remove toRemove
-            for i in inputMissingOne do
-                operationTracker.Complete(i)
+        System.Threading.Thread.Sleep(10)
 
-            System.Threading.Thread.Sleep(10)
+        not !isDone
 
-            not !isDone)
+    [<Property>]
+    [<Trait("category", "unit")>]
+    let ``abs(v) % k equals abs(v % k)`` v (NonZeroInt k) = 
+        (abs v) % k = abs(v % k)

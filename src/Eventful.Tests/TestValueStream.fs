@@ -10,6 +10,8 @@ type EventContext = {
     Position : EventPosition
 }
 
+type IEvent = interface end
+
 type Dictionary<'Key,'Value> = System.Collections.Generic.Dictionary<'Key,'Value>
 
 type SubscriberEvent = 
@@ -17,7 +19,7 @@ type SubscriberEvent =
       Context : EventContext
       StreamId : string
       EventNumber: int }
-    interface IBulkRavenMessage with
+    interface IBulkMessage with
         member x.GlobalPosition = Some x.Context.Position
         member x.EventType = x.Event.GetType()
 

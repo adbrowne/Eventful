@@ -18,7 +18,7 @@ type Item =
 | Complete of int64
 
 module LastCompleteItemAgentTests = 
-    let log = Common.Logging.LogManager.GetLogger(typeof<LastCompleteItemAgent<_>>)
+    let log = EventfulLog.ForContext "Eventful.Tests.LastCompleteItemAgentTests" 
 
     [<Fact>]
     [<Trait("category", "unit")>]
@@ -124,7 +124,7 @@ module LastCompleteItemAgentTests =
                 // grab the last matching pair
                 |> List.ofSeq 
                 |> List.rev
-                |> Seq.tryHead
+                |> tryHead
                 |> Option.map fst
 
             let result = simulateTracking operations

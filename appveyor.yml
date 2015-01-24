@@ -77,8 +77,16 @@
   #---------------------------------#
   #             build               #
   #---------------------------------#
-  before_build: .\build\build.ps1 RestorePackages
-  after_build: .\build\build.ps1 CreateNugetPackage
+  before_build:
+    - git submodule update --init
+    - nuget restore src\Eventful.sln
+    - nuget restore vendor\Neo4jClient\Neo4jClient.sln
+  after_build: 
+    ps: .\build\build.ps1 AppveyorPostBuild
+  
+  build:
+    project: src\Eventful.sln
+    verbosity: quiet
 
   #---------------------------------#
   #             tests               #
@@ -86,18 +94,27 @@
   test:
     assemblies:
       - Eventful.Tests.dll
-      - SchoolReports.dll
-      - EmergencyRoom.dll
+      - Eventful.CsTests.dll
+      - BookLibrary.dll
+      - Eventful.Tests.Integration.dll
     categories:
       - unit
+      - eventstore
       
   #---------------------------------#
   #          artifacts              #
   #---------------------------------#
   artifacts:
-    - path: .\build\output.nupkg
-      name: nuget
-    
+    - path: 'build\*.nupkg' # find all NuGet packages recursively
+      name: eventful
+
+  #---------------------------------#
+  #          build cache            #
+  #---------------------------------#
+  cache:
+      - src\packages
+      - build\EventStore3
+      - build\RavenDB
   #---------------------------------#
   #     deployment configuration    #
   #---------------------------------#
@@ -106,4 +123,4 @@
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: output.nupkg
+      artifact: eventful

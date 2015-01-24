@@ -13,7 +13,10 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
         workerCount,
         complete : Func<'TItem, System.Threading.Tasks.Task>
     ) =
-    let groupingfs = (fun i -> (i, grouping.Invoke(i) |> Set.ofSeq))
+    
+    let sequenceGrouping item =
+        grouping.Invoke(item)
+        |> Seq.map (fun group -> (item, group))
 
     let completeFs = 
         match complete with
@@ -28,7 +31,7 @@ type WorktrackingQueue<'TGroup, 'TItem when 'TGroup : comparison>
                         do! task |> Async.AwaitIAsyncResult |> Async.Ignore
                     })
 
-    let queue = new Eventful.WorktrackingQueue<'TGroup, 'TItem, 'TItem> (groupingfs, workActionFs, maxItems, workerCount, completeFs)
+    let queue = new Eventful.WorktrackingQueue<'TGroup, 'TItem, 'TItem> (sequenceGrouping, workActionFs, maxItems, workerCount, completeFs)
 
     member this.Add (item:'TItem) =
         runAsyncAsTask "Work Tracking Queue Add" Async.DefaultCancellationToken <| queue.Add(item)

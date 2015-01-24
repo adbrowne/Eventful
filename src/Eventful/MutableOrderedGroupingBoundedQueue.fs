@@ -28,9 +28,6 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>
 
     let workQueue = new System.Collections.Generic.Queue<'TGroup>()
 
-    let mutable itemIndex = 0L
-    let mutable lastIndex = -1L
-
     member x.GetGroupItemsCount () =
         let g = groupItems
         g.Count
@@ -50,8 +47,6 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>
         groupItems.[group] <- value'
         ()
 
-    member x.LastIndex () = lastIndex
-
     member x.GroupComplete group =
         let values = groupItems.Item group
         if (not (values.Items |> List.isEmpty)) then
@@ -67,7 +62,7 @@ type internal MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>
         groupItems.Add(nextKey, newValues)
         (nextKey, values)
 
-type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : comparison>
+type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem>
     (
         ?maxItems, 
         ?name : string,
@@ -85,8 +80,8 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
         | Some c -> new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>(c)
         | None -> new MutableOrderedGroupingBoundedQueueState<'TGroup, 'TItem>()
     
-    let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, state.GetGroupItemsCount >> float, Metrics.Unit.Items)
-    let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, state.GetWorkQueueCount >> float, Metrics.Unit.Items)
+    let activeGroupsGauge = Metrics.Metric.Gauge(sprintf "Active Groups %A" name, (fun () -> state.GetGroupItemsCount () |> float), Metrics.Unit.Items)
+    let workQueueGauge = Metrics.Metric.Gauge(sprintf "Work Queue Size %A" name, (fun () -> state.GetWorkQueueCount () |> float), Metrics.Unit.Items)
 
     let lastCompleteTracker = 
         match name with
@@ -105,7 +100,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                     if(itemIndex = 0L) then
                         reply.Reply()
                     else 
-                        lastCompleteTracker.NotifyWhenComplete(state.LastIndex(), Some "NotifyWhenComplete empty", async { reply.Reply() } )
+                        lastCompleteTracker.NotifyWhenComplete(itemIndex - 1L, Some "NotifyWhenComplete empty", async { reply.Reply() } )
                     Some(empty itemIndex)
                 | GroupComplete group -> Some(groupComplete group itemIndex)
                 | _ -> None)
@@ -154,6 +149,7 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem when 'TGroup : compariso
                         match onComplete with
                         | Some a -> do! a
                         | None -> ()
+
 
                     return! (nextMessage nextIndex) 
                 with | e -> 

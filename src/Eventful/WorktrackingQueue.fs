@@ -6,14 +6,21 @@ open System.Threading
 open System.Threading.Tasks
 open FSharpx
 
+type IWorktrackingQueue<'TGroup,'TInput, 'TWorkItem> = 
+    [<CLIEvent>]
+    abstract member QueueFullEvent : IEvent<unit>
+    abstract member Add : 'TInput -> Async<unit>
+    abstract member AsyncComplete : unit -> Async<unit>
+    abstract member StartWork : unit -> unit
+
 type internal CompleteQueueMessage<'TGroup, 'TItem when 'TGroup : comparison> = 
     | Start of 'TItem * Set<'TGroup> * Async<unit> * AsyncReplyChannel<unit>
     | Complete of 'TGroup * Guid
     | NotifyWhenAllComplete of AsyncReplyChannel<unit>
 
-type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
+type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem>
     (
-        grouping : 'TInput -> ('TWorkItem * Set<'TGroup>),
+        grouping : 'TInput -> seq<'TWorkItem * 'TGroup>,
         workAction : 'TGroup -> 'TWorkItem seq -> Async<unit>,
         ?maxItems : int, 
         ?workerCount,
@@ -32,9 +39,7 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
     let _name = name |> Option.getOrElse "unnamed"
 
     let queue = 
-        match groupComparer with
-        | Some c -> new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name, c)
-        | None -> new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name)
+        new MutableOrderedGroupingBoundedQueue<'TGroup, 'TWorkItem>(_maxItems, _name, ?groupComparer = groupComparer)
 
     let doWork (group, items) = async {
          do! workAction group items
@@ -84,10 +89,6 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         for i in [1.._workerCount] do
             runAsyncAsTask workerName cancellationToken workAsync |> ignore
 
-    let sequenceGrouping a =
-        let (item, groups) = grouping a
-        groups |> Set.toSeq |> Seq.map (fun g -> (item, g))
-        
     /// fired each time a full queue is detected
     [<CLIEvent>]
     member this.QueueFullEvent = queue.QueueFullEvent
@@ -99,10 +100,17 @@ type WorktrackingQueue<'TGroup, 'TInput, 'TWorkItem when 'TGroup : comparison>
         working <- true
 
     member this.Add (item:'TInput) =
-        queue.Add (item, sequenceGrouping, _complete item)
+        queue.Add (item, grouping, _complete item)
 
     member this.AddWithCallback (item:'TInput, onComplete : ('TInput -> Async<unit>)) =
-        queue.Add (item, sequenceGrouping, onComplete item)
+        queue.Add (item, grouping, onComplete item)
 
     member this.AsyncComplete () =
         queue.CurrentItemsComplete ()
+
+    interface IWorktrackingQueue<'TGroup, 'TInput, 'TWorkItem> with
+        member x.Add input = x.Add input
+        member x.AsyncComplete () = x.AsyncComplete ()
+        member x.StartWork () = x.StartWork ()
+        [<CLIEvent>]
+        member x.QueueFullEvent = x.QueueFullEvent

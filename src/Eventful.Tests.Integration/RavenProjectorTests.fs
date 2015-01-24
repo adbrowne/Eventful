@@ -162,7 +162,7 @@ module RavenProjectorTests =
         } |> Async.RunSynchronously
         ()
 
-    let ``Get Document Processor`` documentStore =
+    let ``Get Projector`` documentStore onComplete =
         let countingDocKeyPrefix =  "MyCountingDocs/"
         let countingDocKey (key : Guid) =
             countingDocKeyPrefix + key.ToString()  
@@ -178,8 +178,7 @@ module RavenProjectorTests =
 
             (doc, metadata, etag)
 
-        let buildNewDoc (docKey : string) =
-            let id = Guid.Parse(docKey.Replace(countingDocKeyPrefix, ""))
+        let buildNewDoc (id : Guid) =
             let newDoc = new MyCountingDoc()
             newDoc.Id <- id
             let etag = Raven.Abstractions.Data.Etag.Empty
@@ -193,7 +192,7 @@ module RavenProjectorTests =
             match subscriberEvent.Event with
             | :? (Guid * int) as event ->
                 let (guid, _) = event
-                countingDocKey guid |> Seq.singleton
+                guid |> Seq.singleton
             | _ -> Seq.empty
 
         let processEvent doc subscriberEvent = 
@@ -203,13 +202,14 @@ module RavenProjectorTests =
                 processValue value doc
             | _ -> doc
 
-        let processBatch (docKey : string, fetcher : IDocumentFetcher, events) = async {
+        let processBatch (fetcher : IDocumentFetcher) (docId : Guid) events = async {
             let requestId = Guid.NewGuid()
-            let permDocKey = "PermissionDocs/" + docKey
+            let docKey = countingDocKey docId
+            let permDocKey = "PermissionDocs/" + (docKey.ToString())
             let! (doc, metadata, etag) =  
                 fetcher.GetDocument docKey
                 |> Async.AwaitTask
-                |> Async.map (Option.getOrElseF (fun () -> buildNewDoc docKey))
+                |> Async.map (Option.getOrElseF (fun () -> buildNewDoc docId))
                
             let! (permDoc, permMetadata, permEtag) =
                 fetcher.GetDocument permDocKey
@@ -229,7 +229,7 @@ module RavenProjectorTests =
 
             permDoc.Writes <- permDoc.Writes + 1
 
-            return seq {
+            return (seq {
                 yield (
                         Write ({
                                 DocumentKey = docKey
@@ -246,23 +246,45 @@ module RavenProjectorTests =
                                 Etag = permEtag
                             },
                             requestId))
-            }
+            }, onComplete)
         }
 
-        let processBatchTask a : Func<System.Threading.Tasks.Task<_>> =
-            let c = processBatch a
-            ConverterHelper.ToFunc(fun () -> Async.StartAsTask c) 
-
-        let myProcessor : DocumentProcessor<string, SubscriberEvent> = {
-            MatchingKeys = matcher
-            Process = processBatchTask
+        let projector = {
+            Projector.MatchingKeys = matcher
+            ProcessEvents = processBatch
         }
 
-        myProcessor
+        projector 
+        :> IProjector<_,_,_>
+        |> Seq.singleton
 
     let testDatabase = "tenancy-blue"
 
-    let ``Get Raven Projector`` documentStore = 
+    let buildRavenProjector documentStore documentProjectors onWriteComplete = 
+        let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
+
+        let cancellationToken = Async.DefaultCancellationToken
+
+        let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
+        let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken,  cache)
+
+        let projector =
+            BulkRavenProjector.create(
+                testDatabase,
+                documentProjectors,
+                cancellationToken,
+                onWriteComplete,
+                documentStore,
+                writeQueue,
+                readQueue,
+                1000000,
+                1000,
+                None,
+                TimeSpan.FromSeconds 1.)
+
+        projector
+
+    let ``Get Raven Projector With onComplete`` documentStore onComplete = 
         let monitor = new System.Object()
         let itemsComplete = ref 0
 
@@ -272,18 +294,12 @@ module RavenProjectorTests =
             )
         }
         
-        let rnd = new Random()
-        let myProcessor = ``Get Document Processor`` documentStore
-        let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
+        let myProjector = ``Get Projector`` documentStore onComplete
 
-        let cancellationToken = Async.DefaultCancellationToken
-
-        let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
-        let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken,  cache)
-
-        let projector = new BulkRavenProjector<SubscriberEvent>(documentStore, myProcessor, testDatabase, 1000000, 1000, writeComplete, cancellationToken, writeQueue, readQueue, None)
-
-        projector
+        buildRavenProjector documentStore myProjector writeComplete
+    
+    let ``Get Raven Projector`` documentStore = 
+        ``Get Raven Projector With onComplete`` documentStore (async.Zero())
   
     [<Fact>]
     let ``Enqueue events into projector`` () : unit =   
@@ -312,16 +328,10 @@ module RavenProjectorTests =
 
     [<Fact>]
     let ``Run Events Through Grouping Queue`` () : unit =   
-        let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
-
-        let tcs = new System.Threading.Tasks.TaskCompletionSource<bool>()
 
         let streamCount = 10000
         let itemPerStreamCount = 100
-        let totalEvents = streamCount * itemPerStreamCount
         let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
-
-        let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
         let queue = new MutableOrderedGroupingBoundedQueue<string, SubscriberEvent>(100000000, "My Queue")
 
@@ -561,3 +571,30 @@ module RavenProjectorTests =
         |> Async.RunSynchronously
 
         ()
+
+    [<Fact>]
+    let ``OnComplete is triggered after batch completed`` () : unit =
+        let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
+
+        let streamCount = 10
+        let itemPerStreamCount = 100
+        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+
+        let completeCount = ref 0
+        let onComplete = async {
+            System.Threading.Interlocked.Increment completeCount |> ignore
+        }
+
+        let projector = ``Get Raven Projector With onComplete`` documentStore onComplete
+
+        async {
+            for event in myEvents do
+                do! projector.Enqueue event
+
+            Assert.Equal(0, !completeCount)
+
+            projector.StartWork()
+            do! projector.WaitAll()
+
+            Assert.Equal(streamCount, !completeCount)
+        } |> Async.RunSynchronously
