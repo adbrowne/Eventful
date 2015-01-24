@@ -9,7 +9,7 @@
     <OutputType>Library</OutputType>
     <RootNamespace>Eventful</RootNamespace>
     <AssemblyName>Eventful</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <TargetFSharpCoreVersion>4.3.1.0</TargetFSharpCoreVersion>
     <Name>Eventful</Name>
     <TargetFrameworkProfile />
@@ -34,6 +34,9 @@
     <DocumentationFile>..\..\bin\Eventful.xml</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Metrics">
+      <HintPath>..\..\packages\Metrics.NET\lib\net45\Metrics.dll</HintPath>
+    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <Private>False</Private>
@@ -43,6 +46,35 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Agent.fs" />
+    <Compile Include="EventfulLog.fs" />
+    <Compile Include="Prelude.fs" />
+    <Compile Include="Utils.fs" />
+    <Compile Include="UtcDateTime.fs" />
+    <Compile Include="LastCompleteItemAgent.fs" />
+    <Compile Include="ParallelInOrderTransformer.fs" />
+    <Compile Include="ParellelInOrderTransformer.CSharp.fs" />
+    <Compile Include="OperationSetComplete.fs" />
+    <Compile Include="MutableOrderedGroupingBoundedQueue.fs" />
+    <Compile Include="BatchingQueue.fs" />
+    <Compile Include="WorktrackingQueue.fs" />
+    <Compile Include="WorktrackingQueue.CSharp.fs" />
+    <Compile Include="UnitEventContext.fs" />
+    <Compile Include="EventPosition.fs" />
+    <Compile Include="EventStream.fs" />
+    <Compile Include="MultiCommand.fs" />
+    <Compile Include="Validation.fs" />
+    <Compile Include="EventFold.fs" />
+    <Compile Include="StateBuilder.fs" />
+    <Compile Include="Wakeup.fs" />
+    <Compile Include="AggregateBuilder.fs" />
+    <Compile Include="EventfulHandlers.fs" />
+    <Compile Include="DocumentBuilder.fs" />
+    <Compile Include="ISerializer.fs" />
+    <Compile Include="BulkProjector.fs" />
+    <Compile Include="WakeupMonitor.fs" />
+    <Compile Include="MagicMapper.fs" />
+    <Compile Include="StandardConventions.fs" />
     <None Include="paket.references" />
   </ItemGroup>
   <PropertyGroup>
@@ -112,14 +144,9 @@
     </When>
   </Choose>
   <Choose>
-    <When Condition="($(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.5' Or $(TargetFrameworkVersion) == 'v4.5.1' Or $(TargetFrameworkVersion) == 'v4.5.2' Or $(TargetFrameworkVersion) == 'v4.5.3')) Or ($(TargetFrameworkIdentifier) == 'MonoAndroid') Or ($(TargetFrameworkIdentifier) == 'MonoTouch')">
-      <ItemGroup>
-        <Reference Include="Metrics">
-          <HintPath>..\..\packages\Metrics.NET\lib\net45\Metrics.dll</HintPath>
-          <Private>True</Private>
-          <Paket>True</Paket>
-        </Reference>
-      </ItemGroup>
+    <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And $(TargetFrameworkVersion) == 'v4.5'">
+    </When>
+    <When Condition="($(TargetFrameworkIdentifier) == '.NETFramework' And ($(TargetFrameworkVersion) == 'v4.5.1' Or $(TargetFrameworkVersion) == 'v4.5.2' Or $(TargetFrameworkVersion) == 'v4.5.3')) Or ($(TargetFrameworkIdentifier) == 'MonoAndroid') Or ($(TargetFrameworkIdentifier) == 'MonoTouch')">
     </When>
   </Choose>
   <Choose>
