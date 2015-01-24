@@ -1,15 +1,25 @@
-# Set the default behavior, in case people don't have core.autocrlf set.
-*.fs=auto
-* text=auto
+# Auto detect text files
+* text=auto 
 
-# Explicitly declare text files you want to always be normalized and converted
-# to native line endings on checkout.
-*.c text
-*.h text
+# Custom for Visual Studio
+*.cs diff=csharp text=auto eol=lf
+*.fs diff=csharp text=auto eol=lf
+*.fsi diff=csharp text=auto eol=lf
+*.fsx diff=csharp text=auto eol=lf
+*.sln text eol=crlf merge=union
+*.csproj merge=union
+*.vbproj merge=union
+*.fsproj merge=union
+*.dbproj merge=union
 
-# Declare files that will always have CRLF line endings on checkout.
-*.sln text eol=crlf
-
-# Denote all files that are truly binary and should not be modified.
-*.png binary
-*.jpg binary
+# Standard to msysgit
+*.doc diff=astextplain
+*.DOC diff=astextplain
+*.docx diff=astextplain
+*.DOCX diff=astextplain
+*.dot diff=astextplain
+*.DOT diff=astextplain
+*.pdf diff=astextplain
+*.PDF diff=astextplain
+*.rtf diff=astextplain
+*.RTF diff=astextplain

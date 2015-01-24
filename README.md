@@ -1,34 +1,31 @@
-Eventful
-========
-[![Build status](https://ci.appveyor.com/api/projects/status/93o5990wn46adk4a)](https://ci.appveyor.com/project/adbrowne/eventful)
+[![Issue Stats](http://issuestats.com/github/fsprojects/ProjectScaffold/badge/issue)](http://issuestats.com/github/fsprojects/ProjectScaffold)
+[![Issue Stats](http://issuestats.com/github/fsprojects/ProjectScaffold/badge/pr)](http://issuestats.com/github/fsprojects/ProjectScaffold)
 
-```fsharp
-[<AggregateModule>]
-module PersonAggregate = 
-    type internal Marker = interface end
+# ProjectScaffold
 
-    type PersonState = {
-        FirstName : string
-        LastName : string
-    }
+This project can be used to scaffold a prototypical .NET solution including file system layout and tooling. This includes a build process that: 
 
-    let state = new StateGen<PersonState>((fun s _ -> s), { PersonState.FirstName = ""; LastName = "" }) 
+* updates all AssemblyInfo files
+* compiles the application and runs all test projects
+* generates [SourceLinks](https://github.com/ctaggart/SourceLink)
+* generates API docs based on XML document tags
+* generates [documentation based on Markdown files](http://fsprojects.github.io/ProjectScaffold/writing-docs.html)
+* generates [NuGet](http://www.nuget.org) packages
+* and allows a simple [one step release process](http://fsprojects.github.io/ProjectScaffold/release-process.html).
 
-    type CreatePersonCmd = {
-        Id : Guid
-        FirstName : string
-        LastName : string
-    }
+In order to start the scaffolding process run 
 
-    [<CommandHandler>]
-    let HandleCreatePerson (cmd : CreatePersonCmd, state : PersonState) =
-        Handler.Start cmd.Id cmd state
-        |> Validate.NonNullProperty "FirstName" cmd.FirstName
-        |> Validate.NonNullProperty "LastName" cmd.LastName
-        |> Handler.Output 
-            {
-                PersonCreatedEvt.Id = cmd.Id
-                FirstName = cmd.FirstName
-                LastName = cmd.LastName
-            }
-```
+    $ build.cmd // on windows    
+    $ build.sh  // on mono
+    
+Read the [Getting started tutorial](http://fsprojects.github.io/ProjectScaffold/index.html#Getting-started) to learn more.
+
+Documentation: http://fsprojects.github.io/ProjectScaffold
+
+## Maintainer(s)
+
+- [@forki](https://github.com/forki)
+- [@pblasucci](https://github.com/pblasucci)
+- [@sergey-tihon](https://github.com/sergey-tihon)
+
+The default maintainer account for projects under "fsprojects" is [@fsgit](https://github.com/fsgit) - F# Community Project Incubation Space (repo management)
