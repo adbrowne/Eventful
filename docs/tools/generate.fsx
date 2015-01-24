@@ -111,5 +111,5 @@ copyFiles()
 buildDocumentation()
 #endif
 #if REFERENCE
-buildReference()
+// buildReference() // this creates a stackoverflow exception
 #endif
