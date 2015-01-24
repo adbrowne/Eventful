@@ -68,7 +68,7 @@
     - provider: NuGet
       api_key:
         secure: 3vo4lhJWIIqlhBnUGsj0FzO8lXcvKIIgdzflmAHMxDMgsoHe85HOMBr2W0LMYCWB
-      artifact: eventful      artifact: output.nupkg
+      artifact: eventful
       
 # configuration for all branches starting from "dev-"
 # build in Debug mode and deploy locally for testing
