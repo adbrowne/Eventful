@@ -5,6 +5,9 @@ NUGET
     FSharp.Compiler.Service (0.0.82)
     FSharp.Formatting (2.6.3)
       FSharp.Compiler.Service (>= 0.0.81)
+    FSharpx.Collections (1.9.6)
+    FSharpx.Core (1.8.41)
+    Metrics.NET (0.2.14)
     Microsoft.Bcl (1.1.9)
       Microsoft.Bcl.Build (>= 1.0.14)
     Microsoft.Bcl.Build (1.0.21)
@@ -14,6 +17,7 @@ NUGET
     NuGet.CommandLine (2.8.3)
     Octokit (0.6.2)
       Microsoft.Net.Http
+    Serilog (1.4.139)
     SourceLink.Fake (0.4.2)
     xunit (1.9.2)
     xunit.runners (1.9.2)

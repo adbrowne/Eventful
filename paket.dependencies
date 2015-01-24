@@ -6,5 +6,9 @@ nuget XUnit.Runners
 nuget Nuget.CommandLine
 nuget FAKE
 nuget SourceLink.Fake
+nuget Serilog
+nuget Metrics.NET
+nuget FSharpx.Collections
+nuget FSharpx.Core
 
 github fsharp/FAKE modules/Octokit/Octokit.fsx
