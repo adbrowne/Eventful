@@ -1,0 +1,6 @@
+EventStore.Client
+FSharpx.Core
+FSharpx.Collections
+FSharp.Data
+Metrics.NET
+Serilog

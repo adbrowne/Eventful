@@ -35,8 +35,20 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{ED8079DD-2B06-4030-9F0F-DC548F98E1C4}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Tests", "tests\Eventful.Tests\Eventful.Tests.fsproj", "{8614FCC0-02EB-40F6-AE55-3A85283B5B7D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F51BDE88-26A6-4866-B2EB-8ED2D3E10072} = {F51BDE88-26A6-4866-B2EB-8ED2D3E10072}
+		{E31231D3-FD96-471A-99AC-13C3306490F8} = {E31231D3-FD96-471A-99AC-13C3306490F8}
+	EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Testing", "src\Eventful.Testing\Eventful.Testing.fsproj", "{F51BDE88-26A6-4866-B2EB-8ED2D3E10072}"
+	ProjectSection(ProjectDependencies) = postProject
+		{55C123BE-D9CB-4ACB-A486-CCDCEF994F91} = {55C123BE-D9CB-4ACB-A486-CCDCEF994F91}
+	EndProjectSection
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.EventStore", "src\Eventful.EventStore\Eventful.EventStore.fsproj", "{E31231D3-FD96-471A-99AC-13C3306490F8}"
+	ProjectSection(ProjectDependencies) = postProject
+		{55C123BE-D9CB-4ACB-A486-CCDCEF994F91} = {55C123BE-D9CB-4ACB-A486-CCDCEF994F91}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -56,6 +68,10 @@ Global
 		{F51BDE88-26A6-4866-B2EB-8ED2D3E10072}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F51BDE88-26A6-4866-B2EB-8ED2D3E10072}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F51BDE88-26A6-4866-B2EB-8ED2D3E10072}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E31231D3-FD96-471A-99AC-13C3306490F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E31231D3-FD96-471A-99AC-13C3306490F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E31231D3-FD96-471A-99AC-13C3306490F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E31231D3-FD96-471A-99AC-13C3306490F8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

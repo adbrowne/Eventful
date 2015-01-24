@@ -126,7 +126,8 @@ Target "RunTests" (fun _ ->
     |> xUnit (fun p ->
         { p with
             NUnitXmlOutput = true
-            TimeOut = TimeSpan.FromMinutes 20. })
+            TimeOut = TimeSpan.FromMinutes 20.
+            IncludeTraits = Some ("category", "unit") })
 )
 
 #if MONO

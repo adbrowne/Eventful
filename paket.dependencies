@@ -12,5 +12,10 @@ nuget FSharpx.Collections
 nuget FSharpx.Core
 nuget Unquote
 nuget FsCheck
+nuget FsCheck.Xunit
+nuget FsUnit.Xunit
+nuget EventStore.Client
+nuget FSharpx
+nuget FSharp.Data
 
 github fsharp/FAKE modules/Octokit/Octokit.fsx

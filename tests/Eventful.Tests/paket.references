@@ -1,2 +1,10 @@
 xUnit
 xUnit.Runners
+FSharpx.Collections
+FSharpx.Core
+FsCheck
+FsCheck.Xunit
+Unquote
+FsUnit.Xunit
+Serilog
+EventStore.Client
