@@ -1,10 +1,10 @@
 module Eventful.Tests
 
 open Eventful
-open NUnit.Framework
+open Xunit
 
-[<Test>]
+[<Fact>]
 let ``hello returns 42`` () =
   let result = Library.hello 42
   printfn "%i" result
-  Assert.AreEqual(42,result)
+  Assert.Equal(42,result)

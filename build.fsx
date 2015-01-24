@@ -47,7 +47,7 @@ let tags = "fsharp eventsourcing"
 // File system information 
 let solutionFile  = "Eventful.sln"
 
-// Pattern specifying assemblies to be tested using NUnit
+// Pattern specifying assemblies to be tested using xUnit
 let testAssemblies = "tests/**/bin/Release/*Tests*.dll"
 
 // Git configuration (used for publishing documentation in gh-pages branch)
@@ -123,11 +123,10 @@ Target "Build" (fun _ ->
 
 Target "RunTests" (fun _ ->
     !! testAssemblies
-    |> NUnit (fun p ->
+    |> xUnit (fun p ->
         { p with
-            DisableShadowCopy = true
-            TimeOut = TimeSpan.FromMinutes 20.
-            OutputFile = "TestResults.xml" })
+            NUnitXmlOutput = true
+            TimeOut = TimeSpan.FromMinutes 20. })
 )
 
 #if MONO
