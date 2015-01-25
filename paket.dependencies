@@ -17,5 +17,8 @@ nuget FsUnit.Xunit
 nuget EventStore.Client
 nuget FSharpx
 nuget FSharp.Data
+nuget RavenDB.Client ~> 2.5.2935
+nuget RavenDB.Client
+nuget FSharp.Collections.ParallelSeq
 
 github fsharp/FAKE modules/Octokit/Octokit.fsx
