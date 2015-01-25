@@ -281,7 +281,7 @@
     <Compile Include="StateChangeTests.fs" />
     <Compile Include="SnapshotTests.fs" />
     <Compile Include="StreamMetadataTests.fs" />
-    <None Include="app.config" />
+    <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Eventful.EventStore">
