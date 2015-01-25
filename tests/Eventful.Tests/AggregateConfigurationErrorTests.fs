@@ -102,8 +102,10 @@ module AggregateConfigurationErrorTests =
             emptyTestSystem 
             |> TestSystem.runCommandNoThrow cmdWithNullId ()
 
+        let likelyNullReferenceException (s : string) = s.Contains("instance")
+
         test <@ match result.LastResult with
-                | CommandResultContainingException "Retrieving aggregate id from command" "Object reference not set to an instance of an object."-> true
+                | CommandResultWithExceptionMatching "Retrieving aggregate id from command" likelyNullReferenceException -> true
                 | _ -> false @>
 
     [<Fact>]

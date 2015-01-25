@@ -29,6 +29,19 @@ module TestHelpers =
                 | _ -> false)
         )
 
+    let (|CommandResultWithExceptionMatching|_|) (context : string) (p : string -> bool) (result: CommandResult<'TBaseEvent,'TMetadata>) =
+        let matches failure = 
+            match failure with
+            | CommandException (c, exn) ->
+                c = Some context && p exn.Message
+            | _ -> false
+
+        match result with
+        | Choice2Of2 errors 
+            when errors |> NonEmptyList.toSeq |> Seq.exists matches ->
+                Some ()
+        | _ -> None
+
     let (|CommandResultContainingException|_|) (context : string) (message : string) (result: CommandResult<'TBaseEvent,'TMetadata>) =
         let matches failure = 
             match failure with
