@@ -348,11 +348,11 @@ Target "All" DoNothing
   ==> "NuGet"
   ==> "BuildPackage"
 
-"Build"
-  ==> "BuildNeo4jClient"
-
 "BuildNeo4jClient"
-  ==> "RestorePackagesNeo4jClient"
+  ==> "Build"
+
+"RestorePackagesNeo4jClient"
+  ==> "BuildNeo4jClient"
 
 "CleanDocs"
   ==> "GenerateHelp"
