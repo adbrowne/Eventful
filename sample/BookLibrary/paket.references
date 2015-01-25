@@ -1,0 +1,16 @@
+xUnit
+xUnit.Runners
+FSharpx.Collections
+FSharpx.Core
+FsCheck
+FsCheck.Xunit
+Unquote
+FsUnit.Xunit
+Serilog
+Serilog.Sinks.Seq
+EventStore.Client
+RavenDB.Client
+Suave
+Newtonsoft.Json
+UnionArgParser
+NSubstitute

@@ -8,9 +8,25 @@ open FsUnit.Xunit
 open Raven.Client
 open Eventful
 open Eventful.Raven
-type MyCountingDoc = Eventful.CsTests.MyCountingDoc
-open Eventful.Tests
+open Eventful.Testing
 open Metrics
+
+[<CLIMutable>]
+type MyCountingDoc = {
+    mutable Id : Guid
+    mutable Count : int
+    mutable Value : int
+    mutable Writes : int
+    mutable Foo : string
+}
+with 
+    static member Empty () =
+        { Id = Guid.Empty
+          Count = 0
+          Writes = 0
+          Foo = ""
+          Value = 0 }
+    
 
 module Util = 
     let taskToAsync (task:System.Threading.Tasks.Task) =
@@ -140,13 +156,13 @@ module RavenProjectorTests =
 
     [<Fact>]
     let ``Generate event stream`` () : unit =
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
+        let myEvents = Eventful.Testing.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
         consoleLog <| sprintf "Length %d" (myEvents |> Seq.length)
         ()
 
     [<Fact>]
     let ``Just complete tracking`` () : unit =
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
+        let myEvents = Eventful.Testing.TestEventStream.sequentialNumbers 1000 100 |> Seq.cache
         let tracker = new LastCompleteItemAgent<EventPosition>()
 
         async {
@@ -179,7 +195,7 @@ module RavenProjectorTests =
             (doc, metadata, etag)
 
         let buildNewDoc (id : Guid) =
-            let newDoc = new MyCountingDoc()
+            let newDoc = { MyCountingDoc.Id = id; Count = 0; Writes = 0; Foo = ""; Value = 0 }
             newDoc.Id <- id
             let etag = Raven.Abstractions.Data.Etag.Empty
 
@@ -308,7 +324,7 @@ module RavenProjectorTests =
         let streamCount = 1000
         let itemPerStreamCount = 100
         let totalEvents = streamCount * itemPerStreamCount
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+        let myEvents = TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
@@ -331,7 +347,7 @@ module RavenProjectorTests =
 
         let streamCount = 10000
         let itemPerStreamCount = 100
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+        let myEvents = TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let queue = new MutableOrderedGroupingBoundedQueue<string, SubscriberEvent>(100000000, "My Queue")
 
@@ -380,7 +396,7 @@ module RavenProjectorTests =
         let streamCount = 1
         let itemPerStreamCount = 1
         let totalEvents = streamCount * itemPerStreamCount
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+        let myEvents = TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
@@ -452,7 +468,7 @@ module RavenProjectorTests =
         let streamCount = 1000
         let itemPerStreamCount = 100
         let totalEvents = streamCount * itemPerStreamCount
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+        let myEvents = TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
@@ -483,8 +499,8 @@ module RavenProjectorTests =
                         let! doc = session.LoadAsync<MyCountingDoc>(docKey) |> Async.AwaitTask
 
                         let! doc = 
-                            if (doc = null) then 
-                                let newDoc = new MyCountingDoc()
+                            if (box doc = null) then 
+                                let newDoc = MyCountingDoc.Empty()
                                 newDoc.Id <- key
                                 async {
                                     do! session.StoreAsync(newDoc :> obj, docKey) |> Util.taskToAsync
@@ -538,7 +554,7 @@ module RavenProjectorTests =
         let streamCount = 10000
         let itemPerStreamCount = 100
         let totalEvents = streamCount * itemPerStreamCount
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+        let myEvents = TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 
@@ -578,7 +594,7 @@ module RavenProjectorTests =
 
         let streamCount = 10
         let itemPerStreamCount = 100
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+        let myEvents = TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let completeCount = ref 0
         let onComplete = async {

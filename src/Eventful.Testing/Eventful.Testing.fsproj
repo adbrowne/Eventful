@@ -62,6 +62,7 @@
     <Compile Include="TestInterpreter.fs" />
     <Compile Include="TestSystem.fs" />
     <Compile Include="ConfigurationValidation.fs" />
+    <Compile Include="TestEventStream.fs" />
     <None Include="paket.references" />
   </ItemGroup>
   <ItemGroup>

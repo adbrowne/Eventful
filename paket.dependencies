@@ -19,6 +19,14 @@ nuget FSharpx
 nuget FSharp.Data
 nuget RavenDB.Client ~> 2.5.2935
 nuget RavenDB.Client
+nuget Suave 0.18.0
 nuget FSharp.Collections.ParallelSeq
+nuget Suave
+nuget Newtonsoft.Json
+nuget UnionArgParser
+nuget Serilog.Sinks.Seq
+nuget NSubstitute
+nuget Http.fs
+
 github dgchurchill/Neo4jClient (3a8842c4c573238ec6459be46b65717c2d0dace5)
 github fsharp/FAKE modules/Octokit/Octokit.fsx

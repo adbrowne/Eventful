@@ -5,7 +5,7 @@ open Xunit
 open Metrics
 open Eventful
 open Eventful.Raven
-open Eventful.Tests
+open Eventful.Testing
 
 module RavenReplayProjectorTests = 
 
@@ -18,7 +18,7 @@ module RavenReplayProjectorTests =
         let streamCount = 10000
         let itemPerStreamCount = 100
         let totalEvents = streamCount * itemPerStreamCount
-        let myEvents = Eventful.Tests.TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
+        let myEvents = TestEventStream.sequentialNumbers streamCount itemPerStreamCount |> Seq.cache
 
         let streams = myEvents |> Seq.map (fun x -> Guid.Parse(x.StreamId)) |> Seq.distinct |> Seq.cache
 

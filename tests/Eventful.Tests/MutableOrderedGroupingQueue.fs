@@ -1,6 +1,7 @@
 ﻿namespace Eventful.Tests
 
 open Eventful
+open Eventful.Testing
 open System
 open Xunit
 open System.Threading.Tasks
