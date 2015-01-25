@@ -118,6 +118,20 @@ Target "Build" (fun _ ->
     |> ignore
 )
 
+Target "RestorePackagesNeo4jClient" (fun _ ->
+    let setParams (p : RestorePackageParams) = 
+       { p with 
+          ToolPath = "./tools/Nuget.exe" 
+          OutputPath = "./vendor/Neo4jClient/packages" }
+    RestorePackage setParams "./vendor/Neo4jClient/Neo4jClient/packages.config"
+)
+
+Target "BuildNeo4jClient" (fun _ ->
+    !! "vendor\Neo4jClient\Neo4jClient.sln"
+    |> MSBuildRelease "" "Rebuild"
+    |> ignore
+)
+
 // --------------------------------------------------------------------------------------
 // Run the unit tests using test runner
 
@@ -333,6 +347,12 @@ Target "All" DoNothing
 #endif
   ==> "NuGet"
   ==> "BuildPackage"
+
+"Build"
+  ==> "BuildNeo4jClient"
+
+"BuildNeo4jClient"
+  ==> "RestorePackagesNeo4jClient"
 
 "CleanDocs"
   ==> "GenerateHelp"

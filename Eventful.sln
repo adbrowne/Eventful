@@ -51,6 +51,14 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.EventStore", "src\
 	EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.RavenDb", "src\Eventful.RavenDb\Eventful.RavenDb.fsproj", "{0A07BFFE-3CD9-4F12-B3CC-76AF78D7818B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{55C123BE-D9CB-4ACB-A486-CCDCEF994F91} = {55C123BE-D9CB-4ACB-A486-CCDCEF994F91}
+	EndProjectSection
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Eventful.Neo4j", "src\Eventful.Neo4j\Eventful.Neo4j.fsproj", "{2A86F1ED-ED5F-494E-95C8-379D063E5EAE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{55C123BE-D9CB-4ACB-A486-CCDCEF994F91} = {55C123BE-D9CB-4ACB-A486-CCDCEF994F91}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -78,6 +86,10 @@ Global
 		{0A07BFFE-3CD9-4F12-B3CC-76AF78D7818B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0A07BFFE-3CD9-4F12-B3CC-76AF78D7818B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0A07BFFE-3CD9-4F12-B3CC-76AF78D7818B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A86F1ED-ED5F-494E-95C8-379D063E5EAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A86F1ED-ED5F-494E-95C8-379D063E5EAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A86F1ED-ED5F-494E-95C8-379D063E5EAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A86F1ED-ED5F-494E-95C8-379D063E5EAE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
