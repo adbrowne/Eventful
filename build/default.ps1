@@ -113,5 +113,5 @@ task PackagePush -depends Package {
 }
 
 task ? -Description "Helper to display task info" {
-	Write-Documentation
+	WriteDocumentation
 }

@@ -280,7 +280,7 @@ module RavenProjectorTests =
                 1000000,
                 1000,
                 None,
-                1000)
+                TimeSpan.FromSeconds 1.)
 
         projector
 
