@@ -96,8 +96,6 @@
     <Compile Include="StateChangeTests.fs" />
     <Compile Include="SnapshotTests.fs" />
     <Compile Include="StreamMetadataTests.fs" />
-    <None Include="app.config" />
-    <None Include="paket.references" />
     <Compile Include="TestValueStream.fs" />
     <Compile Include="TestHelpers.fs" />
     <Compile Include="TestMetadata.fs" />
@@ -129,6 +127,7 @@
     <Compile Include="SnapshotTests.fs" />
     <Compile Include="StreamMetadataTests.fs" />
     <None Include="App.config" />
+    <None Include="paket.references" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="BookLibrary">
