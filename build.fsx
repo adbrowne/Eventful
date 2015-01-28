@@ -121,7 +121,7 @@ Target "Build" (fun _ ->
 Target "RestorePackagesNeo4jClient" (fun _ ->
     let setParams (p : RestorePackageParams) = 
        { p with 
-          ToolPath = "./tools/Nuget.exe" 
+          ToolPath = "./tools/NuGet.exe" 
           OutputPath = "./vendor/Neo4jClient/packages" }
     RestorePackage setParams "./vendor/Neo4jClient/Neo4jClient/packages.config"
 )
