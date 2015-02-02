@@ -118,22 +118,25 @@ module Prelude =
 
     let taskLog = createLogger "Eventful.Task"
 
-    let runAsyncAsTask (name : string) cancellationToken action = 
-        let task = Async.StartAsTask(action, System.Threading.Tasks.TaskCreationOptions.None, cancellationToken)
-
-        task
-   
     open System
     open System.Threading
     open System.Threading.Tasks
 
+    let runAsyncAsTask (name : string) cancellationToken action = 
+        Async.StartAsTask(action, TaskCreationOptions.None, cancellationToken)
+   
     let voidTaskAsAsync (task : Task) =
         async {
             do! task |> Async.AwaitIAsyncResult |> Async.Ignore
             if task.IsFaulted then raise task.Exception
             return ()
         }
- 
+
+    let createBackgroundThread (work : unit -> unit) =
+        let thread = new Thread(work)
+        thread.IsBackground <- true
+        thread 
+
     // adapted from 
     // http://stackoverflow.com/questions/18274986/async-catch-doesnt-work-on-operationcanceledexceptions
     let startCatchCancellation(work, cancellationToken) = 

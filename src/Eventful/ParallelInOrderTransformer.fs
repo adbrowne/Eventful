@@ -31,7 +31,7 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?m
 
     let completeQueue = new BlockingCollection<ParallelInOrderTransformerCompleteItem<'TOutput>>(maxItems)
 
-    let completeWorkerLoop (o : obj) : unit =
+    let completeWorkerLoop () : unit =
         let pendingQueue = new System.Collections.Generic.SortedDictionary<int64,ParallelInOrderTransformerCompleteItem<'TOutput>>()
 
         let rec completeQueueItems nextIndex = 
@@ -55,7 +55,7 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?m
         
     let queue = new BlockingCollection<ParallelInOrderTransformerQueueItem<'TInput, 'TOutput>>(maxItems)
 
-    let workerLoop (o : obj) : unit =
+    let workerLoop () : unit =
         for item in queue.GetConsumingEnumerable() do
             let output = work item.Input 
             completeQueue.Add
@@ -65,16 +65,15 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?m
                     OnComplete = item.OnComplete
                 }
 
-    let threads = 
-        [1..workerCount]
-        |> List.map (fun _ -> new System.Threading.Thread(new System.Threading.ParameterizedThreadStart(workerLoop)))
+    let threads =
+        List.init workerCount (fun _ -> createBackgroundThread workerLoop)
 
     do
         threads
         |> List.iter (fun t -> t.Start())
 
     do
-        let completeQueueWorker = new System.Threading.Thread(new System.Threading.ParameterizedThreadStart(completeWorkerLoop))
+        let completeQueueWorker = createBackgroundThread completeWorkerLoop
         completeQueueWorker.Start()
 
     member x.Process (input : 'TInput, onComplete : 'TOutput -> unit) = 
