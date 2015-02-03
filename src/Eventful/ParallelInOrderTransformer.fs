@@ -1,6 +1,7 @@
 ﻿namespace Eventful
 
 open System
+open System.Threading
 open System.Collections.Concurrent
 
 type internal ParallelInOrderTransformerQueueItem<'TInput, 'TOutput> = {
@@ -15,6 +16,37 @@ type internal ParallelInOrderTransformerCompleteItem<'TOutput> = {
     OnComplete : ('TOutput -> unit)
 }
 
+type ProducerConsumerQueue<'T> (maxItems: int, workerCount : int, workerLoop) =
+    let workerShutDownEvent = new CountdownEvent(workerCount)
+    let queue = new BlockingCollection<'T>(maxItems)
+
+    let threadWorker () =
+        try
+            workerLoop queue
+        finally
+            workerShutDownEvent.Signal() |> ignore
+
+    do
+        List.init workerCount (fun _ -> createBackgroundThread threadWorker)
+        |> List.iter (fun t -> t.Start())
+
+    member x.Add (item : 'T) =
+        queue.Add(item)
+
+    member x.Dispose () = 
+        // will make GetConsumingEnumerable finish
+        // which means worker thread should stop
+        queue.CompleteAdding() 
+
+        // wait for all the worker threads to stop
+        workerShutDownEvent.Wait()
+
+        // dispose the queue
+        queue.Dispose()
+
+    interface IDisposable with
+        member x.Dispose () = x.Dispose()
+    
 type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?maxItems : int, ?workerCount : int) =
     let log = createLogger <| sprintf "Eventful.ParallelInOrderTransformer<%s,%s>" typeof<'TInput>.Name typeof<'TOutput>.Name
     let currentIndex = ref -1L
@@ -29,9 +61,7 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?m
         | Some x -> x
         | None -> 4
 
-    let completeQueue = new BlockingCollection<ParallelInOrderTransformerCompleteItem<'TOutput>>(maxItems)
-
-    let completeWorkerLoop () : unit =
+    let completeWorkerLoop (completeQueue : BlockingCollection<ParallelInOrderTransformerCompleteItem<'TOutput>>) : unit =
         let pendingQueue = new System.Collections.Generic.SortedDictionary<int64,ParallelInOrderTransformerCompleteItem<'TOutput>>()
 
         let rec completeQueueItems nextIndex = 
@@ -53,9 +83,9 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?m
             else
                 pendingQueue.Add(item.Index, item)
         
-    let queue = new BlockingCollection<ParallelInOrderTransformerQueueItem<'TInput, 'TOutput>>(maxItems)
+    let completeQueue = new ProducerConsumerQueue<_>(maxItems, 1, completeWorkerLoop)
 
-    let workerLoop () : unit =
+    let workerLoop (queue: BlockingCollection<ParallelInOrderTransformerQueueItem<'TInput, 'TOutput>>) : unit =
         for item in queue.GetConsumingEnumerable() do
             let output = work item.Input 
             completeQueue.Add
@@ -64,29 +94,16 @@ type ParallelInOrderTransformer<'TInput,'TOutput>(work : 'TInput -> 'TOutput, ?m
                     Output = output
                     OnComplete = item.OnComplete
                 }
-
-    let threads =
-        List.init workerCount (fun _ -> createBackgroundThread workerLoop)
-
-    do
-        threads
-        |> List.iter (fun t -> t.Start())
-
-    do
-        let completeQueueWorker = createBackgroundThread completeWorkerLoop
-        completeQueueWorker.Start()
+    let workQueue = new ProducerConsumerQueue<_>(maxItems, workerCount, workerLoop)
 
     member x.Process (input : 'TInput, onComplete : 'TOutput -> unit) = 
         let index = System.Threading.Interlocked.Increment currentIndex
-        queue.Add 
+        workQueue.Add 
             { Index = index
               Input = input
               OnComplete = onComplete }
 
     interface IDisposable with
         member x.Dispose () = 
-            // will make GetConsumingEnumerable finish
-            // which means worker threads stop
-            queue.CompleteAdding() 
-            completeQueue.CompleteAdding()
-            queue.Dispose()
+            workQueue.Dispose()
+            completeQueue.Dispose()
