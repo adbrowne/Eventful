@@ -16,3 +16,6 @@ type ParallelInOrderTransformer<'TInput,'TOutput>
 
     member x.Process(input: 'TInput, onComplete : System.Action<'TOutput>) : unit =
         transformer.Process(input, (fun o -> onComplete.Invoke(o)))
+
+    interface IDisposable with
+         member this.Dispose() = (transformer :> IDisposable).Dispose()
