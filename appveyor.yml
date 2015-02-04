@@ -5,6 +5,7 @@
       
   init:
     - git config --global core.autocrlf input
+    - git submodule update --init --recursive
   build_script:
     - cmd: build.cmd
   test: off
