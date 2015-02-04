@@ -131,7 +131,7 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="BookLibrary">
-      <HintPath>..\..\sample\bin\BookLibrary.exe</HintPath>
+      <HintPath>..\..\bin\BookLibrary.exe</HintPath>
     </Reference>
     <Reference Include="Eventful.EventStore">
       <HintPath>..\..\bin\Eventful.EventStore.dll</HintPath>
