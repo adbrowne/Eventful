@@ -121,7 +121,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
             let suaveLogger = new SuaveEventfulLogger(Serilog.Log.Logger.ForContext("SourceContext","Suave"))
             let suaveConfig = 
                 { default_config with 
-                   Types.SuaveConfig.bindings = [Types.HttpBinding.Create (Types.Protocol.HTTP, webAddress.ToString(), webConfig.Port)] 
+                   Types.SuaveConfig.bindings = [Types.HttpBinding.mk' Types.Protocol.HTTP (webAddress.ToString()) webConfig.Port] 
                    logger = suaveLogger }
 
             // start web

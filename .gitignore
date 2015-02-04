@@ -187,3 +187,4 @@ docs/content/release-notes.md
 # Test output
 Eventful.Tests.dll.xml
 Eventful.CsTests.dll.xml
+BookLibrary.exe.xml

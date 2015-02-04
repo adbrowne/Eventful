@@ -49,6 +49,7 @@ let solutionFile  = "Eventful.sln"
 
 // Pattern specifying assemblies to be tested using xUnit
 let testAssemblies = "tests/**/bin/Release/*Tests*.dll"
+let samplesAssemblies = "bin/BookLibrary.exe"
 
 // Git configuration (used for publishing documentation in gh-pages branch)
 // The profile where the project is posted
@@ -136,7 +137,7 @@ Target "BuildNeo4jClient" (fun _ ->
 // Run the unit tests using test runner
 
 Target "RunTests" (fun _ ->
-    !! testAssemblies
+    !! (testAssemblies) ++ (samplesAssemblies)
     |> xUnit (fun p ->
         { p with
             NUnitXmlOutput = true

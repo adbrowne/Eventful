@@ -7,7 +7,7 @@ open Suave.Http
 open Suave.Http.Successful
 
 type SuaveEventfulLogger(logger : Serilog.ILogger) =
-  interface Suave.Log.Logger with
+  interface Suave.Logging.Logger with
     member x.Log level f_line =
       match level with
       | _ ->
@@ -45,7 +45,7 @@ module WebHelpers =
         fromJson<'TCommand> (f >> runCommandInSystem system)
 
     let F prefix postfix h (r:Types.HttpContext) =
-        let url = r.request.url
+        let url = r.request.url.PathAndQuery
         match (url.StartsWith(prefix) && url.EndsWith(postfix)) with
         | true ->
           let idStart = prefix.Length
@@ -79,8 +79,8 @@ open FsUnit.Xunit
 module WebHelperTests =
     let testUrlAgainstGuidRule pattern url =
          let handler = WebHelpers.url_with_guid pattern (fun guid -> OK (guid.ToString()))
-         let request = Types.HttpRequest.mk "1.1" url "GET" List.empty String.Empty Log.TraceHeader.empty false Net.IPAddress.Loopback
-         let context = Types.HttpContext.mk request Types.HttpRuntime.empty
+         let request = Types.HttpRequest.mk "1.1" url (Types.Host.ClientOnly "blah") Types.HttpMethod.GET List.empty String.Empty Logging.TraceHeader.empty false Net.IPAddress.Loopback
+         let context = Types.HttpContext.mk request Types.HttpRuntime.empty Sockets.Connection.empty
          let result = handler context |> Async.RunSynchronously
          match result with
          | Some result ->
@@ -94,16 +94,18 @@ module WebHelperTests =
             None
         
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given pattern contains id When url has Guid in the correct place Then Guid is returned`` () : unit =
          let guid = "5e33ad64-9943-46b8-9d58-d56a5de6f818"
-         let url = sprintf "/a/%s/b" guid
+         let url = new Uri (sprintf "http://example.com/a/%s/b" guid)
 
          testUrlAgainstGuidRule "/a/{id}/b" url
          |> should equal (Some guid)
 
     [<Fact>]
+    [<Trait("category", "unit")>]
     let ``Given pattern contains id When url does not have a valid guid in the id place Then rule does not match`` () : unit =
-         let url = "/a/NOT_A_GUID/b"
+         let url = new Uri ("http://example.com/a/NOT_A_GUID/b")
 
          testUrlAgainstGuidRule "/a/{id}/b" url
          |> should equal None
