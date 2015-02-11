@@ -40,23 +40,22 @@ module MagicMapper =
     let magicGetCmdId<'TId> = (fun _ -> magicId<'TId>)
 
     let getWrapper<'TUnion> () =
-        let cases = FSharpType.GetUnionCases(typeof<'TUnion>)
         let wrappableCases = 
-            cases
+            FSharpType.GetUnionCases(typeof<'TUnion>)
             |> Seq.map (fun case -> (case, case.GetFields()))
             |> Seq.filter (fun (_, fields) -> fields |> Seq.length = 1)
-            |> Seq.map (fun (case, fields) -> (case, fields |> Seq.head))
+            |> Seq.map (fun (case, fields) -> ((Seq.head fields).PropertyType, FSharpValue.PreComputeUnionConstructor(case)))
             |> Seq.toList
         (fun (value:obj) -> 
-            let fieldType = value.GetType()
+            let valueType = value.GetType()
             let findMatch = 
                 wrappableCases 
-                |> List.filter(fun (case, field) -> field.PropertyType = fieldType)
+                |> List.filter(fun (caseType, _) -> caseType = valueType)
 
             match findMatch with
-            | [(case, field)] -> 
-                FSharpValue.MakeUnion(case, [|value|]) :?> 'TUnion
-            | _ -> failwith <| sprintf "No unique case for type %A in union type %A" fieldType typeof<'TUnion>
+            | [(_, caseConstructor)] -> 
+                caseConstructor [|value|] :?> 'TUnion
+            | _ -> failwith <| sprintf "No unique case for type %A in union type %A" valueType typeof<'TUnion>
         ) 
 
     let getUnwrapper<'TUnion> () =
