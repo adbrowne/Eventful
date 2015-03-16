@@ -40,8 +40,8 @@ module AggregateStatePersistence =
         definition
 
     let deserialize (serializer :  ISerializer) (doc : RavenJObject) (propertyTypes : Map<string,Type>) =
-        let deserializeRavenJToken targetType jToken =
-            jToken.ToString()
+        let deserializeRavenJToken targetType (jToken : RavenJToken) =
+            jToken.ToString(Raven.Imports.Newtonsoft.Json.Formatting.None)
             |> System.Text.Encoding.UTF8.GetBytes
             |> (fun x -> serializer.DeserializeObj x targetType)
 
