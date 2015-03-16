@@ -38,6 +38,10 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
                 interpret program testEventStore
     }
 
+    member x.RunStreamProgram program = 
+        let (allEvents, result) = interpret program state.AllEvents
+        (result, new TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>({ state with AllEvents = allEvents }))
+
     member x.RunCommandNoThrow (cmd : obj) (context : 'TCommandContext) =    
         let program = EventfulHandlers.getCommandProgram context cmd state.Handlers
         let (allEvents, result) = interpret program state.AllEvents
