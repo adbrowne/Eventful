@@ -17,15 +17,12 @@ module BulkNeo4jProjector =
             cancellationToken : CancellationToken,
             onEventComplete : 'TMessage -> Async<unit>,
             graphClient : ICypherGraphClient,
-            writeQueue : Neo4jWriteQueue,
+            executor : seq<GraphTransaction> -> Async<Choice<unit, exn>>,
             maxEventQueueSize : int,
             eventWorkers : int,
             workTimeout : TimeSpan option,
             positionWritePeriod
         ) =
-        let executor actions =
-            writeQueue.Work graphName actions
-
         let positionNodeId = Neo4jConstants.PositionNodeId
 
         let getPersistedPosition =
@@ -36,7 +33,7 @@ module BulkNeo4jProjector =
                 GraphTransaction [ UpdateNode (positionNodeId, position) ]
                 |> Seq.singleton
 
-            let! writeResult = writeQueue.Work graphName writeRequests
+            let! writeResult = executor writeRequests
 
             return writeResult |> (function Choice1Of2 _ -> true | _ -> false)
         }
