@@ -14,5 +14,6 @@ type GraphAction =
     | RemoveAllIncomingRelationships of NodeId * relationshipType : string
     | AddLabels of NodeId * Set<string>
     | UpdateNode of NodeId * data : obj
+    | IncrementVersion of NodeId
 
 type GraphTransaction = GraphTransaction of GraphAction seq
