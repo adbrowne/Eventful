@@ -212,6 +212,11 @@ module Operations =
             |> mergeNodeIdQ "node" node
             |> updateNodeQ "node" node data
 
+        | IncrementVersion node ->
+            query
+            |> mergeNodeIdQ "node" node
+            |> setQ "node.version = coalesce(node.version + 1, 0)"
+
     let graphTransactionToQuery (graphClient : ICypherGraphClient) (graphName : string) (GraphTransaction actions) =
         let folder (query, isFirst) action =
             let chainIfNotFirst = if isFirst then id else chainQ
