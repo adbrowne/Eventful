@@ -56,7 +56,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
 
         try
             let! writeRequests, _ = projector.ProcessEvents key events
-            return Seq.append s writeRequests
+            return writeRequests :: s
         with
         | ex ->
             log.ErrorWithException <| lazy ("Exception during ProcessEvents", ex)
@@ -89,7 +89,8 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
                 let docs = 
                     workItems
                     |> Seq.map snd
-                return! Async.foldM accumulateItems Seq.empty docs
+                let! reversedItems = Async.foldM accumulateItems [] docs
+                return List.rev reversedItems |> Seq.concat
             })
             |> Async.Parallel
             |> Async.RunSynchronously
