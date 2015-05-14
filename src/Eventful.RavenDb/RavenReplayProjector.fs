@@ -24,6 +24,8 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
     let log = createLogger "Eventful.Raven.RavenReplayProjector"
     let numWorkers = 10
 
+    
+
     let fetcher = {
         new IDocumentFetcher with
             member x.GetDocument<'TDocument> key : Tasks.Task<ProjectedDocument<'TDocument> option> = 
@@ -42,6 +44,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
     }
 
     let mutable messages : 'TMessage list = List.Empty
+    let mutable inserts : ProcessAction seq = Seq.empty
 
     let projectors =
         BulkProjector.projectorsWithContext projectors fetcher
@@ -65,13 +68,16 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
 
     let printReport v =
         log.Debug <| lazy v
+    
+    member x.DatabaseName: string = databaseName
 
     member x.Enqueue (message : 'TMessage) =
         messages <- message::messages
 
     member x.ProcessQueuedItems() =
         log.Debug <| lazy(sprintf "ProcessQueuedItems: %A. Count: %A" databaseName messages.Length)
-        let inserts = 
+
+        inserts <-
             messages
             // reverse messages so they run in order
             |> List.rev
@@ -97,6 +103,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
             |> Array.toSeq
             |> Seq.collect id
 
+    member x.InsertDocuments() =
         log.Debug <| lazy(sprintf "Starting document insert")
 
         use bulkInsert = documentStore.BulkInsert(databaseName)
