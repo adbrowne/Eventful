@@ -274,6 +274,7 @@ module Operations =
         response.Headers |> Map.find "Location"
 
     let commitTransaction location =
+        log.Debug <| lazy "committing Neo4J transaction."
         post (location + "/commit") emptyStatements |> checkForErrors
 
     let addStatementsToTransaction location (statements : CypherQuery seq) =
