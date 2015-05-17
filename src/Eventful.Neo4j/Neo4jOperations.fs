@@ -4,10 +4,12 @@ open System
 open System.Linq.Expressions
 open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Linq.RuntimeHelpers
+open Newtonsoft.Json
 
 open Eventful
 
 open FSharpx
+open FSharp.Data
 
 open Neo4jClient
 open Neo4jClient.Cypher
@@ -248,3 +250,110 @@ module Operations =
                     log.DebugWithException <| lazy("Write Error", e)
                     return Choice2Of2 e
         }
+
+    type ResponseJson = JsonProvider<"""{"results":[{"columns":[],"data":[]}],"errors":[{"code":"error code","message":"error message"}]}""">
+
+    let emptyStatements = """ { "statements": [] } """
+
+    let post uri body =
+        Http.Request(uri, headers = [ HttpRequestHeaders.ContentType HttpContentTypes.Json ], body = TextRequest body)
+
+    let parseResponse (response : HttpResponse) =
+        match response.Body with
+        | Text text -> ResponseJson.Parse text
+        | _ -> failwith "got binary response"
+
+    let checkForErrors response =
+        let jsonResponse = parseResponse response
+        if (not << Seq.isEmpty) jsonResponse.Errors then
+            failwith (sprintf "Got errors: %A" jsonResponse.Errors)
+
+    let beginTransaction neo4jEndpoint =
+        let transactionEndpoint = neo4jEndpoint + "/transaction"
+        let response = post transactionEndpoint emptyStatements
+        response.Headers |> Map.find "Location"
+
+    let commitTransaction location =
+        log.Debug <| lazy "committing Neo4J transaction."
+        post (location + "/commit") emptyStatements |> checkForErrors
+
+    let addStatementsToTransaction location (statements : CypherQuery seq) =
+        let statementsJson =
+            statements
+            |> Seq.map (fun query ->
+                let statement = query.Query.Query.QueryText |> JsonConvert.SerializeObject
+                let parameters = query.Query.Query.QueryParameters |> JsonConvert.SerializeObject
+                sprintf """{ "statement": %s, "parameters": %s }""" statement parameters)
+            |> String.concat ","
+
+        let body = """ { "statements": [ """ + statementsJson + " ] }"
+
+        post location body |> checkForErrors
+
+    type ITransactionBatcher =
+        abstract Add :  string -> GraphTransaction seq -> Async<Choice<unit, exn>>
+        abstract Finish : unit -> unit
+
+    type TransactionBatcherMessage<'a> =
+        | Item of 'a
+        | Finish of AsyncReplyChannel<unit>
+
+    let createTransactionBatcher neo4jEndpoint (graphClient : ICypherGraphClient) =
+        let queriesPerBatch = 1000
+        let batchesPerTransaction = 50
+
+        let agent = Control.MailboxProcessor.Start(fun inbox ->
+            let emptyState = (0, List.empty, 0, None)
+
+            let rec loop (queryCount, batch, batchCount, transaction) =
+                async {
+                    let! message = inbox.Receive()
+
+                    let newStateOrCompleteBatch =
+                        match message with
+                        | Item item ->
+                            let newBatch = item :: batch
+                            let newQueryCount = queryCount + 1
+                            if newQueryCount < queriesPerBatch then
+                                Choice1Of2 (newQueryCount, newBatch, batchCount, transaction)
+                            else
+                                Choice2Of2 (newBatch, None)
+                        | Finish replyChannel ->
+                            // No more queries
+                            Choice2Of2 (batch, Some replyChannel)
+
+                    match newStateOrCompleteBatch with
+                    | Choice1Of2 newState ->
+                        return! loop newState
+                    | Choice2Of2 (reversedBatch, finalBatchReplyChannel) ->
+                        let transaction = transaction |> Option.getOrElseLazy (lazy beginTransaction neo4jEndpoint)
+
+                        List.rev reversedBatch
+                        |> Seq.map (fun (graphName, actions) -> graphTransactionToQuery graphClient graphName actions)
+                        |> addStatementsToTransaction transaction
+
+                        match finalBatchReplyChannel with
+                        | Some replyChannel ->
+                            commitTransaction transaction
+                            replyChannel.Reply()
+                            return ()
+                        | None ->
+                            let newBatchCount = batchCount + 1
+                            if newBatchCount < batchesPerTransaction then
+                                return! loop (0, List.empty, newBatchCount, Some transaction)
+                            else
+                                commitTransaction transaction
+                                return! loop emptyState
+                }
+
+            loop emptyState)
+
+        { new ITransactionBatcher with
+            member x.Add graphName actions =
+                async {
+                    for action in actions do
+                        agent.Post (Item (graphName, action))
+
+                    return Choice1Of2 ()
+                }
+            member x.Finish () = agent.PostAndReply Finish }
