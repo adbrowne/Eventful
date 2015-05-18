@@ -42,9 +42,9 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\FSharpx.Core.1.8.41\lib\40\FSharpx.Core.dll</HintPath>
     </Reference>
-    <Reference Include="Metrics, Version=0.2.6.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="Metrics, Version=0.3.2.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Metrics.NET.0.2.6\lib\net45\Metrics.dll</HintPath>
+      <HintPath>..\..\..\packages\Metrics.NET.0.3.2-pre\lib\net45\Metrics.dll</HintPath>
     </Reference>
     <Reference Include="Serilog, Version=1.4.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>

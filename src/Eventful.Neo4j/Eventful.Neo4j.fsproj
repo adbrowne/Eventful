@@ -85,7 +85,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="Metrics">
-      <HintPath>..\packages\Metrics.NET.0.2.8\lib\net45\Metrics.dll</HintPath>
+      <HintPath>..\..\..\packages\Metrics.NET.0.3.2-pre\lib\net45\Metrics.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />
