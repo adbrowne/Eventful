@@ -28,7 +28,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
 
     let fetcher = {
         new IDocumentFetcher with
-            member x.GetDocument<'TDocument> key : Tasks.Task<ProjectedDocument<'TDocument> option> = 
+            member x.GetDocument<'TDocument> accessMode key : Tasks.Task<ProjectedDocument<'TDocument> option> = 
                 async {
                     return None 
                 } |> Async.StartAsTask
@@ -36,7 +36,7 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
                 async {
                     return
                         request
-                        |> Seq.map(fun (a,b) -> (a,b,None))
+                        |> Seq.map(fun { DocumentKey = a; DocumentType = b } -> (a,b,None))
                 } |> Async.StartAsTask
 
             member x.GetEmptyMetadata<'TDocument> () =

@@ -8,9 +8,17 @@ type DocumentFetcher
     ) =
     
     interface IDocumentFetcher with
-        member x.GetDocument<'TDocument> key = 
+        member x.GetDocument<'TDocument> accessMode key = 
             async {
-                let! result = readQueue.Work databaseName <| Seq.singleton (key, typeof<'TDocument>)
+                let request =
+                    {
+                        DocumentKey = key
+                        DocumentType = typeof<'TDocument>
+                        AccessMode = accessMode
+                    }
+                    |> Seq.singleton
+
+                let! result = readQueue.Work databaseName request
                 let (key, t, result) = Seq.head result
 
                 match result with
@@ -19,6 +27,7 @@ type DocumentFetcher
                 | None -> 
                     return None 
             } |> Async.StartAsTask
+
         member x.GetDocuments request = 
             async {
                 return! readQueue.Work databaseName request 

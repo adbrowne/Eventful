@@ -12,7 +12,7 @@ type RavenReadQueue
         maxQueueSize : int,
         workerCount : int,
         cancellationToken : CancellationToken,
-        cache : System.Runtime.Caching.MemoryCache
+        cache : RavenMemoryCache
     ) =
 
     let log = createLogger "Eventful.RavenReadQueue"
@@ -45,7 +45,7 @@ type RavenReadQueue
             for (request, reply) in docs do
                 let responses =
                     request
-                    |> Seq.map (fun (k,_) -> resultMap.Item k)
+                    |> Seq.map (fun { DocumentKey = k } -> resultMap.Item k)
 
                 reply.Reply responses
 
@@ -54,7 +54,7 @@ type RavenReadQueue
         }
         
 
-    let queue = new BatchingQueue<string, seq<string * Type>, seq<GetDocResponse>>(maxBatchSize, maxQueueSize)
+    let queue = new BatchingQueue<string, seq<GetDocRequest>, seq<GetDocResponse>>(maxBatchSize, maxQueueSize)
 
     let consumer = async {
         while true do

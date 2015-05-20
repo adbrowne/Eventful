@@ -8,7 +8,50 @@ open Raven.Abstractions.Data
 
 open Eventful
 
-type GetDocRequest = string * Type 
+type RavenMemoryCache(cacheName : string) =
+    let cache = new MemoryCache(cacheName)
+
+//    let cacheHitCounter = Metrics.Metric.Meter("RavenOperations Cache Hit", Metrics.Unit.Items)
+
+    let getCacheKey databaseName docKey = databaseName + "::" + docKey
+
+    member this.Get<'T> mode databaseName docKey =
+        let cacheKey = getCacheKey databaseName docKey
+
+        let cacheEntry =
+            match mode with
+            | AccessMode.Read ->
+                // Entry will remain in the cache.
+                cache.Get cacheKey
+            | AccessMode.Update ->
+                // Entry will be removed from the cache to avoid other readers seeing a partially updated object.
+                cache.Remove cacheKey 
+
+        match cacheEntry with
+        | :? 'T as cacheHit ->
+            //cacheHitCounter.Mark()
+            Some cacheHit
+        | null -> None
+        | _ -> failwith <| sprintf "Unexpected entry type %A" cacheEntry
+
+    member this.GetForRead databaseName docKey =
+        this.Get AccessMode.Read databaseName docKey
+
+    member this.GetForUpdate databaseName docKey =
+        this.Get AccessMode.Update databaseName docKey
+
+    member this.Set databaseName docKey value =
+        let cacheKey = getCacheKey databaseName docKey
+        cache.Set(cacheKey, value, DateTimeOffset.MaxValue)
+
+    member this.Remove databaseName docKey =
+        let cacheKey = getCacheKey databaseName docKey
+        cache.Remove cacheKey |> ignore
+
+    interface IDisposable with
+        member this.Dispose() = cache.Dispose()
+
+
 type GetDocResponse = string * Type * (obj * RavenJObject * Etag) option
 
 open FSharpx.Option
@@ -16,8 +59,6 @@ open FSharpx
 
 module RavenOperations =
     let log = createLogger "Eventful.Raven.RavenOperations"
-
-    let cacheHitCounter = Metrics.Metric.Meter("RavenOperations Cache Hit", Metrics.Unit.Items)
 
     let serializeDocument<'T> (documentStore : IDocumentStore) (doc : 'T) =
         let serializer = documentStore.Conventions.CreateSerializer()
@@ -30,47 +71,18 @@ module RavenOperations =
     let deserialize<'T> (documentStore : IDocumentStore) ravenJObject =
         deserializeToType documentStore typeof<'T> ravenJObject
 
-    let getCacheKey databaseName docKey = databaseName + "::" + docKey 
-
-    let getDocument<'TDocument> (documentStore : IDocumentStore) (cache : MemoryCache) database docKey =
-        let cacheKey = getCacheKey database docKey 
-        let cacheEntry = cache.Get cacheKey
-        match cacheEntry with
-        | :? ProjectedDocument<obj> as projectedDoc ->
-            let (doc, metadata, etag) = projectedDoc
-            //cacheHitCounter.Mark()
-            async { return Some (doc :?> 'TDocument, metadata, etag) }
-        | null -> 
-            async {
-                use session = documentStore.OpenAsyncSession(database)
-                let! doc = session.LoadAsync<_>(docKey) |> Async.AwaitTask
-                if Object.Equals(doc, null) then
-                    return None
-                else
-                    let etag = session.Advanced.GetEtagFor(doc)
-                    let metadata = session.Advanced.GetMetadataFor(doc)
-                    return Some (doc, metadata, etag)
-            }
-        | entry -> failwith <| sprintf "Unexpected entry type %A" entry
-
     let writeDoc (documentStore : Raven.Client.IDocumentStore) database (key : string) (doc : obj) (metadata : RavenJObject) = async {
         use commands = documentStore.AsyncDatabaseCommands.ForDatabase(database)
         let jsonDoc = RavenJObject.FromObject(doc, documentStore.Conventions.CreateSerializer())
         do! commands.PutAsync(key, null, jsonDoc, metadata) |> Async.AwaitTask |> Async.Ignore
     }
 
-    let getDocuments (documentStore : IDocumentStore) (cache : MemoryCache) (database : string) (request : seq<GetDocRequest>) : Async<seq<GetDocResponse>> = async {
+    let getDocuments (documentStore : IDocumentStore) (cache : RavenMemoryCache) (database : string) (requests : seq<GetDocRequest>) : Async<seq<GetDocResponse>> = async {
         let requestCacheMatches =
-            request
-            |> Seq.map(fun (docKey, docType) -> 
-                let cacheEntry = getCacheKey database docKey |> cache.Get
-                match cacheEntry with
-                | null -> (docKey, docType, None)
-                | :? (obj * RavenJObject * Etag) as value -> 
-                    //cacheHitCounter.Mark()
-                    let (doc, metadata, etag) = value
-                    (docKey, docType, Some (doc, metadata, etag))
-                | a -> failwith <| sprintf "Unexpected %A" a)
+            requests
+            |> Seq.map(fun request -> 
+                let cacheEntry = cache.Get<obj * RavenJObject * Etag> request.AccessMode database request.DocumentKey
+                (request.DocumentKey, request.DocumentType, cacheEntry))
 
         let toFetch =
             requestCacheMatches
