@@ -182,7 +182,7 @@ module AggregateStatePersistence =
             let documentKey = getDocumentKey streamId
 
             let! doc = 
-                fetcher.GetDocument documentKey
+                fetcher.GetDocument AccessMode.Read documentKey
                 |> Async.AwaitTask
             let typeMap = StateBuilder.getTypeMapFromStateBuilder aggregateConfig.StateBuilder
 

@@ -37,7 +37,7 @@ module BulkRavenProjector =
             writeQueue.Work databaseName actions
 
         let getPersistedPosition = async {
-            let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument RavenConstants.PositionDocumentKey |> Async.AwaitTask
+            let! (persistedLastComplete : ProjectedDocument<EventPosition> option) = fetcher.GetDocument AccessMode.Read RavenConstants.PositionDocumentKey |> Async.AwaitTask
             return persistedLastComplete |> Option.map((fun (doc,_,_) -> doc))
         }
 
