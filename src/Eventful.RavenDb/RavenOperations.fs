@@ -8,31 +8,39 @@ open Raven.Abstractions.Data
 
 open Eventful
 
-type RavenMemoryCache(cacheName : string) =
+type RavenMemoryCache(cacheName : string, documentStore : Raven.Client.IDocumentStore) =
     let cache = new MemoryCache(cacheName)
 
 //    let cacheHitCounter = Metrics.Metric.Meter("RavenOperations Cache Hit", Metrics.Unit.Items)
 
     let getCacheKey databaseName docKey = databaseName + "::" + docKey
 
-    member this.Get<'T> mode databaseName docKey =
+    let cloneEntry (document : obj, metadata : RavenJObject, etag : Etag) =
+        let serializer = documentStore.Conventions.CreateSerializer() 
+        let documentJson = RavenJObject.FromObject(document, serializer)
+        use documentReader = new RavenJTokenReader(documentJson)
+        let clonedDocument = serializer.Deserialize(documentReader, document.GetType())
+        let clonedMetadata = metadata.CloneToken() :?> RavenJObject
+        
+        (clonedDocument, clonedMetadata, etag)
+
+    member this.Get mode databaseName docKey =
         let cacheKey = getCacheKey databaseName docKey
 
-        let cacheEntry =
+        match cache.Get cacheKey with
+        | :? (obj * RavenJObject * Etag) as cacheHit ->
+            //cacheHitCounter.Mark()
+
             match mode with
             | AccessMode.Read ->
-                // Entry will remain in the cache.
-                cache.Get cacheKey
+                Some cacheHit
+                
             | AccessMode.Update ->
-                // Entry will be removed from the cache to avoid other readers seeing a partially updated object.
-                cache.Remove cacheKey 
+                // Clone the result to avoid other readers seeing a partially updated object.
+                Some (cloneEntry cacheHit)
 
-        match cacheEntry with
-        | :? 'T as cacheHit ->
-            //cacheHitCounter.Mark()
-            Some cacheHit
         | null -> None
-        | _ -> failwith <| sprintf "Unexpected entry type %A" cacheEntry
+        | cacheEntry -> failwith <| sprintf "Unexpected entry type %A" cacheEntry
 
     member this.GetForRead databaseName docKey =
         this.Get AccessMode.Read databaseName docKey
@@ -40,7 +48,7 @@ type RavenMemoryCache(cacheName : string) =
     member this.GetForUpdate databaseName docKey =
         this.Get AccessMode.Update databaseName docKey
 
-    member this.Set databaseName docKey value =
+    member this.Set databaseName docKey (value : obj * RavenJObject * Etag) =
         let cacheKey = getCacheKey databaseName docKey
         cache.Set(cacheKey, value, DateTimeOffset.MaxValue)
 
@@ -81,7 +89,7 @@ module RavenOperations =
         let requestCacheMatches =
             requests
             |> Seq.map(fun request -> 
-                let cacheEntry = cache.Get<obj * RavenJObject * Etag> request.AccessMode database request.DocumentKey
+                let cacheEntry = cache.Get request.AccessMode database request.DocumentKey
                 (request.DocumentKey, request.DocumentType, cacheEntry))
 
         let toFetch =
