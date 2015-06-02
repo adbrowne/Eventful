@@ -86,51 +86,49 @@ module RavenOperations =
     }
 
     let getDocuments (documentStore : IDocumentStore) (cache : RavenMemoryCache) (database : string) (requests : seq<GetDocRequest>) : Async<seq<GetDocResponse>> = async {
-        let requestCacheMatches =
+        let requestsWithCacheMatches =
             requests
-            |> Seq.map(fun request -> 
+            |> Seq.map (fun request -> 
                 let cacheEntry = cache.Get request.AccessMode database request.DocumentKey
                 (request.DocumentKey, request.DocumentType, cacheEntry))
+            |> List.ofSeq
 
-        let toFetch =
-            requestCacheMatches
-            |> Seq.collect (function
-                | docKey, _, None -> Seq.singleton docKey
-                | _ -> Seq.empty)
+        let keysToFetch =
+            requestsWithCacheMatches
+            |> Seq.choose (fun (documentKey, _, cacheEntry) ->
+                match cacheEntry with
+                | None -> Some documentKey
+                | _ -> None)
+            |> Set.ofSeq
             |> Array.ofSeq
 
-        let fetchTypes = 
-             requestCacheMatches
-            |> Seq.collect (function
-                | docKey, docType, None -> Seq.singleton (docKey, docType)
-                | _ -> Seq.empty)
-            |> Map.ofSeq
-
         let commands = documentStore.AsyncDatabaseCommands.ForDatabase(database)
-        let! rawDocs = commands.GetAsync(toFetch, Array.empty) |> Async.AwaitTask
+        let! fetchedDocuments = commands.GetAsync(keysToFetch, includes = Array.empty) |> Async.AwaitTask
 
-        let serializer = documentStore.Conventions.CreateSerializer()
-
-        let rawDocMap =
-            rawDocs.Results
+        let jsonDocuments =
+            fetchedDocuments.Results
             |> Raven.Client.Connection.SerializationHelper.ToJsonDocuments
-            |> Seq.choose (function 
+            |> Seq.choose (function
                 | null -> None
-                | jsonDoc ->
-                    maybe {
-                        let docKey = jsonDoc.Key
-                        let! docType = fetchTypes |> Map.tryFind docKey
-                        let actualDoc = deserializeToType documentStore docType jsonDoc.DataAsJson
-                        return (docKey, (actualDoc, jsonDoc.Metadata, jsonDoc.Etag))
-                    })
+                | document -> Some (document.Key, document))
             |> Map.ofSeq
 
-        return 
-            requestCacheMatches
-            |> Seq.map (function
-                | docKey, docType, None ->
-                    (docKey, docType, rawDocMap |> Map.tryFind docKey)
-                | x -> x)
+        let getJsonDocument (documentKey : string) (documentType : Type) =
+            maybe {
+                let! jsonDocument = jsonDocuments |> Map.tryFind documentKey
+                let actualDoc = deserializeToType documentStore documentType jsonDocument.DataAsJson
+                return (actualDoc, jsonDocument.Metadata.CloneToken() :?> RavenJObject, jsonDocument.Etag)
+            }
+
+        let mergeCachedAndFetched (documentKey, documentType, cacheResult) =
+            let result =
+                match cacheResult with
+                | None -> getJsonDocument documentKey documentType
+                | cacheHit -> cacheHit
+
+            (documentKey, documentType, result)
+
+        return Seq.map mergeCachedAndFetched requestsWithCacheMatches
     }
 
     let emptyMetadataForType (documentStore : IDocumentStore) (documentType : Type) = 
