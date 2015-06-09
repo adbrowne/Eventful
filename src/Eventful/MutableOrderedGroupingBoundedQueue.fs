@@ -126,35 +126,38 @@ type MutableOrderedGroupingBoundedQueue<'TGroup, 'TItem>
                     Some(empty itemIndex)
                 | GroupComplete group -> Some(groupComplete group itemIndex))
             and enqueue (itemsF :(unit -> (seq<'TItem * 'TGroup>)), onComplete) itemIndex = async {
-                
-                try
-                    let items = itemsF ()
-                    let indexedItems = Seq.zip items (Seq.initInfinite (fun x -> itemIndex + int64 x)) |> Seq.cache
-                    for ((item, group), index) in indexedItems do
-                        state.AddItemToGroup (index, item) group
-                        lastCompleteTracker.Start index
+                let indexedItems =
+                    try
+                        itemsF ()
+                        |> Seq.mapi (fun i item -> (item, itemIndex + int64 i))
+                        |> List.ofSeq  // Materialize the sequence while in the try block
+                    with | e ->
+                        log.ErrorWithException <| lazy("Exception thrown enqueueing item", e)
+                        List.empty
 
-                    let nextIndex = 
-                        if Seq.length indexedItems > 0 then
-                            let lastIndex = indexedItems |> Seq.map snd |> Seq.last
-                            match onComplete with
-                            | Some a -> lastCompleteTracker.NotifyWhenComplete(lastIndex, None, a)
-                            | None -> ()
-                            lastIndex + 1L
-                        else
-                            itemIndex
+                for ((item, group), index) in indexedItems do
+                    state.AddItemToGroup (index, item) group
+                    lastCompleteTracker.Start index
 
-                    // there were no items keep moving
-                    if(nextIndex = itemIndex) then 
-                        match onComplete with
-                        | Some a -> do! a
-                        | None -> ()
+                let lastIndex =
+                    indexedItems
+                    |> Seq.map snd
+                    |> Seq.fold (fun _ x -> Some x) None
 
+                match onComplete, lastIndex with
+                | Some action, Some lastIndex ->
+                    lastCompleteTracker.NotifyWhenComplete(lastIndex, None, action)
+                | Some action, None ->
+                    do! action  // No items were added, notify of completion immediately
+                | None, _ ->
+                    ()
 
-                    return! (nextMessage nextIndex) 
-                with | e -> 
-                    log.ErrorWithException <| lazy("Exception thrown enqueueing item", e)
-                    return! nextMessage itemIndex
+                let nextIndex =
+                    match lastIndex with
+                    | Some lastIndex -> lastIndex + 1L
+                    | None -> itemIndex
+
+                return! nextMessage nextIndex
                 }
             and groupComplete group itemIndex = async {
                 state.GroupComplete group
