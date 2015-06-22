@@ -183,7 +183,7 @@ module Operations =
     let appendGraphActionToQuery action (query : CypherQuery) =
         match action with
         | AddRelationship { From = from; To = to'; Type = relationshipType } ->
-            let relationship = sprintf "(from)-[:`%s`]->(to)" relationshipType
+            let relationship = sprintf "(to)<-[:`%s`]-(from)" relationshipType
 
             query
             |> mergeNodeIdQ "from" from
