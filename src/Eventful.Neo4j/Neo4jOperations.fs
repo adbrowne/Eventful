@@ -34,6 +34,9 @@ module Operations =
     let createConstraintQ (label : string) (propertyName : string) (query : CypherQuery) =
         { query with Query = query.Query.CreateUniqueConstraint("node:" + label, "node." + propertyName) }
 
+    let createQ (clause : string) (query : CypherQuery) =
+        { query with Query = query.Query.Create(clause) }
+
     let matchQ (clause : string) (query : CypherQuery) =
         { query with Query = query.Query.Match(clause) }
     
@@ -180,10 +183,14 @@ module Operations =
     let appendGraphActionToQuery action (query : CypherQuery) =
         match action with
         | AddRelationship { From = from; To = to'; Type = relationshipType } ->
+            let relationship = sprintf "(from)-[:`%s`]->(to)" relationshipType
+
             query
             |> mergeNodeIdQ "from" from
             |> mergeNodeIdQ "to" to'
-            |> mergeQ (sprintf "(from)-[:`%s`]->(to)" relationshipType)
+            |> withQ "from, to"
+            |> whereQ (sprintf "shortestPath(%s) IS NULL" relationship)
+            |> createQ relationship
 
         | RemoveRelationship { From = from; To = to'; Type = relationshipType } ->
             let query, fromSelector = query |> withNodeSelectorQ "from" from
@@ -297,6 +304,7 @@ module Operations =
 
     type ITransactionBatcher =
         abstract Add :  string -> GraphTransaction seq -> Async<Choice<unit, exn>>
+        abstract QueueLength : int
         abstract Finish : unit -> unit
 
     type TransactionBatcherMessage<'a> =
@@ -361,4 +369,7 @@ module Operations =
 
                     return Choice1Of2 ()
                 }
+
+            member x.QueueLength = agent.CurrentQueueLength
+
             member x.Finish () = agent.PostAndReply Finish }
