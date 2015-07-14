@@ -25,7 +25,7 @@ module RavenReplayProjectorTests =
         let myProjector = RavenProjectorTests.``Get Projector`` documentStore (async.Zero())
 
         let cancellationToken = Async.DefaultCancellationToken
-        let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
+        let cache = new RavenMemoryCache("RavenBatchWrite", documentStore)
 
         let readQueue = new RavenReadQueue(documentStore, 100, 10000, 10, cancellationToken, cache)
 

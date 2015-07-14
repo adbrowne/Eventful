@@ -150,7 +150,7 @@ type BookLibraryServiceRunner (applicationConfig : ApplicationConfig) =
                     Serialization.esSerializer
                     system.Handlers
 
-            let cache = new System.Runtime.Caching.MemoryCache("myCache")
+            let cache = new RavenMemoryCache("myCache", documentStore)
 
             let writeQueue = new RavenWriteQueue(documentStore, 100, 10000, 10, Async.DefaultCancellationToken, cache)
             let readQueue = new RavenReadQueue(documentStore, 100, 1000, 10, Async.DefaultCancellationToken, cache)
