@@ -134,6 +134,15 @@ module TestEventStore =
             Position = eventPosition 
             PendingEvents = store.PendingEvents |> Queue.conj (eventNumber, persistedStreamEntry)}
 
+    let setStreamMetadata streamId streamMetadata (store : TestEventStore<'TMetadata>) =
+        let metadataStream = 
+            store.StreamMetadata
+            |> Map.tryFind streamId
+            |> Option.getOrElse Vector.empty
+            |> Vector.conj streamMetadata
+
+        { store with StreamMetadata = store.StreamMetadata |> Map.add streamId metadataStream }
+
     let runHandlerForEvent persistedEvent buildEventContext interpreter testEventStore program  =
         use context = buildEventContext persistedEvent
         let program = program context |> Async.RunSynchronously

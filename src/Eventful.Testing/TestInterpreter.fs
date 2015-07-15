@@ -72,14 +72,7 @@ module TestInterpreter =
             let next = g eventObj
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes
         | FreeEventStream (WriteStreamMetadata (streamId, streamMetadata, next)) ->
-            let metadataStream = 
-                eventStore.StreamMetadata
-                |> Map.tryFind streamId
-                |> Option.getOrElse Vector.empty
-                |> Vector.conj streamMetadata
-
-            let eventStore' =
-                { eventStore with StreamMetadata = eventStore.StreamMetadata |> Map.add streamId metadataStream }
+            let eventStore' = eventStore |> TestEventStore.setStreamMetadata streamId streamMetadata
             interpret next eventStore' useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes 
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
             let lastStreamEventIndex = TestEventStore.getLastEventNumber stream eventStore
