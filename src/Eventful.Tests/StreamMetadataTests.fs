@@ -90,3 +90,21 @@ module StreamMetadataTests =
             |> TestSystem.getStreamMetadata "Foo"
 
         result =? None
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Stream with max count does not return old events`` () =
+        let fooId = Guid.NewGuid()
+        let maxCount = 5
+        let eventCount = 10
+        let emptySystem = emptyTestSystem { EventStreamMetadata.Default with MaxCount = Some maxCount }
+        let system =
+            Seq.repeat { FooCmd.Id = fooId }
+            |> Seq.take eventCount
+            |> Seq.fold (fun system command -> system |> TestSystem.runCommand command (Guid.NewGuid())) emptySystem
+        
+        let eventShouldBeDropped = TestEventStore.tryGetEvent system.AllEvents "Foo" (eventCount - maxCount - 1)
+        eventShouldBeDropped =? None
+
+        let eventShouldNotBeDropped = TestEventStore.tryGetEvent system.AllEvents "Foo" (eventCount - maxCount)
+        eventShouldNotBeDropped.IsSome =? true

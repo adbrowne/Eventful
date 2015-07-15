@@ -44,10 +44,9 @@ module TestInterpreter =
                     f StateSnapshot.Empty
 
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes 
-        | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
+        | FreeEventStream (ReadFromStream (stream, eventNumber, f)) ->
             let readEvent = maybe {
-                    let! streamEvents = eventStore.Events |> Map.tryFind stream
-                    let! (position, eventStreamData) = streamEvents |> Vector.tryNth eventNumber
+                    let! eventStreamData = TestEventStore.tryGetEvent eventStore stream eventNumber
                     return
                         match eventStreamData with
                         | Event { Body = evt; EventType = eventType; Metadata = metadata } -> 
@@ -83,13 +82,7 @@ module TestInterpreter =
                 { eventStore with StreamMetadata = eventStore.StreamMetadata |> Map.add streamId metadataStream }
             interpret next eventStore' useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes 
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
-            let streamEvents = 
-                eventStore.Events 
-                |> Map.tryFind stream 
-                |> FSharpx.Option.getOrElse Vector.empty
-                |> Vector.map snd
-            
-            let lastStreamEventIndex = streamEvents.Length - 1
+            let lastStreamEventIndex = TestEventStore.getLastEventNumber stream eventStore
 
             let expectedValueCorrect =
                 match (expectedValue, lastStreamEventIndex) with
