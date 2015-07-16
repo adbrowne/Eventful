@@ -41,14 +41,58 @@ module TestEventStore =
         AggregateStateSnapShots = Map.empty
         WakeupQueue = PriorityQueue.empty false }
 
-    let tryGetEvent (store : TestEventStore<'TMetadata>) streamId eventNumber =
+    let getStreamMetadata streamId (store : TestEventStore<'TMetadata>) =
+        store.StreamMetadata
+        |> Map.tryFind streamId
+        |> Option.bind Vector.tryLast
+        |> Option.getOrElse EventStreamMetadata.Default
+
+    let getMinimumEventNumber (streamMetadata : EventStreamMetadata) (stream : Vector<'a>) =
+        match streamMetadata.MaxCount with
+        | Some maxCount when stream.Length > maxCount -> stream.Length - maxCount
+        | _ -> 0
+
+    let getLastEventNumber streamId (store : TestEventStore<'TMetadata>) =
+        let streamEvents = 
+            store.Events 
+            |> Map.tryFind streamId
+            |> FSharpx.Option.getOrElse Vector.empty
+            |> Vector.map snd
+            
+        streamEvents.Length - 1
+
+    let getAllEvents (store : TestEventStore<'TMetadata>) streamId =
+        let streamMetadata = store |> getStreamMetadata streamId
+
+        let fullStream =
+            store.Events
+            |> Map.tryFind streamId
+            |> Option.getOrElse Vector.empty
+            |> Vector.map snd
+
+        let minimumEventNumber = getMinimumEventNumber streamMetadata fullStream
+
+        if minimumEventNumber = 0 then
+            fullStream
+        else
+            fullStream |> Seq.skip minimumEventNumber |> Vector.ofSeq
+
+    let tryGetEventAtOrAfter streamId startEventNumber (store : TestEventStore<'TMetadata>) =
         maybe {
             let! stream = store.Events |> Map.tryFind streamId
-            let! (_, entry) = stream |> Vector.tryNth eventNumber
-            return! match entry with 
-                    | Event evt -> Some evt 
-                    | _ -> None
+
+            let streamMetadata = store |> getStreamMetadata streamId
+            let minimumEventNumber = getMinimumEventNumber streamMetadata stream
+            let eventNumberToGet = Math.Max (minimumEventNumber, startEventNumber)
+
+            let! (_, entry) = stream |> Vector.tryNth eventNumberToGet
+            return (entry, eventNumberToGet)
         }
+
+    let tryGetEvent streamId eventNumber (store : TestEventStore<'TMetadata>) =
+        match tryGetEventAtOrAfter streamId eventNumber store with
+        | Some (event, number) when number = eventNumber -> Some event
+        | _ -> None
 
     let addEvent stream (streamEvent: EventStreamEvent<'TMetadata>) (store : TestEventStore<'TMetadata>) =
         let streamEvents = 
@@ -74,8 +118,8 @@ module TestEventStore =
                     Metadata = evt.Metadata
                 }
             | EventLink (linkedStreamId, linkedEventNumber, metadata) ->
-                match tryGetEvent store linkedStreamId linkedEventNumber with
-                | Some linkedEvent -> 
+                match store |> tryGetEvent linkedStreamId linkedEventNumber with
+                | Some (Event linkedEvent) -> 
                     PersistedStreamLink {
                         StreamId = stream
                         EventNumber = eventNumber
@@ -86,12 +130,23 @@ module TestEventStore =
                         LinkedEventType = linkedEvent.EventType
                         LinkedMetadata = linkedEvent.Metadata
                     }
+                | Some (EventLink _) ->
+                    failwith "Linking to a link is not supported"
                 | None ->
                     failwith "Could not find linked event"
         { store with 
             Events = store.Events |> Map.add stream streamEvents'; 
             Position = eventPosition 
             PendingEvents = store.PendingEvents |> Queue.conj (eventNumber, persistedStreamEntry)}
+
+    let setStreamMetadata streamId streamMetadata (store : TestEventStore<'TMetadata>) =
+        let metadataStream = 
+            store.StreamMetadata
+            |> Map.tryFind streamId
+            |> Option.getOrElse Vector.empty
+            |> Vector.conj streamMetadata
+
+        { store with StreamMetadata = store.StreamMetadata |> Map.add streamId metadataStream }
 
     let runHandlerForEvent persistedEvent buildEventContext interpreter testEventStore program  =
         use context = buildEventContext persistedEvent

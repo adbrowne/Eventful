@@ -44,10 +44,9 @@ module TestInterpreter =
                     f StateSnapshot.Empty
 
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes 
-        | FreeEventStream (ReadFromStream (stream, eventNumber, f)) -> 
+        | FreeEventStream (ReadFromStream (stream, startEventNumber, f)) ->
             let readEvent = maybe {
-                    let! streamEvents = eventStore.Events |> Map.tryFind stream
-                    let! (position, eventStreamData) = streamEvents |> Vector.tryNth eventNumber
+                    let! eventStreamData, eventNumber = eventStore |> TestEventStore.tryGetEventAtOrAfter stream startEventNumber
                     return
                         match eventStreamData with
                         | Event { Body = evt; EventType = eventType; Metadata = metadata } -> 
@@ -73,23 +72,10 @@ module TestInterpreter =
             let next = g eventObj
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes
         | FreeEventStream (WriteStreamMetadata (streamId, streamMetadata, next)) ->
-            let metadataStream = 
-                eventStore.StreamMetadata
-                |> Map.tryFind streamId
-                |> Option.getOrElse Vector.empty
-                |> Vector.conj streamMetadata
-
-            let eventStore' =
-                { eventStore with StreamMetadata = eventStore.StreamMetadata |> Map.add streamId metadataStream }
+            let eventStore' = eventStore |> TestEventStore.setStreamMetadata streamId streamMetadata
             interpret next eventStore' useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes 
         | FreeEventStream (WriteToStream (stream, expectedValue, events, next)) ->
-            let streamEvents = 
-                eventStore.Events 
-                |> Map.tryFind stream 
-                |> FSharpx.Option.getOrElse Vector.empty
-                |> Vector.map snd
-            
-            let lastStreamEventIndex = streamEvents.Length - 1
+            let lastStreamEventIndex = TestEventStore.getLastEventNumber stream eventStore
 
             let expectedValueCorrect =
                 match (expectedValue, lastStreamEventIndex) with

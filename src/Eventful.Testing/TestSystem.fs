@@ -102,28 +102,20 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
         new TestSystem<_,_,_,_>({ state with AllEvents = allEvents' })
 
     member x.EvaluateState (stream : string) (identity : 'TKey) (stateBuilder : IStateBuilder<'TState, 'TMetadata, 'TKey>) =
-        let streamEvents = 
-            state.AllEvents.Events 
-            |> Map.tryFind stream
-            |> function
-            | Some events -> 
-                events
-            | None -> Vector.empty
+        let streamEvents = TestEventStore.getAllEvents state.AllEvents stream
 
         let run s (evt : obj, metadata) : Map<string,obj> = 
             AggregateStateBuilder.dynamicRun stateBuilder.GetBlockBuilders identity evt metadata s
         
         streamEvents
         |> Vector.map (function
-            | (position, Event { Body = body; Metadata = metadata }) ->
+            | Event { Body = body; Metadata = metadata } ->
                 (body, metadata)
-            | (position, EventLink (streamId, eventNumber, _)) ->
-                state.AllEvents.Events
-                |> Map.find streamId
-                |> Vector.nth eventNumber
-                |> (function
-                        | (_, Event { Body = body; Metadata = metadata }) -> (body, metadata)
-                        | _ -> failwith ("found link to a link")))
+            | EventLink (streamId, eventNumber, _) ->
+                match state.AllEvents |> TestEventStore.tryGetEvent streamId eventNumber with
+                | Some (Event { Body = body; Metadata = metadata }) -> (body, metadata)
+                | Some (EventLink _) -> failwith "found link to a link"
+                | None -> failwith "found a dangling link")
         |> Vector.fold run Map.empty
         |> stateBuilder.GetState
 
@@ -171,7 +163,4 @@ module TestSystem =
     let wakeup (wakeupTime : UtcDateTime) (streamId : string) (aggregateType : string) (testSystem : TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) =
         testSystem.Wakeup wakeupTime streamId aggregateType 
     let getStreamEvents streamId (system:TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent>) =
-        system.AllEvents.Events
-        |> Map.tryFind streamId
-        |> Option.getOrElse Vector.empty
-        |> Vector.map snd
+        TestEventStore.getAllEvents system.AllEvents streamId
