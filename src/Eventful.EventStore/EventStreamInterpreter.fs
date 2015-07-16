@@ -63,14 +63,14 @@ module EventStreamInterpreter =
                     let next = f snapshot
                     return! loop next values writes
                 }
-            | FreeEventStream (ReadFromStream (streamId, eventNumber, f)) -> 
-                log.RichDebug "ReadFromStream Start {@StreamId} {@EventNumber} {@CorrelationId} {@ContextId}" [|streamId;eventNumber;startContext.CorrelationId;startContext.ContextId|]
+            | FreeEventStream (ReadFromStream (streamId, startEventNumber, f)) -> 
+                log.RichDebug "ReadFromStream Start {@StreamId} {@StartEventNumber} {@CorrelationId} {@ContextId}" [|streamId;startEventNumber;startContext.CorrelationId;startContext.ContextId|]
                 let sw = System.Diagnostics.Stopwatch.StartNew()
                 async {
-                    let cacheKey = getCacheKey streamId eventNumber
+                    let cacheKey = getCacheKey streamId startEventNumber
                     let cachedEvent = cache.Get(cacheKey)
 
-                    let! event = 
+                    let! maybeResolvedEvent = 
                         match cachedEvent with
                         | :? ResolvedEvent as evt ->
                             sw.Stop()
@@ -78,25 +78,25 @@ module EventStreamInterpreter =
                             async { return Some evt }
                         | _ -> 
                             async {
-                                let! events = eventStore.readStreamSliceForward streamId eventNumber 100
+                                let! events = eventStore.readStreamSliceForward streamId startEventNumber 100
 
                                 for event in events do
                                     let key = getCacheKey streamId event.OriginalEventNumber
                                     let cacheItem = new CacheItem(key, event)
                                     cache.Set(cacheItem, cachePolicy)
                                 sw.Stop()
-                                let requestedEvent = events |> tryHead
-                                log.RichDebug "ReadFromStream End. Retrieved from event store {@Event}. Retrieved {@EventCount} in total. {@CorrelationId} {@ContextId} {Elapsed:000} ms" [|requestedEvent;events.Length;startContext.CorrelationId;startContext.ContextId;sw.ElapsedMilliseconds|]
-                                return requestedEvent
+                                let firstEvent = events |> tryHead
+                                log.RichDebug "ReadFromStream End. Retrieved from event store {@Event}. Retrieved {@EventCount} in total. {@CorrelationId} {@ContextId} {Elapsed:000} ms" [|firstEvent;events.Length;startContext.CorrelationId;startContext.ContextId;sw.ElapsedMilliseconds|]
+                                return firstEvent
                             }
                         
                     let readEvent = 
-                        match event with
-                        | Some event ->
-                            let event = event.Event
+                        match maybeResolvedEvent with
+                        | Some resolvedEvent ->
+                            let event = resolvedEvent.Event
                             let eventToken = {
                                 Stream = streamId
-                                Number = eventNumber
+                                Number = resolvedEvent.OriginalEventNumber
                                 EventType = event.EventType
                             }
                             Some (eventToken, (event.Data, event.Metadata))

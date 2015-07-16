@@ -44,9 +44,9 @@ module TestInterpreter =
                     f StateSnapshot.Empty
 
             interpret next eventStore useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes 
-        | FreeEventStream (ReadFromStream (stream, eventNumber, f)) ->
+        | FreeEventStream (ReadFromStream (stream, startEventNumber, f)) ->
             let readEvent = maybe {
-                    let! eventStreamData = TestEventStore.tryGetEvent eventStore stream eventNumber
+                    let! eventStreamData, eventNumber = eventStore |> TestEventStore.tryGetEventAtOrAfter stream startEventNumber
                     return
                         match eventStreamData with
                         | Event { Body = evt; EventType = eventType; Metadata = metadata } -> 

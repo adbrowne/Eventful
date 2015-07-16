@@ -15,10 +15,7 @@ type EventStoreClient (connection : IEventStoreConnection) =
         startPosition 
         maxItems
         (readAsync : (string * int * int * bool) -> System.Threading.Tasks.Task<StreamEventsSlice>) =
-        async {
-            let! slice = readAsync(streamId, startPosition, maxItems, true) |> Async.AwaitTask
-            return slice.Events
-        }
+        readAsync(streamId, startPosition, maxItems, true) |> Async.AwaitTask
 
     let readStream
         streamId 
@@ -49,7 +46,14 @@ type EventStoreClient (connection : IEventStoreConnection) =
         readStream streamId from connection.ReadStreamEventsForwardAsync
 
     member x.readStreamSliceForward streamId from maxItems =
-        readSlice streamId from maxItems connection.ReadStreamEventsForwardAsync
+        async {
+            let! slice = readSlice streamId from maxItems connection.ReadStreamEventsForwardAsync
+
+            if slice.Events.Length = 0 && not slice.IsEndOfStream then
+                return! x.readStreamSliceForward streamId slice.NextEventNumber maxItems
+            else
+                return slice.Events
+        }
 
     member x.readEventFromPosition position = async {
         let! slice = connection.ReadAllEventsForwardAsync(EventPosition.toEventStorePosition position, 1, true) |> Async.AwaitTask

@@ -77,17 +77,22 @@ module TestEventStore =
         else
             fullStream |> Seq.skip minimumEventNumber |> Vector.ofSeq
 
-    let tryGetEvent (store : TestEventStore<'TMetadata>) streamId eventNumber =
+    let tryGetEventAtOrAfter streamId startEventNumber (store : TestEventStore<'TMetadata>) =
         maybe {
             let! stream = store.Events |> Map.tryFind streamId
 
             let streamMetadata = store |> getStreamMetadata streamId
             let minimumEventNumber = getMinimumEventNumber streamMetadata stream
-            if eventNumber < minimumEventNumber then return! None else
+            let eventNumberToGet = Math.Max (minimumEventNumber, startEventNumber)
 
-            let! (_, entry) = stream |> Vector.tryNth eventNumber
-            return entry
+            let! (_, entry) = stream |> Vector.tryNth eventNumberToGet
+            return (entry, eventNumberToGet)
         }
+
+    let tryGetEvent streamId eventNumber (store : TestEventStore<'TMetadata>) =
+        match tryGetEventAtOrAfter streamId eventNumber store with
+        | Some (event, number) when number = eventNumber -> Some event
+        | _ -> None
 
     let addEvent stream (streamEvent: EventStreamEvent<'TMetadata>) (store : TestEventStore<'TMetadata>) =
         let streamEvents = 
@@ -113,7 +118,7 @@ module TestEventStore =
                     Metadata = evt.Metadata
                 }
             | EventLink (linkedStreamId, linkedEventNumber, metadata) ->
-                match tryGetEvent store linkedStreamId linkedEventNumber with
+                match store |> tryGetEvent linkedStreamId linkedEventNumber with
                 | Some (Event linkedEvent) -> 
                     PersistedStreamLink {
                         StreamId = stream

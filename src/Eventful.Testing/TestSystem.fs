@@ -112,7 +112,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
             | Event { Body = body; Metadata = metadata } ->
                 (body, metadata)
             | EventLink (streamId, eventNumber, _) ->
-                match TestEventStore.tryGetEvent state.AllEvents streamId eventNumber with
+                match state.AllEvents |> TestEventStore.tryGetEvent streamId eventNumber with
                 | Some (Event { Body = body; Metadata = metadata }) -> (body, metadata)
                 | Some (EventLink _) -> failwith "found link to a link"
                 | None -> failwith "found a dangling link")

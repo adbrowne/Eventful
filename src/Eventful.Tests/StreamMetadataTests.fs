@@ -103,8 +103,8 @@ module StreamMetadataTests =
             |> Seq.take eventCount
             |> Seq.fold (fun system command -> system |> TestSystem.runCommand command (Guid.NewGuid())) emptySystem
         
-        let eventShouldBeDropped = TestEventStore.tryGetEvent system.AllEvents "Foo" (eventCount - maxCount - 1)
+        let eventShouldBeDropped = system.AllEvents |> TestEventStore.tryGetEvent "Foo" (eventCount - maxCount - 1)
         eventShouldBeDropped =? None
 
-        let eventShouldNotBeDropped = TestEventStore.tryGetEvent system.AllEvents "Foo" (eventCount - maxCount)
+        let eventShouldNotBeDropped = system.AllEvents |> TestEventStore.tryGetEvent "Foo" (eventCount - maxCount)
         eventShouldNotBeDropped.IsSome =? true
