@@ -104,7 +104,24 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
             |> Seq.collect id
 
     member x.InsertDocuments() =
-        log.Debug <| lazy(sprintf "Starting document insert")
+        log.Debug <| lazy(sprintf "%s: Starting document insert" databaseName)
+
+        let duplicateKeys, _ =
+            inserts
+            |> Seq.fold
+                (fun ((duplicateKeys, seenKeys) as state) insert ->
+                    match insert with
+                    | Write (writeRequest, _) ->
+                        let lowerKey = writeRequest.DocumentKey.ToLowerInvariant()
+                        if seenKeys |> Set.contains lowerKey then
+                            (writeRequest.DocumentKey :: duplicateKeys, seenKeys)
+                        else
+                            (duplicateKeys, seenKeys |> Set.add lowerKey)
+                    | _ -> state)
+                ([], Set.empty)
+
+        if not (List.isEmpty duplicateKeys) then
+            failwith ("Found duplicate keys in insert: " + (String.concat ", " duplicateKeys))
 
         use bulkInsert = documentStore.BulkInsert(databaseName)
         bulkInsert.add_Report(fun s -> printReport s)
@@ -113,10 +130,11 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
             | Write (writeRequest, _) ->
                 let doc = RavenJObject.FromObject(writeRequest.Document, documentStore.Conventions.CreateSerializer())
                 bulkInsert.Store(doc, writeRequest.Metadata.Force(), writeRequest.DocumentKey)
-            | Delete _ -> () // don't do anything for delete
+            | Delete _ -> () // don't do anything for delete  // TODO: We should have already dealt with these and thrown away any preceeding document
             | Custom _ -> failwith "Cannot support custom operations"
 
         messages <- []
+        log.Debug <| lazy(sprintf "%s: Finalizing document insert (waiting for success notification from BulkInsert.Dispose)" databaseName)
 
     member x.WritePosition (position : EventPosition) =
         let key = RavenConstants.PositionDocumentKey
