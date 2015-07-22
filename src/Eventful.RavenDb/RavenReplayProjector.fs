@@ -53,12 +53,15 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
     let documentsWithKeys msg =
         BulkProjector.allMatchingKeys projectors msg
 
+    let queuedMessagesCounter = Metric.Counter(databaseName + " RavenReplayProjector documents awaiting projection", Unit.Items)
+
     let accumulateItems s ((key, projectorIndex), items) = async {
         let events = items |> Seq.map fst
         let projector = projectors.[projectorIndex]
 
         try
             let! writeRequests, _ = projector.ProcessEvents key events
+            queuedMessagesCounter.Decrement()
             return writeRequests :: s
         with
         | ex ->
@@ -88,7 +91,9 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
             // group events into groups by document
             |> PSeq.groupBy snd
             // group items into numWorkers batches
-            |> PSeq.mapi(fun i x -> (i % numWorkers,x))
+            |> PSeq.mapi(fun i x ->
+                queuedMessagesCounter.Increment()
+                (i % numWorkers,x))
             |> PSeq.groupBy fst
             // map to async tasks
             |> PSeq.map (fun (_, workItems) -> async {
@@ -96,7 +101,8 @@ type RavenReplayProjector<'TMessage when 'TMessage :> IBulkMessage>
                     workItems
                     |> Seq.map snd
                 let! reversedItems = Async.foldM accumulateItems [] docs
-                return List.rev reversedItems |> Seq.concat
+                let result = List.rev reversedItems |> Seq.concat
+                return result
             })
             |> Async.Parallel
             |> Async.RunSynchronously
