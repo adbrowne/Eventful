@@ -30,7 +30,7 @@ module DocumentBuilderProjector =
     let processEvents (documentBuilder : DocumentBuilder<'TDocumentKey,'TDocument, 'TMetadata>) documentStore (projectorMessage : MessageOperations<'TMessage, 'TBaseEvent, 'TMetadata>) (documentFetcher:IDocumentFetcher) (key:IComparable) (messages : seq<'TMessage>) = async {
         let key = (key :?> 'TDocumentKey) // presume we get back out what we put in
         let docKey = documentBuilder.GetDocumentKey key
-        let! doc = documentFetcher.GetDocument<'TDocument>(docKey) |> Async.AwaitTask
+        let! doc = documentFetcher.GetDocument<'TDocument> AccessMode.Update docKey |> Async.AwaitTask   // Using AccessMode.Update here because can't guarantee that 'TDocument is immutable
         let (doc, metadata, etag) = 
             match doc with
             | Some x -> x

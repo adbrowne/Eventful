@@ -25,7 +25,7 @@ module RavenOperationTests =
     [<Fact>]
     let ``Retrieve non existent doc`` () : unit =
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
-        let cache = new MemoryCache("TestCache")
+        let cache = new RavenMemoryCache("TestCache", documentStore)
 
         let docKey = "DoesNotExist"
         let result = 
@@ -33,7 +33,7 @@ module RavenOperationTests =
                 documentStore 
                 cache 
                 testDb
-                (Seq.singleton (docKey, typeof<MyDoc>)) 
+                (Seq.singleton { DocumentKey = docKey; DocumentType = typeof<MyDoc>; AccessMode = AccessMode.Read }) 
             |> Async.RunSynchronously
 
         result |> Seq.length |> should equal 1
@@ -47,7 +47,7 @@ module RavenOperationTests =
     [<Fact>]
     let ``Retrieve existing doc not in cache`` () : unit =
         let documentStore = buildDocumentStore() :> Raven.Client.IDocumentStore 
-        let cache = new MemoryCache("TestCache")
+        let cache = new RavenMemoryCache("TestCache", documentStore)
 
         let docKey = "MyDocs/" + Guid.NewGuid().ToString()
         let doc = {
@@ -67,7 +67,7 @@ module RavenOperationTests =
                 documentStore 
                 cache 
                 testDb
-                (Seq.singleton (docKey, typeof<MyDoc>)) 
+                (Seq.singleton { DocumentKey = docKey; DocumentType = typeof<MyDoc>; AccessMode = AccessMode.Read }) 
             |> Async.RunSynchronously
 
         result |> Seq.length |> should equal 1

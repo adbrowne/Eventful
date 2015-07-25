@@ -14,7 +14,7 @@ type RavenWriteQueue
         maxQueueSize : int,
         workerCount : int,
         cancellationToken : CancellationToken,
-        cache : System.Runtime.Caching.MemoryCache
+        cache : RavenMemoryCache
     ) =
 
     let log = EventfulLog.ForContext "Eventful.RavenWriteQueue"
@@ -53,18 +53,15 @@ type RavenWriteQueue
                 for docResult in batchResult do
                     match originalDocMap.[docResult.Key] with
                     | Choice1Of2 (doc, metadata, callback) ->
-                        let cacheKey = RavenOperations.getCacheKey databaseName docResult.Key
-                        cache.Set(cacheKey, (doc, metadata, docResult.Etag) :> obj, DateTimeOffset.MaxValue) |> ignore
+                        cache.Set databaseName docResult.Key (doc, metadata, docResult.Etag)
                     | Choice2Of2 _ ->
-                        let cacheKey = RavenOperations.getCacheKey databaseName docResult.Key
-                        cache.Remove(cacheKey) |> ignore
+                        cache.Remove databaseName docResult.Key
 
                 Choice1Of2 ()
             | Choice2Of2 e ->
                 batchConflictsMeter.Mark()
                 for (docKey, _) in originalDocMap |> Map.toSeq do
-                    let cacheKey = RavenOperations.getCacheKey databaseName docKey
-                    cache.Remove(cacheKey) |> ignore
+                    cache.Remove databaseName docKey
                 Choice2Of2 e
         
         for (docs, callback) in docs do
