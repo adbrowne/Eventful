@@ -71,3 +71,29 @@ module EventStreamStateBuilder =
         stateBuilder.GetState snapshot.State |> should equal (["Widget2";"Widget1"])
 
         ()
+
+    [<Fact>]
+    [<Trait("category", "unit")>]
+    let ``Can build state from stream with max count`` () : unit =
+        let newMetadata () =
+            { 
+                SourceMessageId = None
+                AggregateType =  "TestAggregate" 
+            }
+
+        let streamName = "TestStream-1"
+        let widgetId = Guid.NewGuid()
+ 
+        let eventStoreState = 
+            TestEventStore.empty
+            |> TestEventStore.setStreamMetadata streamName { EventStreamMetadata.Default with MaxCount = Some 1 }
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget1"; Id = widgetId  }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget2"; Id = widgetId  }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
+            |> TestEventStore.addEvent streamName (Event { Body = { Name = "Widget3"; Id = widgetId  }; EventType =  "WidgetAddedEvent"; Metadata = newMetadata()})
+
+        let program = stateBuilder |> AggregateStateBuilder.toStreamProgram streamName widgetId
+
+        let snapshot = runProgram eventStoreState program
+
+        snapshot.LastEventNumber |> should equal 2
+        stateBuilder.GetState snapshot.State |> should equal (["Widget3"])

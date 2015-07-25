@@ -88,7 +88,10 @@ module EventStream =
     }
 
     type EventStreamLanguage<'N,'TMetadata> =
-    | ReadFromStream of string * int * (EventToken option -> 'N)
+    /// Reads the first event at or after `startEventNumber` from the `streamName` stream.
+    /// Returns None if there are no events at or after `startEventNumber` on the stream.
+    /// To read the next event, read from (previousEventToken.Number + 1) *not* (previousStartEventNumber + 1)
+    | ReadFromStream of streamName : string * startEventNumber : int * (EventToken option -> 'N)
     | ReadSnapshot of string * Map<string, Type> * (StateSnapshot -> 'N)
     | GetEventStoreTypeToClassMap of unit * (EventStoreTypeToClassMap -> 'N)
     | GetClassToEventStoreTypeMap of unit * (ClassToEventStoreTypeMap -> 'N)
@@ -228,7 +231,7 @@ module EventStream =
                 eventStream { 
                     let! evt = readValue x
                     let newValue = acc init evt
-                    return! foldStream stream (start + 1) acc newValue
+                    return! foldStream stream (x.Number + 1) acc newValue
                 }
             | None -> eventStream { return init } 
     }

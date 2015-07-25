@@ -233,12 +233,12 @@ module AggregateStateBuilder =
 
     let toStreamProgram streamName (key : 'TKey) (stateBuilder:IStateBuilder<'TState, 'TMetadata, 'TKey>) = EventStream.eventStream {
         let rec loop (snapshot : StateSnapshot) = EventStream.eventStream {
-            let eventNumber = snapshot.LastEventNumber + 1
-            let! token = EventStream.readFromStream streamName eventNumber
+            let startEventNumber = snapshot.LastEventNumber + 1
+            let! token = EventStream.readFromStream streamName startEventNumber
             match token with
             | Some token -> 
                 let! (value, metadata : 'TMetadata) = EventStream.readValue token
-                return! loop <| applyToSnapshot stateBuilder.GetBlockBuilders key value eventNumber metadata snapshot
+                return! loop <| applyToSnapshot stateBuilder.GetBlockBuilders key value token.Number metadata snapshot
             | None -> 
                 return snapshot }
             
