@@ -158,18 +158,36 @@ type AggregateStateBuilder<'TState, 'TMetadata, 'TKey when 'TKey : equality>
         extract : Map<string, obj> -> 'TState
     ) = 
 
+    static let log = createLogger "AggregateStateBuilder"
+
+    let buildersByName =
+        unitBuilders
+        |> Seq.map (fun builder -> (builder.Name, builder))
+        |> Map.ofSeq
+
+    let duplicateNonIdenticalBuilders =
+        unitBuilders
+        |> Seq.filter (fun builder -> buildersByName |> Map.find builder.Name <> builder)
+        |> Seq.map (fun builder -> builder.Name)
+        |> Set.ofSeq
+
+    do if (not << Set.isEmpty) duplicateNonIdenticalBuilders then
+        log.Warn <| lazy(sprintf "Unit state builders found with identical names but distinct instances, assuming them to be equivalent (%A)" duplicateNonIdenticalBuilders)
+
+    let uniqueUnitBuilders = buildersByName |> Map.toSeq |> Seq.map snd |> List.ofSeq
+
     static member Empty name initialState = StateBuilder.Empty name initialState
 
     member x.InitialState = 
         let acc s (b : IStateBlockBuilder<'TMetadata, 'TKey>) =
             s |> Map.add b.Name b.InitialState
 
-        unitBuilders 
+        uniqueUnitBuilders 
         |> List.fold acc Map.empty
         |> extract
 
     interface IStateBuilder<'TState, 'TMetadata, 'TKey> with
-        member x.GetBlockBuilders = unitBuilders
+        member x.GetBlockBuilders = uniqueUnitBuilders
         member x.GetState unitStates = extract unitStates
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
