@@ -3,7 +3,7 @@
 open EventStore.ClientAPI
 open Eventful
 open Metrics
-open FSharp.Control
+open FSharpx.Control
 
 type MultiTenancyEventStoreSubscriber<'TWrappedEvent>
     (

@@ -2,6 +2,7 @@
 
 open System
 open FSharpx
+open FSharpx.Functional
 open FSharpx.Option
 open Raven.Json.Linq
 open Eventful

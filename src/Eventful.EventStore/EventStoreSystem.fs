@@ -6,6 +6,7 @@ open EventStore.ClientAPI
 open System
 open FSharpx
 open FSharpx.Collections
+open FSharpx.Functional
 
 type EventStoreSystem<'TCommandContext, 'TEventContext,'TMetadata, 'TBaseEvent when 'TMetadata : equality and 'TEventContext :> System.IDisposable> 
     ( 

@@ -8,6 +8,7 @@ open System.Threading.Tasks
 open Metrics
 
 open FSharpx
+open FSharpx.Functional
 
 type IProjector<'TMessage, 'TContext, 'TAction> = 
     abstract member Compare : obj -> obj -> int

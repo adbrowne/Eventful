@@ -1,6 +1,7 @@
 ﻿namespace Eventful.Testing
 
 open FSharpx.Collections
+open FSharpx.Functional
 open FSharpx.Option
 open FSharpx
 open Eventful
@@ -15,8 +16,8 @@ type WakeupRecord = {
 
 type TestEventStore<'TMetadata when 'TMetadata : equality> = {
     Position : EventPosition
-    Events : Map<string,Vector<EventPosition * EventStreamEvent<'TMetadata>>>
-    StreamMetadata : Map<string,Vector<EventStreamMetadata>>
+    Events : Map<string,PersistentVector<EventPosition * EventStreamEvent<'TMetadata>>>
+    StreamMetadata : Map<string,PersistentVector<EventStreamMetadata>>
     PendingEvents : Queue<(int * PersistedStreamEntry<'TMetadata>)>
     AggregateStateSnapShots : Map<string, StateSnapshot>
     WakeupQueue : IPriorityQueue<WakeupRecord>
@@ -44,10 +45,10 @@ module TestEventStore =
     let getStreamMetadata streamId (store : TestEventStore<'TMetadata>) =
         store.StreamMetadata
         |> Map.tryFind streamId
-        |> Option.bind Vector.tryLast
+        |> Option.bind PersistentVector.tryLast
         |> Option.getOrElse EventStreamMetadata.Default
 
-    let getMinimumEventNumber (streamMetadata : EventStreamMetadata) (stream : Vector<'a>) =
+    let getMinimumEventNumber (streamMetadata : EventStreamMetadata) (stream : PersistentVector<'a>) =
         match streamMetadata.MaxCount with
         | Some maxCount when stream.Length > maxCount -> stream.Length - maxCount
         | _ -> 0
@@ -56,8 +57,8 @@ module TestEventStore =
         let streamEvents = 
             store.Events 
             |> Map.tryFind streamId
-            |> FSharpx.Option.getOrElse Vector.empty
-            |> Vector.map snd
+            |> FSharpx.Option.getOrElse PersistentVector.empty
+            |> PersistentVector.map snd
             
         streamEvents.Length - 1
 
@@ -67,15 +68,15 @@ module TestEventStore =
         let fullStream =
             store.Events
             |> Map.tryFind streamId
-            |> Option.getOrElse Vector.empty
-            |> Vector.map snd
+            |> Option.getOrElse PersistentVector.empty
+            |> PersistentVector.map snd
 
         let minimumEventNumber = getMinimumEventNumber streamMetadata fullStream
 
         if minimumEventNumber = 0 then
             fullStream
         else
-            fullStream |> Seq.skip minimumEventNumber |> Vector.ofSeq
+            fullStream |> Seq.skip minimumEventNumber |> PersistentVector.ofSeq
 
     let tryGetEventAtOrAfter streamId startEventNumber (store : TestEventStore<'TMetadata>) =
         maybe {
@@ -85,7 +86,7 @@ module TestEventStore =
             let minimumEventNumber = getMinimumEventNumber streamMetadata stream
             let eventNumberToGet = Math.Max (minimumEventNumber, startEventNumber)
 
-            let! (_, entry) = stream |> Vector.tryNth eventNumberToGet
+            let! (_, entry) = stream |> PersistentVector.tryNth eventNumberToGet
             return (entry, eventNumberToGet)
         }
 
@@ -98,13 +99,13 @@ module TestEventStore =
         let streamEvents = 
             match store.Events |> Map.tryFind stream with
             | Some events -> events
-            | None -> Vector.empty
+            | None -> PersistentVector.empty
 
         let eventId = Guid.NewGuid()
 
         let eventPosition = nextPosition store.Position
         let eventNumber = streamEvents.Length
-        let streamEvents' = streamEvents |> Vector.conj (eventPosition, streamEvent)
+        let streamEvents' = streamEvents |> PersistentVector.conj (eventPosition, streamEvent)
 
         let persistedStreamEntry = 
             match streamEvent with
@@ -143,8 +144,8 @@ module TestEventStore =
         let metadataStream = 
             store.StreamMetadata
             |> Map.tryFind streamId
-            |> Option.getOrElse Vector.empty
-            |> Vector.conj streamMetadata
+            |> Option.getOrElse PersistentVector.empty
+            |> PersistentVector.conj streamMetadata
 
         { store with StreamMetadata = store.StreamMetadata |> Map.add streamId metadataStream }
 

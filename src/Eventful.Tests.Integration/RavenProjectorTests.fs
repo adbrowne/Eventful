@@ -207,12 +207,12 @@ module RavenProjectorTests =
             let docKey = countingDocKey docId
             let permDocKey = "PermissionDocs/" + (docKey.ToString())
             let! (doc, metadata, etag) =  
-                fetcher.GetDocument docKey
+                fetcher.GetDocument AccessMode.Update docKey
                 |> Async.AwaitTask
                 |> Async.map (Option.getOrElseF (fun () -> buildNewDoc docId))
                
             let! (permDoc, permMetadata, permEtag) =
-                fetcher.GetDocument permDocKey
+                fetcher.GetDocument AccessMode.Update permDocKey
                 |> Async.AwaitTask
                 |> Async.map (Option.getOrElseF (fun () -> ({ Id = permDocKey; Writes = 0 }, (RavenOperations.emptyMetadata<MyPermissionDoc> documentStore), Etag.Empty)))
 
@@ -261,7 +261,7 @@ module RavenProjectorTests =
     let testDatabase = "tenancy-blue"
 
     let buildRavenProjector documentStore documentProjectors onWriteComplete = 
-        let cache = new System.Runtime.Caching.MemoryCache("RavenBatchWrite")
+        let cache = new RavenMemoryCache("RavenBatchWrite", documentStore)
 
         let cancellationToken = Async.DefaultCancellationToken
 
