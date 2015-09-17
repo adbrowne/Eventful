@@ -361,6 +361,8 @@ module Operations =
 
             loop emptyState)
 
+        agent.Error.Add (fun exn -> log.ErrorWithException <| lazy ("Neo4j transaction batcher failed", exn))
+
         { new ITransactionBatcher with
             member x.Add graphName actions =
                 async {
