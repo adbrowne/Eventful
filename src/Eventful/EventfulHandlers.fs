@@ -121,6 +121,7 @@ module EventfulHandlers =
             |> List.append stateChangeStateBuilders
             |> List.fold (|>) []
             |> List.append uniqueIdBuilder.GetBlockBuilders
+            |> List.append aggregateDefinition.ExtraStateBuilders
             |> List.append wakeupBlockBuilders
             |> AggregateStateBuilder.ofStateBuilderList
 

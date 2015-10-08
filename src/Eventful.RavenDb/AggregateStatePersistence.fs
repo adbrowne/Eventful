@@ -46,10 +46,13 @@ module AggregateStatePersistence =
             |> (fun x -> serializer.DeserializeObj x targetType)
 
         let addKey stateMap key =
-            let blockType = propertyTypes.Item key
-            let jToken = doc.Item key
-            let value = deserializeRavenJToken blockType jToken
-            stateMap |> Map.add key value
+            match propertyTypes |> Map.tryFind key with
+            | Some blockType ->
+                let jToken = doc.Item key
+                let value = deserializeRavenJToken blockType jToken
+                stateMap |> Map.add key value
+            | None ->
+                stateMap
 
         doc.Keys
         |> Seq.filter (fun x -> x <> "AggregateType")
