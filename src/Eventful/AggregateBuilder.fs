@@ -551,6 +551,7 @@ type AggregateDefinition<'TAggregateId, 'TCommandContext, 'TEventContext, 'TMeta
     AggregateType : string
     Wakeup : IWakeupHandler<'TAggregateId,'TCommandContext, 'TMetadata, 'TBaseEvent> option
     StreamMetadata : EventStreamMetadata
+    ExtraStateBuilders : IStateBlockBuilder<'TMetadata, unit> list
 }
 
 module Aggregate = 
@@ -568,6 +569,7 @@ module Aggregate =
                 Handlers = handlers
                 Wakeup = None
                 StreamMetadata = EventStreamMetadata.Default
+                ExtraStateBuilders = []
             }
 
     let toAggregateDefinition<'TEvents, 'TAggregateId, 'TCommandContext, 'TEventContext, 'TMetadata,'TBaseEvent when 'TAggregateId : equality>
@@ -590,6 +592,12 @@ module Aggregate =
                 getCommandStreamName
                 getEventStreamName
                 handlers
+
+    let withExtraStateBuilders
+        (extraStateBuilders : IStateBlockBuilder<'TMetadata, unit> list) 
+        (aggregateDefinition : AggregateDefinition<_,_,_,'TMetadata,'TBaseEvent>) =
+
+        { aggregateDefinition with ExtraStateBuilders = extraStateBuilders }
 
     let withWakeup 
         (wakeupFold : WakeupFold<'TMetadata>) 
