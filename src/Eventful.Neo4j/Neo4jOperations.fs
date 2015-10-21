@@ -98,7 +98,7 @@ module Operations =
     // TODO: Use the transaction support http://neo4j.com/docs/stable/rest-api-transactional.html
     //       Neo4jClient doesn't yet support this. CypherNet does, but doesn't support MERGE.
     let chainQ (query : CypherQuery) =
-        { query with Query = query.Query.With("1 as dummy") }
+        { query with Query = query.Query.With("count(*) as dummy") }
 
 
     let graphLabel (query : CypherQuery) =
