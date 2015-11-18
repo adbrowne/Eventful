@@ -70,7 +70,14 @@ type WakeupMonitor
 
                 do! 
                     getWakeups (DateTime.UtcNow |> UtcDateTime.fromDateTime)
-                    |> AsyncSeq.iter (fun (streamId, aggregateType, wakeupTime) -> onStreamWakeup streamId aggregateType wakeupTime)
+                    |> AsyncSeq.iter (
+                        fun (streamId, aggregateType, wakeupTime) -> 
+                            try
+                                onStreamWakeup streamId aggregateType wakeupTime
+                            with
+                            | ex ->
+                                log.WarnWithException(lazy (sprintf "Error onStreamWakeup with streamId %s" streamId, ex))
+                    )
                 return! loop ()
             }
                 

@@ -2,6 +2,7 @@
 
 open System
 open FSharpx
+open FSharpx.Functional
 open Eventful
 
 type StateRunner<'TMetadata, 'TState, 'TEvent> = 'TEvent -> 'TMetadata -> 'TState -> 'TState
@@ -266,34 +267,34 @@ module AggregateStateBuilder =
     }
 
     let tuple2 b1 b2 =
-        combine FSharpx.Prelude.tuple2 b1 b2
+        combine FSharpx.Functional.Prelude.tuple2 b1 b2
 
     let tuple3 b1 b2 b3 =
         (tuple2 b2 b3)
-        |> combine FSharpx.Prelude.tuple2 b1
+        |> combine FSharpx.Functional.Prelude.tuple2 b1
         |> map (fun (a,(b,c)) -> (a,b,c))
 
     let tuple4 b1 b2 b3 b4 =
         (tuple3 b2 b3 b4)
-        |> combine FSharpx.Prelude.tuple2 b1
+        |> combine FSharpx.Functional.Prelude.tuple2 b1
         |> map (fun (a,(b,c,d)) -> (a,b,c,d))
 
     let tuple5 b1 b2 b3 b4 b5 =
         (tuple4 b2 b3 b4 b5)
-        |> combine FSharpx.Prelude.tuple2 b1
+        |> combine FSharpx.Functional.Prelude.tuple2 b1
         |> map (fun (a,(b,c,d,e)) -> (a,b,c,d,e))
 
     let tuple6 b1 b2 b3 b4 b5 b6 =
         (tuple5 b2 b3 b4 b5 b6)
-        |> combine FSharpx.Prelude.tuple2 b1
+        |> combine FSharpx.Functional.Prelude.tuple2 b1
         |> map (fun (a,(b,c,d,e,f)) -> (a,b,c,d,e,f))
 
     let tuple7 b1 b2 b3 b4 b5 b6 b7 =
         (tuple6 b2 b3 b4 b5 b6 b7)
-        |> combine FSharpx.Prelude.tuple2 b1
+        |> combine FSharpx.Functional.Prelude.tuple2 b1
         |> map (fun (a,(b,c,d,e,f,g)) -> (a,b,c,d,e,f,g))
 
     let tuple8 b1 b2 b3 b4 b5 b6 b7 b8 =
         (tuple7 b2 b3 b4 b5 b6 b7 b8)
-        |> combine FSharpx.Prelude.tuple2 b1
+        |> combine FSharpx.Functional.Prelude.tuple2 b1
         |> map (fun (a,(b,c,d,e,f,g,h)) -> (a,b,c,d,e,f,g,h))

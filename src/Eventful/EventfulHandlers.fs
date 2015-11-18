@@ -5,6 +5,7 @@ open Eventful.EventStream
 open Eventful.MultiCommand
 open FSharpx
 open FSharpx.Collections
+open FSharpx.Functional
 open FSharp.Control
 
                                             // Source StreamId, Source Event Number, Event -> Program

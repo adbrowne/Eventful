@@ -4,6 +4,7 @@ open FSharp.Control
 open EventStore.ClientAPI
 open System
 open FSharpx
+open FSharpx.Functional
 open Eventful
 
 /// simple F# wrapper around EventStore functions
@@ -86,7 +87,7 @@ type EventStoreClient (connection : IEventStoreConnection) =
 
     member x.getNextPosition () = async {
         let position = Position.End
-        let! (finalSlice : AllEventsSlice) = connection.ReadAllEventsBackwardAsync(position, 1, false, null)
+        let! (finalSlice : AllEventsSlice) = connection.ReadAllEventsBackwardAsync(position, 1, false, null) |> Async.AwaitTask
         let nextPosition = finalSlice.NextPosition
         return nextPosition }
 
