@@ -17,7 +17,7 @@ module TestInterpreter =
         (eventStoreTypeToClassMap : EventStoreTypeToClassMap)
         (classToEventStoreTypeMap : ClassToEventStoreTypeMap)
         (values : Map<EventToken,(obj * 'TMetadata)>) 
-        (writes : Vector<string * int * EventStreamEvent<'TMetadata>>)
+        (writes : PersistentVector<string * int * EventStreamEvent<'TMetadata>>)
         : (TestEventStore<'TMetadata> * 'T)= 
         match prog with
         | FreeEventStream (GetEventStoreTypeToClassMap ((), f)) ->
@@ -86,7 +86,7 @@ module TestInterpreter =
                 
             if expectedValueCorrect then
                 let eventStore' = 
-                    events |> Vector.ofSeq |> Vector.fold (fun s e -> s |> TestEventStore.addEvent stream e) eventStore
+                    events |> PersistentVector.ofSeq |> PersistentVector.fold (fun s e -> s |> TestEventStore.addEvent stream e) eventStore
 
                 interpret (next (WriteSuccess eventStore'.Position)) eventStore' useSnapshots eventStoreTypeToClassMap classToEventStoreTypeMap values writes
             else

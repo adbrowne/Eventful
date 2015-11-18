@@ -34,7 +34,7 @@ module EventStreamInterpreter =
         (readSnapshot : string -> Map<string,Type> -> Async<StateSnapshot>)
         (startContext : ContextStartData)
         (prog : FreeEventStream<obj,'A,'TMetadata>) : Async<'A> = 
-        let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : Vector<string * int * obj * 'TMetadata>) : Async<'A> =
+        let rec loop prog (values : Map<EventToken,(byte[]*byte[])>) (writes : PersistentVector<string * int * obj * 'TMetadata>) : Async<'A> =
             match prog with
             | FreeEventStream (GetEventStoreTypeToClassMap ((), f)) ->
                 let next = f eventStoreTypeToClassMap
@@ -162,4 +162,4 @@ module EventStreamInterpreter =
                 async {
                     return result
                 }
-        loop prog Map.empty Vector.empty
+        loop prog Map.empty PersistentVector.empty

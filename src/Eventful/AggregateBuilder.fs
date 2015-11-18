@@ -475,7 +475,8 @@ module AggregateActionBuilder =
                 return 
                     match result with
                     | Choice1Of2 _ -> ()
-                    | Choice2Of2 AlreadyProcessed -> ()
+                    | Choice2Of2 AlreadyProcessed ->
+                        log.Warn <| lazy (sprintf "Got AlreadyProcessed when running event handlers for event #%i on stream %s (%s)" event.EventNumber event.StreamId event.EventType)
                     | Choice2Of2 a ->
                         failwith <| sprintf "Event handler failed: %A" a
             }

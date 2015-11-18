@@ -30,7 +30,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
             state.Handlers.EventStoreTypeToClassMap 
             state.Handlers.ClassToEventStoreTypeMap
             Map.empty 
-            Vector.empty
+            PersistentVector.empty
 
     let interpreter = {
         new IInterpreter<'TMetadata> with
@@ -108,7 +108,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
             AggregateStateBuilder.dynamicRun stateBuilder.GetBlockBuilders identity evt metadata s
         
         streamEvents
-        |> Vector.map (function
+        |> PersistentVector.map (function
             | Event { Body = body; Metadata = metadata } ->
                 (body, metadata)
             | EventLink (streamId, eventNumber, _) ->
@@ -116,7 +116,7 @@ type TestSystem<'TMetadata, 'TCommandContext, 'TEventContext, 'TBaseEvent when '
                 | Some (Event { Body = body; Metadata = metadata }) -> (body, metadata)
                 | Some (EventLink _) -> failwith "found link to a link"
                 | None -> failwith "found a dangling link")
-        |> Vector.fold run Map.empty
+        |> PersistentVector.fold run Map.empty
         |> stateBuilder.GetState
 
     member x.OnTimeChange onTimeChange =

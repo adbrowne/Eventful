@@ -9,10 +9,24 @@ open FSharpx.Validation
 
 type ValidationFailure = string option * string
 
-type CommandFailure = 
-| CommandException of string option * Exception
-| CommandError of string
-| CommandFieldError of string * string
+type CommandFailure =
+    | CommandException of string option * Exception
+    | CommandError of string
+    | CommandFieldError of string * string
+    with
+    override x.ToString() =
+        match x with
+        | CommandException (maybeDescription, ex) ->
+            let description =
+                match maybeDescription with
+                | Some desc -> " " + desc
+                | None -> ""
+
+            sprintf "CommandException%s: %O" description ex
+        | CommandError error ->
+            "CommandError " + error
+        | CommandFieldError (field, error) ->
+            sprintf "CommandFieldError in %s: %s" field error
 
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module CommandFailure =

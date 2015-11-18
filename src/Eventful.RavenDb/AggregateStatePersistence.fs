@@ -2,6 +2,7 @@
 
 open System
 open FSharpx
+open FSharpx.Functional
 open FSharpx.Option
 open Raven.Json.Linq
 open Eventful
@@ -173,7 +174,7 @@ module AggregateStatePersistence =
                 |> Seq.toList
                 |> function
                     | [aggregateType] -> aggregateType
-                    | x -> failwith <| sprintf "Got messages for mixed aggreate type. Stream: %s, AggregateTypes: %A" streamId x
+                    | x -> failwith <| sprintf "Got messages for mixed aggregate type. Stream: %s, AggregateTypes: %A" streamId x
 
             match handlers.AggregateTypes |> Map.tryFind aggregateType with
             | Some aggregateConfig -> 
